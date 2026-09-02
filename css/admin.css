@@ -1,6 +1,5 @@
 /* ========================================================
    VIPERCELL V16.2 - ADMIN COMMAND CENTER CSS
-   (OPTIMIZED FOR PERFORMANCE & MOBILE RESPONSIVENESS)
    ======================================================== */
 
 /* ========================================================
@@ -44,7 +43,7 @@
     --success-gradient: linear-gradient(135deg, #10b981, #34d399);
     --warning: #f59e0b;
     --danger: #ef4444;
-} /* BUG FIX: Kurung kurawal yang hilang pada versi lama sudah diperbaiki */
+}
 
 /* ========================================================
    2. RESET & DASAR
@@ -63,9 +62,15 @@ body {
 
 body.no-scroll { overflow: hidden; }
 a { text-decoration: none; color: inherit; }
-button { cursor: pointer; border: none; font-family: inherit; outline: none; background: transparent; }
+
+button {
+    cursor: pointer; border: none; font-family: inherit;
+    outline: none; background: transparent;
+}
+
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
-    outline: 2px solid var(--primary-light); outline-offset: 2px;
+    outline: 2px solid var(--primary-light);
+    outline-offset: 2px;
 }
 
 /* Scrollbar Custom Minimalis */
@@ -74,14 +79,26 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 ::-webkit-scrollbar-thumb { background: rgba(59, 130, 246, 0.4); border-radius: 10px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(59, 130, 246, 0.8); }
 
+/* Utilitas Responsif */
+.hide-desktop { display: none !important; }
+
 /* ========================================================
-   3. KOMPONEN GLOBAL (TOMBOL, BADGE, TOAST)
+   3. KOMPONEN GLOBAL (TOMBOL, BADGE, TOAST, SPINNER)
    ======================================================== */
 .btn {
     padding: 0.7rem 1.2rem; border-radius: 8px; font-weight: 600; font-size: 0.85rem;
-    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s, background-color 0.2s, color 0.2s;
-    display: inline-flex; align-items: center; gap: 6px; justify-content: center; min-height: 44px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    display: inline-flex; align-items: center; gap: 8px; justify-content: center; min-height: 44px;
 }
+
+.btn:disabled {
+    opacity: 0.6; cursor: not-allowed;
+    transform: none !important; box-shadow: none !important;
+}
+
+/* Animasi Putar Loading */
+.fa-spinner { animation: spin 1s linear infinite; }
+@keyframes spin { 100% { transform: rotate(360deg); } }
 
 .btn-primary { background: var(--primary-gradient); color: white; box-shadow: 0 4px 15px rgba(37, 99, 235, 0.2); }
 .btn-primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(37, 99, 235, 0.4); }
@@ -92,11 +109,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .btn-warning { background: rgba(245, 158, 11, 0.15); color: var(--warning); border: 1px solid rgba(245, 158, 11, 0.3); }
 .btn-warning:hover:not(:disabled) { background: var(--warning); color: white; }
 
-.btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
-.btn-outline:hover:not(:disabled) { background: var(--surface-hover); }
-
 .btn-danger { background: rgba(239, 68, 68, 0.1); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.2); }
 .btn-danger:hover:not(:disabled) { background: var(--danger); color: white; }
+
+.btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+.btn-outline:hover:not(:disabled) { background: var(--surface-hover); }
 
 .btn-icon-only {
     padding: 0; width: 40px; height: 40px; border-radius: 50%; font-size: 1.1rem;
@@ -104,25 +121,18 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 }
 .btn-icon-only:hover:not(:disabled) { background: var(--border); }
 
-/* FITUR BARU: Efek saat tombol sedang Loading (Disabled) */
-.btn:disabled {
-    opacity: 0.65;
-    cursor: not-allowed;
-    transform: none !important;
-    box-shadow: none !important;
-}
-
 .notif-dot {
     position: absolute; width: 10px; height: 10px; background-color: var(--danger);
     border-radius: 50%; display: none; box-shadow: 0 0 5px rgba(239, 68, 68, 0.8);
 }
 
-.status-badge { padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 0.7rem; font-weight: 700; display: inline-block;}
+.status-badge { padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 0.7rem; font-weight: 700; display: inline-block; white-space: nowrap;}
 .status-unpaid { background: rgba(148, 163, 184, 0.1); color: var(--text-muted); border: 1px solid rgba(148, 163, 184, 0.3);}
 .status-pending { background: rgba(245, 158, 11, 0.1); color: var(--warning); border: 1px solid rgba(245, 158, 11, 0.2);}
 .status-success { background: rgba(16, 185, 129, 0.1); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.2);}
 .status-failed { background: rgba(239, 68, 68, 0.1); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.2);}
 
+/* TOAST NOTIFIKASI */
 .toast-container {
     position: fixed; top: 15px; left: 50%; transform: translateX(-50%);
     z-index: 999999; display: flex; flex-direction: column; gap: 10px;
@@ -131,7 +141,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .toast-item {
     background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
     padding: 12px 16px; display: flex; align-items: center; gap: 12px;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.15); pointer-events: auto;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.3); pointer-events: auto;
     transform: translateY(-20px); opacity: 0; 
     transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s;
 }
@@ -145,22 +155,25 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .toast-content p { margin:0; font-size: 0.8rem; color: var(--text-muted); line-height: 1.3; }
 
 /* ========================================================
-   4. MODALS & FORMS
+   4. MODALS & FORMS (OPTIMIZED FOR ADMIN)
    ======================================================== */
 .modal-overlay, .msg-overlay {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0, 0, 0, 0.85);
+    background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(5px);
     z-index: 99999; display: flex; justify-content: center; align-items: center;
-    opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.2s ease, visibility 0.2s ease; padding: 1rem;
+    opacity: 0; visibility: hidden; pointer-events: none;
+    transition: opacity 0.3s ease, visibility 0.3s ease; padding: 1rem;
 }
 .modal-overlay.active, .msg-overlay.active { opacity: 1; visibility: visible; pointer-events: all; }
+
 .modal-content {
     background: var(--bg); border: 1px solid var(--border); border-radius: 16px;
     width: 100%; max-width: 450px; max-height: 90dvh; overflow-y: auto; padding: 1.5rem;
-    transform: translateY(20px) scale(0.98); transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    transform: translateY(30px) scale(0.95); transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
 }
 .modal-overlay.active .modal-content { transform: translateY(0) scale(1); }
+
 .modal-content.large { max-width: 800px; }
 .modal-content.wide { max-width: 650px; }
 
@@ -169,32 +182,39 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     border-bottom: 1px solid var(--border); padding-bottom: 0.8rem; position: relative; padding-right: 40px;
 }
 .modal-header h2 { font-size: 1.1rem; font-weight: 700; color: var(--text); }
+
 .close-btn {
     position: absolute; top: 15px; right: 15px; background: var(--surface-hover); border: 1px solid var(--border);
     color: var(--text-muted); border-radius: 50%; width: 34px; height: 34px; display: flex; justify-content: center; align-items: center;
     font-size: 1rem; transition: background-color 0.2s, color 0.2s; z-index: 100; cursor: pointer;
 }
-.close-btn:hover { color: var(--danger); background: rgba(239, 68, 68, 0.1); border-color: var(--danger); }
+.close-btn:hover { color: var(--danger); background: rgba(239, 68, 68, 0.1); border-color: var(--danger); transform: rotate(90deg); }
 
 .form-group { margin-bottom: 1rem; text-align: left; }
 .form-group label { display: block; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.4rem; font-weight: 600; }
 .form-control {
     width: 100%; padding: 0.7rem 1rem; border-radius: 8px; border: 1px solid var(--border);
-    background: var(--surface); color: var(--text); outline: none; transition: border-color 0.2s; font-size: 0.9rem; min-height: 44px;
+    background: var(--surface); color: var(--text); outline: none; transition: border-color 0.2s;
+    font-size: 0.9rem; min-height: 44px; font-family: inherit;
 }
 .form-control:focus { border-color: var(--primary-light); }
 textarea.form-control { resize: vertical; min-height: 80px; }
 
+/* Custom Msg Box (Alert) */
+.msg-box { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 2rem; width: 100%; max-width: 350px; text-align: center; transform: translateY(30px) scale(0.95); transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+.msg-overlay.active .msg-box { transform: translateY(0) scale(1); }
+.msg-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 0.4rem; color: var(--text); }
+.msg-desc { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.5rem; line-height: 1.5;}
+
 /* ========================================================
    5. LAYOUT UTAMA DASHBOARD ADMIN
    ======================================================== */
-.admin-layout {
-    display: flex; height: 100vh; width: 100vw; overflow: hidden; background: var(--bg);
-}
+.admin-layout { display: flex; height: 100vh; width: 100vw; overflow: hidden; background: var(--bg); }
+
 .admin-sidebar {
     width: 260px; background: var(--surface); border-right: 1px solid var(--border);
-    display: flex; flex-direction: column; flex-shrink: 0;
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); z-index: 100;
+    display: flex; flex-direction: column; flex-shrink: 0; z-index: 100;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
 }
 .admin-sidebar-header { padding: 1.5rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
 .admin-logo-box { display: flex; align-items: center; }
@@ -211,12 +231,15 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .admin-sidebar-footer { padding: 1.5rem 1rem; border-top: 1px solid var(--border); }
 
 .admin-main { flex: 1; display: flex; flex-direction: column; overflow-y: auto; position: relative; background: var(--bg); }
+
 .admin-main-header {
-    position: sticky; top: 0; background: rgba(var(--surface-rgb), 0.8);
+    position: sticky; top: 0; background: rgba(var(--surface-rgb, 15, 23, 42), 0.85);
     backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
     padding: 1rem 2rem; border-bottom: 1px solid var(--border);
     display: flex; justify-content: space-between; align-items: center; z-index: 50;
 }
+:root[data-theme="light"] .admin-main-header { background: rgba(255, 255, 255, 0.85); }
+
 .admin-body { padding: 2rem; flex-grow: 1; }
 
 /* ========================================================
@@ -232,6 +255,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
     width: 55px; height: 55px; border-radius: 12px; display: flex;
     align-items: center; justify-content: center; font-size: 1.5rem; flex-shrink: 0;
 }
+
 .settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; }
 
 .table-responsive {
@@ -243,26 +267,17 @@ th, td { padding: 1rem; border-bottom: 1px solid var(--border); vertical-align: 
 th { color: var(--text-muted); font-weight: 600; background: var(--surface-hover); white-space: nowrap; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.5px;}
 
 /* ========================================================
-   7. LIVE CHAT LAYOUT EKSKLUSIF ADMIN & MOBILE BUG FIX
+   7. LIVE CHAT LAYOUT EKSKLUSIF ADMIN
    ======================================================== */
 .admin-chat-layout {
     display: flex; flex-direction: column; height: 75vh; min-height: 500px;
     border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--bg);
 }
 
-.admin-chat-sidebar { width: 100%; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; }
-.admin-chat-main { width: 100%; flex: 1; display: flex; flex-direction: column; }
-
-/* Desktop Override untuk Chat */
 @media (min-width: 769px) {
     .admin-chat-layout { flex-direction: row; }
-    
-    /* Menimpa inline style display:none dari JS jika layar dibesarkan mendadak */
-    .admin-chat-sidebar { width: 300px; border-right: 1px solid var(--border); border-bottom: none; display: flex !important; }
-    .admin-chat-main { flex: 1; display: flex !important; }
-    
-    /* Tombol back chat di desktop disembunyikan paksa */
-    #btn-chat-back { display: none !important; }
+    .admin-chat-sidebar { width: 300px; border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+    .admin-chat-main { flex: 1; display: flex; flex-direction: column; }
 }
 
 .admin-chat-card {
@@ -272,15 +287,17 @@ th { color: var(--text-muted); font-weight: 600; background: var(--surface-hover
 .admin-chat-card:hover { background: var(--surface-hover); }
 .admin-chat-card.active { background: rgba(37,99,235,0.08); border-left: 4px solid var(--primary-light); }
 
-.chat-msg { max-width: 85%; padding: 8px 12px; border-radius: 12px; font-size: 0.85rem; line-height: 1.4; word-wrap: break-word;}
-.chat-msg.admin { background: var(--surface-hover); color: var(--text); align-self: flex-start; border-bottom-left-radius: 2px; border: 1px solid var(--border); }
-.chat-msg.user { background: var(--primary); color: white; align-self: flex-end; border-bottom-right-radius: 2px; }
+.chat-msg { max-width: 85%; padding: 10px 15px; border-radius: 16px; font-size: 0.9rem; line-height: 1.4; word-wrap: break-word;}
+.chat-msg.admin { background: var(--surface-hover); color: var(--text); align-self: flex-start; border-bottom-left-radius: 4px; border: 1px solid var(--border); }
+.chat-msg.user { background: var(--primary); color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
 .chat-time { font-size: 0.65rem; color: var(--text-muted); text-align: right; margin-top: 4px; display: block; opacity:0.8;}
 
 /* ========================================================
    8. RESPONSIVE MOBILE (SMARTPHONE)
    ======================================================== */
 @media (max-width: 768px) {
+    .hide-desktop { display: inline-flex !important; }
+    
     #mobile-admin-toggle { display: inline-flex !important; }
     
     .admin-layout { flex-direction: column; }
@@ -288,7 +305,7 @@ th { color: var(--text-muted); font-weight: 600; background: var(--surface-hover
     /* Mengubah Sidebar menjadi Laci (Drawer) di HP */
     .admin-sidebar {
         position: fixed; top: 0; left: 0; bottom: 0; width: 280px;
-        transform: translateX(-100%); z-index: 10000; box-shadow: 5px 0 25px rgba(0,0,0,0.1);
+        transform: translateX(-100%); z-index: 10000; box-shadow: 5px 0 25px rgba(0,0,0,0.5);
     }
     .admin-sidebar.active { transform: translateX(0); }
     
@@ -299,4 +316,9 @@ th { color: var(--text-muted); font-weight: 600; background: var(--surface-hover
     /* Penyesuaian Modal Mobile */
     .modal-content { padding: 1.2rem; }
     .modal-content.wide { padding: 1rem; max-width: 95vw; }
+    
+    /* Penyesuaian Chat Admin di Mobile agar tidak tertumpuk */
+    .admin-chat-layout { height: calc(100vh - 100px); border: none; flex-direction: column; border-radius: 0; }
+    .admin-chat-sidebar { width: 100%; border-right: none; display: flex; flex-direction: column; height: 100%; }
+    .admin-chat-main { width: 100%; display: none; height: 100%; } /* Disembunyikan, ditampilkan via JS */
 }
