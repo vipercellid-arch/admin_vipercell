@@ -2,7 +2,7 @@ import {
     db, auth,
     signInWithEmailAndPassword, signOut, onAuthStateChanged,
     setPersistence, browserLocalPersistence, GoogleAuthProvider, signInWithPopup,
-    doc, setDoc, getDoc, updateDoc, deleteDoc, onSnapshot, collection, addDoc, query, where, getDocs, arrayUnion, increment 
+    doc, setDoc, getDoc, updateDoc, deleteDoc, onSnapshot, collection, addDoc, query, where, getDocs, arrayUnion 
 } from './firebase.js';
 
 // ==========================================
@@ -27,7 +27,7 @@ let products = [];
 let groupedBrands = []; 
 let orders = [];
 let promos = [];
-let allUsers = []; 
+let vipUsers = []; 
 let saranList = [];
 let allLiveChats = [];
 
@@ -44,7 +44,7 @@ let currentGroupNominals = [];
 let adminChatUnsubscribe = null;
 let previousChatCount = 0;
 let previousOrdersData = {};
-window.tempProcessStocks = []; 
+window.tempProcessStocks = []; // Untuk modal ACC Manual
 
 // ==========================================
 // UTILITAS & UI MODALS
@@ -183,6 +183,7 @@ window.requestSystemNotificationAdmin = async function() {
         return;
     }
     
+    // Unlock Audio Context on Mobile
     const audio = document.getElementById('notif-sound');
     if(audio) { audio.volume = 0; audio.play().catch(()=>{}); setTimeout(()=>{ audio.volume = 1; }, 500); }
     
@@ -199,19 +200,21 @@ window.requestSystemNotificationAdmin = async function() {
 
 window.fireNativeNotificationAdmin = function(title, msg, type = 'info') {
     window.showToast(title, msg, type);
+    
     const audio = document.getElementById('notif-sound');
     if (audio) audio.play().catch(()=>{});
+    
     if ('Notification' in window && Notification.permission === 'granted') {
         try { new Notification(title, { body: msg, icon: '/favicon.ico' }); } catch(e) {}
     }
 };
 
 // ==========================================
-// AUTHENTICATION & LOGIN FLOW
+// AUTHENTICATION & LOGIN FLOW (SANGAT RINGAN)
 // ==========================================
 async function verifyAdminAccess(user) {
     let role = 'user';
-    const allowedEmails = ['vipercell.id@gmail.com', 'viperdev4@gmail.com']; 
+    const allowedEmails = ['vipercell.id@gmail.com', 'viperdev4@gmail.com']; // Founder bypass
     
     if (allowedEmails.includes(user.email)) {
         role = 'superadmin';
@@ -221,7 +224,7 @@ async function verifyAdminAccess(user) {
             role = userDoc.data().role;
         }
     }
-    
+
     if (role === 'admin' || role === 'superadmin') {
         currentAdminUser = user;
         document.getElementById('admin-login-screen').style.display = 'none';
@@ -254,6 +257,7 @@ window.processAdminLogin = async function() {
     
     try {
         await signInWithEmailAndPassword(auth, em, pw);
+        // Ter-handle otomatis di onAuthStateChanged
     } catch(e) {
         window.customAlert('Akses Ditolak', 'Kredensial tidak valid.', 'error');
         resetLoginButtons();
@@ -268,6 +272,7 @@ window.processAdminGoogleLogin = async function() {
     
     try {
         await signInWithPopup(auth, provider);
+        // Ter-handle otomatis di onAuthStateChanged
     } catch(e) {
         window.customAlert('Akses Ditolak', 'Otentikasi Google gagal atau dibatalkan.', 'error');
         resetLoginButtons();
@@ -317,6 +322,7 @@ function listenAdminData() {
     onSnapshot(collection(db, pathProducts), (snapshot) => {
         products = [];
         snapshot.forEach((docSnap) => { products.push({ dbId: docSnap.id, ...docSnap.data() }); });
+        
         groupedBrands = [];
         products.forEach(p => {
             const brandName = p.brand || p.name;
@@ -331,7 +337,9 @@ function listenAdminData() {
         });
         window.renderAdminProducts();
         
+        // Update Filter Dropdowns untuk Stok
         const appBrands = groupedBrands.filter(b => b.type === 'app');
+        
         const filterSel = document.getElementById('view-stock-category');
         if(filterSel) {
             const curFil = filterSel.value;
@@ -340,6 +348,7 @@ function listenAdminData() {
             filterSel.innerHTML = selFilHtml;
             if(appBrands.some(b => b.brandName === curFil)) filterSel.value = curFil;
         }
+
         const addSel = document.getElementById('stock-brand-select');
         if(addSel) {
             const curAdd = addSel.value;
@@ -356,14 +365,14 @@ function listenAdminData() {
         window.renderAdminPromos();
     });
     
-    // Listener Users untuk Manajemen Pengguna & Keuangan
-    onSnapshot(collection(db, pathUsers), (snapshot) => {
-        allUsers = [];
-        snapshot.forEach(docSnap => allUsers.push({uid: docSnap.id, ...docSnap.data()}));
+    // PEMANGKASAN MEMORI: Snapshot hanya ditujukan untuk yang berstatus VIP saja!
+    onSnapshot(query(collection(db, pathUsers), where("tier", "==", "vip")), (snapshot) => {
+        vipUsers = [];
+        snapshot.forEach(docSnap => vipUsers.push({uid: docSnap.id, ...docSnap.data()}));
         window.renderAdminMembers();
     });
 
-    // Listener Kotak Saran
+    // LISTENER KOTAK SARAN
     onSnapshot(collection(db, pathSaran), (snapshot) => {
         saranList = [];
         snapshot.forEach(docSnap => saranList.push({dbId: docSnap.id, ...docSnap.data()}));
@@ -387,7 +396,7 @@ function listenAdminData() {
         orders = newOrders.sort((a,b) => new Date(b.date) - new Date(a.date));
         window.renderAdminOrders();
         window.generateAdminReports();
-        window.renderAdminMembers(); 
+        window.renderAdminMembers(); // Update jumlah transaksi VIP
         
         const hasPending = orders.some(o => o.status === 'PENDING' || o.status === 'UNPAID');
         const adminOrderTabBadge = document.getElementById('admin-tab-order-badge');
@@ -505,7 +514,7 @@ window.renderAdminOrders = function() {
         if (o.memberDiscountApplied) promoDesc += `<br><small style="color:var(--primary-light);">Potongan VIP (-Rp${o.memberDiscountApplied})</small>`;
         if (o.promoCode) promoDesc += `<br><small style="color:var(--success);">Promo: ${o.promoCode} (-Rp${o.promoDiscount})</small>`;
         
-        let paymentMethodStr = o.paymentMethod === 'cash' ? 'Cash/Manual' : o.paymentMethod === 'saldo' ? 'Saldo ViperPay' : 'QRIS';
+        let paymentMethodStr = o.paymentMethod === 'cash' ? 'Cash/Manual' : 'QRIS';
         
         let actionBtn = '';
         if(o.status === 'PENDING' || o.status === 'UNPAID' || o.status === 'EXPIRED' || (o.status === 'SUCCESS' && !o.adminReply)) {
@@ -538,9 +547,8 @@ window.promptProcessOrder = async function(dbId) {
     document.getElementById('proc-order-id').value = dbId;
     
     let defaultReply = '';
-    if(order.items[0].type === 'membership') defaultReply = `Paket VIP MEMBER+ berhasil diaktifkan secara manual. Terima kasih!`;
+    if(order.items[0].type === 'membership') defaultReply = `Paket VIP MEMBER+ berhasil diaktifkan. Terima kasih!`;
     else if(order.items[0].type === 'game') defaultReply = `Pesanan Top Up Game Anda telah berhasil diproses. Silakan cek akun Anda.`;
-    else if(order.items[0].type === 'topup') defaultReply = `Top-Up Saldo Dompet ViperPay sebesar Rp${order.items[0].priceNum.toLocaleString('id-ID')} Berhasil diproses Manual!`;
     document.getElementById('proc-reply').value = defaultReply;
     
     const list = document.getElementById('proc-items-list');
@@ -606,27 +614,13 @@ window.markOrderComplete = async function(statusType) {
     
     try {
         if(statusType === 'SUCCESS') {
-            const orderItem = order.items[0];
-            
-            // JIKA ADMIN ACC TOP UP DOMPET MANUAL, TAMBAH SALDO KE USER
-            if(orderItem.type === 'topup' && order.status !== 'SUCCESS') {
-                const userQ = query(collection(db, pathUsers), where("email", "==", order.userEmail));
-                const userSnap = await getDocs(userQ);
-                if(!userSnap.empty) {
-                    await updateDoc(doc(db, pathUsers, userSnap.docs[0].id), { walletBalance: increment(orderItem.priceNum) });
-                }
-            }
-            
-            // JIKA ADMIN ACC APLIKASI
-            if(orderItem.type === 'app') {
+            if(order.items.some(i => i.type === 'app')) {
                 const stockSel = document.getElementById('proc-stock-select');
                 if(stockSel && stockSel.value) {
                     await updateDoc(doc(db, pathStocks, stockSel.value), { status: 'Used', usedAt: Date.now(), orderId: order.id });
                 }
             }
-            
-            // JIKA ADMIN ACC MEMBERSHIP MANUAL
-            if(orderItem.type === 'membership' && order.status !== 'SUCCESS') {
+            if(order.items[0].type === 'membership') {
                 const userQ = query(collection(db, pathUsers), where("email", "==", order.userEmail));
                 const userSnap = await getDocs(userQ);
                 if(!userSnap.empty) {
@@ -638,22 +632,7 @@ window.markOrderComplete = async function(statusType) {
                     await updateDoc(doc(db, pathUsers, uDoc.id), { tier: 'vip', tierExp: newExp });
                 }
             }
-            
-            // PROSES KOMISI AFILIASI (Jika blm pernah diproses & bukan transaksi topup)
-            if(!order.commissionPaid && orderItem.type !== 'topup' && order.status !== 'SUCCESS') {
-                const userQ = query(collection(db, pathUsers), where("email", "==", order.userEmail));
-                const userSnap = await getDocs(userQ);
-                if(!userSnap.empty) {
-                    const uData = userSnap.docs[0].data();
-                    if(uData.referredBy) {
-                        const commAmt = Math.floor(order.baseTotal * 0.05); // Flat 5% komisi
-                        await updateDoc(doc(db, pathUsers, uData.referredBy), { commission: increment(commAmt) }).catch(()=>{});
-                    }
-                }
-                await updateDoc(doc(db, pathOrders, dbId), { commissionPaid: true });
-            }
         }
-        
         await updateDoc(doc(db, pathOrders, dbId), { status: statusType, adminReply: reply });
         window.closeModal('modal-process-order');
         if(statusType === 'SUCCESS') window.customAlert('Sukses', 'Pesanan berhasil diselesaikan.', 'success');
@@ -675,7 +654,7 @@ window.promptDeleteOrder = function(dbId, invoiceId) {
 };
 
 // ==========================================
-// STOK AKUN PREMIUM
+// STOK AKUN PREMIUM (HEMAT MEMORI 80%)
 // ==========================================
 window.updateAdminStockItemSelect = function() {
     const brandName = document.getElementById('stock-brand-select').value;
@@ -754,6 +733,7 @@ window.addStockMassal = async function() {
         }
         document.getElementById('stock-bulk-input').value = '';
         
+        // Refresh tabel jika kategori yang sedang dilihat sama
         const curView = document.getElementById('view-stock-category').value;
         if(curView === brand) window.renderAdminStocksByCategory();
         
@@ -770,7 +750,7 @@ window.deleteStock = async function(dbId) {
         if(confirmed) {
             await deleteDoc(doc(db, pathStocks, dbId));
             window.customAlert('Dihapus', 'Stok akun dihapus.', 'info');
-            window.renderAdminStocksByCategory(); 
+            window.renderAdminStocksByCategory(); // Refresh
         }
     }, 'delete');
 };
@@ -1159,99 +1139,35 @@ window.deletePromo = function(dbId) {
 };
 
 // ==========================================
-// MEMBER VIP & KEUANGAN PENGGUNA MANAJEMEN
+// MEMBER VIP MANAGEMENT (OPTIMIZED)
 // ==========================================
 window.renderAdminMembers = function() {
     const tbody = document.getElementById('admin-member-list');
     if(!tbody) return;
-    
-    if(allUsers.length === 0) { 
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">Belum ada data pengguna.</td></tr>'; 
-        return; 
-    }
+    if(vipUsers.length === 0) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">Belum ada member VIP aktif.</td></tr>'; return; }
     
     let html = '';
-    // Urutkan supaya VIP yang terbaru di atas atau yang memiliki saldo di atas
-    let sortedUsers = [...allUsers].sort((a,b) => (b.walletBalance || 0) - (a.walletBalance || 0));
-    
-    sortedUsers.forEach(u => {
-        const isVip = u.tier === 'vip';
+    vipUsers.forEach(u => {
         const exp = u.tierExp || 0;
-        const isExpired = isVip && (Date.now() > exp);
+        const isExpired = Date.now() > exp;
+        const color = isExpired ? '#94a3b8' : '#f59e0b';
+        const badge = `<span style="background:rgba(0,0,0,0.2); border:1px solid ${color}; color:${color}; padding: 3px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: bold; text-transform:uppercase;">${isExpired ? 'EXPIRED' : 'VIP ACTIVE'}</span>`;
         
-        let statusBadge = '';
-        if (isVip && !isExpired) {
-            statusBadge = `<span style="background:rgba(245, 158, 11, 0.2); border:1px solid #f59e0b; color:#f59e0b; padding: 3px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: bold;">VIP AKTIF</span><br><small style="color:var(--text-muted)">s.d ${new Date(exp).toLocaleDateString('id-ID')}</small>`;
-        } else if (isVip && isExpired) {
-            statusBadge = `<span style="background:rgba(0,0,0,0.2); border:1px solid #94a3b8; color:#94a3b8; padding: 3px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: bold;">VIP EXPIRED</span>`;
-        } else {
-            statusBadge = `<span style="background:rgba(0,0,0,0.2); border:1px solid #94a3b8; color:#94a3b8; padding: 3px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: bold;">BASIC</span>`;
-        }
-        
-        const bal = u.walletBalance || 0;
-        const comm = u.commission || 0;
-        const keuStr = `<span style="color:var(--text)">Saldo: Rp${bal.toLocaleString('id-ID')}</span><br><small style="color:var(--success)">Komisi: Rp${comm.toLocaleString('id-ID')}</small>`;
-        
+        let expStr = isExpired ? '<span style="color:var(--danger)">Berakhir</span>' : new Date(exp).toLocaleDateString('id-ID');
         let trxCount = orders.filter(o => o.userEmail === u.email && o.status === 'SUCCESS').length;
         
-        let actBtn = isVip ? `<button class="btn btn-outline" style="padding:4px 8px; font-size:0.7rem; border-color:var(--danger); color:var(--danger);" onclick="window.adminRemoveUserTier('${u.uid}')"><i class="fa-solid fa-user-minus"></i> Cabut VIP</button>` : `<button class="btn btn-outline" style="padding:4px 8px; font-size:0.7rem; border-color:var(--warning); color:var(--warning);" onclick="window.adminAddVIPByUID('${u.uid}')"><i class="fa-solid fa-crown"></i> Set VIP</button>`;
+        const actBtn = `<button class="btn btn-outline" style="padding:4px 8px; font-size:0.75rem; border-color:var(--danger); color:var(--danger);" onclick="window.adminRemoveUserTier('${u.uid}')"><i class="fa-solid fa-user-minus"></i> Cabut VIP</button>`;
         
         html += `
         <tr>
-            <td><strong>${u.name || 'User'}</strong><br><small style="color:var(--text-muted)">${u.email || '-'}</small></td>
-            <td>${keuStr}</td>
-            <td>${statusBadge}</td>
-            <td>${trxCount} Trx</td>
+            <td><strong>${u.name || 'User'}</strong><br><small style="color:var(--text-muted)">${u.email}</small></td>
+            <td>${badge}</td>
+            <td><small>${expStr}</small></td>
+            <td>${trxCount}</td>
             <td style="white-space:nowrap;">${actBtn}</td>
         </tr>`;
     });
     tbody.innerHTML = html;
-};
-
-// Fungsi Suntik Saldo Manual dari Admin
-window.adminTopupManual = async function() {
-    const emailTarget = prompt("Masukkan email user tujuan Top-Up ViperPay:");
-    if(!emailTarget) return;
-    const nominal = prompt("Masukkan nominal saldo (Tanpa titik, contoh: 50000):");
-    if(!nominal || isNaN(nominal)) return;
-    
-    try {
-        const q = query(collection(db, pathUsers), where("email", "==", emailTarget));
-        const snap = await getDocs(q);
-        if(snap.empty) { window.customAlert('Gagal', 'Email tidak ditemukan di database pengguna.', 'error'); return; }
-        
-        const uDoc = snap.docs[0];
-        await updateDoc(doc(db, pathUsers, uDoc.id), { walletBalance: increment(parseInt(nominal)) });
-        window.customAlert('Sukses', `Saldo Rp${parseInt(nominal).toLocaleString('id-ID')} berhasil ditambahkan ke ${emailTarget}.`, 'success');
-    } catch(e) { window.customAlert('Error', 'Gagal memproses top-up manual.', 'error'); }
-};
-
-// Fungsi Suntik VIP Manual berdasarkan Prompt Email
-window.adminAddVIPManual = async function() {
-    const emailTarget = prompt("Masukkan email user yang ingin di-upgrade ke VIP:");
-    if(!emailTarget) return;
-    
-    try {
-        const q = query(collection(db, pathUsers), where("email", "==", emailTarget));
-        const snap = await getDocs(q);
-        if(snap.empty) { window.customAlert('Gagal', 'Email tidak ditemukan.', 'error'); return; }
-        
-        const uDoc = snap.docs[0];
-        let newExp = Date.now() + (30 * 24 * 60 * 60 * 1000); // Set 1 bulan (30 hari)
-        await updateDoc(doc(db, pathUsers, uDoc.id), { tier: 'vip', tierExp: newExp });
-        window.customAlert('Sukses', `${emailTarget} berhasil diupgrade ke VIP 30 Hari.`, 'success');
-    } catch(e) { window.customAlert('Error', 'Gagal memproses.', 'error'); }
-};
-
-// Fungsi Suntik VIP Manual dari Tabel UID
-window.adminAddVIPByUID = async function(uid) {
-    window.openConfirm('Jadikan VIP', 'Beri akses Member+ VIP (30 Hari) untuk pengguna ini?', async (res) => {
-        if(res) {
-            let newExp = Date.now() + (30 * 24 * 60 * 60 * 1000);
-            await updateDoc(doc(db, pathUsers, uid), { tier: 'vip', tierExp: newExp });
-            window.customAlert('Sukses', 'Status pengguna telah dinaikkan ke VIP.', 'success');
-        }
-    });
 };
 
 window.adminRemoveUserTier = function(uid) {
@@ -1279,6 +1195,50 @@ window.saveMemberSettings = async function() {
         window.customAlert('Error', 'Gagal menyimpan.', 'error');
     } finally {
         btn.innerHTML = ogHtml; btn.disabled = false;
+    }
+};
+
+// FITUR BARU: TAMBAH VIP MANUAL MELALUI ADMIN
+window.openAddVipModal = function() {
+    document.getElementById('add-vip-email').value = '';
+    document.getElementById('add-vip-duration').value = '1';
+    window.openModal('modal-add-vip');
+};
+
+window.addVipManual = async function() {
+    const email = document.getElementById('add-vip-email').value.trim();
+    const months = parseInt(document.getElementById('add-vip-duration').value) || 1;
+    
+    if(!email) { window.customAlert('Peringatan', 'Email pengguna wajib diisi.', 'warning'); return; }
+    
+    const btn = document.getElementById('btn-save-vip');
+    const ogHtml = btn.innerHTML;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Memproses...</span>';
+    btn.disabled = true;
+    
+    try {
+        // Melakukan kueri untuk mencari user ID berdasarkan email
+        const q = query(collection(db, pathUsers), where("email", "==", email));
+        const snap = await getDocs(q);
+        
+        if(snap.empty) {
+            window.customAlert('Tidak Ditemukan', 'Pengguna dengan email tersebut belum mendaftar di sistem.', 'warning');
+        } else {
+            const uDoc = snap.docs[0];
+            const curData = uDoc.data();
+            let newExp = curData.tierExp || Date.now();
+            if(newExp < Date.now()) newExp = Date.now();
+            newExp += (months * 30 * 24 * 60 * 60 * 1000);
+            
+            await updateDoc(doc(db, pathUsers, uDoc.id), { tier: 'vip', tierExp: newExp });
+            window.closeModal('modal-add-vip');
+            window.customAlert('Sukses', `Akses VIP selama ${months} bulan berhasil diberikan ke ${email}.`, 'success');
+        }
+    } catch (e) {
+        window.customAlert('Error', 'Gagal memberikan akses VIP.', 'error');
+    } finally {
+        btn.innerHTML = ogHtml;
+        btn.disabled = false;
     }
 };
 
