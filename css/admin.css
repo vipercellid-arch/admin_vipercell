@@ -1,5 +1,5 @@
 /* ========================================================
-   VIPERCELL V16.2 - ADMIN COMMAND CENTER CSS
+   VIPERCELL V16.2 ENTERPRISE - ADMIN COMMAND CENTER CSS
    ======================================================== */
 
 /* ========================================================
@@ -91,6 +91,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     display: inline-flex; align-items: center; gap: 8px; justify-content: center; min-height: 44px;
 }
 
+/* Efek sentuhan responsif premium */
+.btn:active:not(:disabled) {
+    transform: scale(0.97);
+}
+
 .btn:disabled {
     opacity: 0.6; cursor: not-allowed;
     transform: none !important; box-shadow: none !important;
@@ -138,6 +143,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     z-index: 999999; display: flex; flex-direction: column; gap: 10px;
     pointer-events: none; width: 90%; max-width: 400px;
 }
+
 .toast-item {
     background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
     padding: 12px 16px; display: flex; align-items: center; gap: 12px;
@@ -145,6 +151,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     transform: translateY(-20px); opacity: 0; 
     transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s;
 }
+
 .toast-item.show { transform: translateY(0); opacity: 1; }
 .toast-icon { font-size: 1.5rem; flex-shrink: 0; }
 .toast-success .toast-icon { color: var(--success); }
@@ -164,6 +171,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     opacity: 0; visibility: hidden; pointer-events: none;
     transition: opacity 0.3s ease, visibility 0.3s ease; padding: 1rem;
 }
+
 .modal-overlay.active, .msg-overlay.active { opacity: 1; visibility: visible; pointer-events: all; }
 
 .modal-content {
@@ -172,8 +180,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     transform: translateY(30px) scale(0.95); transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
 }
-.modal-overlay.active .modal-content { transform: translateY(0) scale(1); }
 
+.modal-overlay.active .modal-content { transform: translateY(0) scale(1); }
 .modal-content.large { max-width: 800px; }
 .modal-content.wide { max-width: 650px; }
 
@@ -181,14 +189,17 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.2rem;
     border-bottom: 1px solid var(--border); padding-bottom: 0.8rem; position: relative; padding-right: 40px;
 }
-.modal-header h2 { font-size: 1.1rem; font-weight: 700; color: var(--text); }
 
+.modal-header h2 { font-size: 1.1rem; font-weight: 700; color: var(--text); }
 .close-btn {
     position: absolute; top: 15px; right: 15px; background: var(--surface-hover); border: 1px solid var(--border);
     color: var(--text-muted); border-radius: 50%; width: 34px; height: 34px; display: flex; justify-content: center; align-items: center;
     font-size: 1rem; transition: background-color 0.2s, color 0.2s; z-index: 100; cursor: pointer;
 }
-.close-btn:hover { color: var(--danger); background: rgba(239, 68, 68, 0.1); border-color: var(--danger); transform: rotate(90deg); }
+
+.close-btn:hover {
+    color: var(--danger); background: rgba(239, 68, 68, 0.1); border-color: var(--danger); transform: rotate(90deg);
+}
 
 .form-group { margin-bottom: 1rem; text-align: left; }
 .form-group label { display: block; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.4rem; font-weight: 600; }
@@ -197,11 +208,17 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     background: var(--surface); color: var(--text); outline: none; transition: border-color 0.2s;
     font-size: 0.9rem; min-height: 44px; font-family: inherit;
 }
+
 .form-control:focus { border-color: var(--primary-light); }
 textarea.form-control { resize: vertical; min-height: 80px; }
 
 /* Custom Msg Box (Alert) */
-.msg-box { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 2rem; width: 100%; max-width: 350px; text-align: center; transform: translateY(30px) scale(0.95); transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+.msg-box {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+    padding: 2rem; width: 100%; max-width: 350px; text-align: center;
+    transform: translateY(30px) scale(0.95); transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
 .msg-overlay.active .msg-box { transform: translateY(0) scale(1); }
 .msg-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 0.4rem; color: var(--text); }
 .msg-desc { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.5rem; line-height: 1.5;}
@@ -216,6 +233,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
     display: flex; flex-direction: column; flex-shrink: 0; z-index: 100;
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
 }
+
 .admin-sidebar-header { padding: 1.5rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
 .admin-logo-box { display: flex; align-items: center; }
 
@@ -224,6 +242,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
     display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 12px;
     font-weight: 600; color: var(--text-muted); transition: all 0.2s; text-align: left; border: 1px solid transparent;
 }
+
 .admin-tab i { font-size: 1.1rem; width: 20px; text-align: center; }
 .admin-tab:hover { background: var(--surface-hover); color: var(--text); }
 .admin-tab.active { background: var(--primary); color: white; box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3); }
@@ -231,15 +250,14 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .admin-sidebar-footer { padding: 1.5rem 1rem; border-top: 1px solid var(--border); }
 
 .admin-main { flex: 1; display: flex; flex-direction: column; overflow-y: auto; position: relative; background: var(--bg); }
-
 .admin-main-header {
     position: sticky; top: 0; background: rgba(var(--surface-rgb, 15, 23, 42), 0.85);
     backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
     padding: 1rem 2rem; border-bottom: 1px solid var(--border);
     display: flex; justify-content: space-between; align-items: center; z-index: 50;
 }
-:root[data-theme="light"] .admin-main-header { background: rgba(255, 255, 255, 0.85); }
 
+:root[data-theme="light"] .admin-main-header { background: rgba(255, 255, 255, 0.85); }
 .admin-body { padding: 2rem; flex-grow: 1; }
 
 /* ========================================================
@@ -250,7 +268,11 @@ textarea.form-control { resize: vertical; min-height: 80px; }
     display: flex; align-items: center; gap: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.03);
     transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
-.admin-glass-card:hover { transform: translateY(-3px); border-color: var(--primary-light); box-shadow: 0 8px 25px rgba(37,99,235,0.1); }
+
+.admin-glass-card:hover {
+    transform: translateY(-3px); border-color: var(--primary-light); box-shadow: 0 8px 25px rgba(37,99,235,0.1);
+}
+
 .admin-glass-card .icon-wrap {
     width: 55px; height: 55px; border-radius: 12px; display: flex;
     align-items: center; justify-content: center; font-size: 1.5rem; flex-shrink: 0;
@@ -262,6 +284,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
     display: block; width: 100%; overflow-x: auto; background: var(--surface);
     border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 4px 15px rgba(0,0,0,0.02);
 }
+
 table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem; min-width: 800px; }
 th, td { padding: 1rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
 th { color: var(--text-muted); font-weight: 600; background: var(--surface-hover); white-space: nowrap; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.5px;}
@@ -284,6 +307,7 @@ th { color: var(--text-muted); font-weight: 600; background: var(--surface-hover
     border-bottom: 1px solid var(--border); padding: 1rem; display: flex; justify-content: space-between; align-items: center;
     cursor: pointer; transition: background 0.2s;
 }
+
 .admin-chat-card:hover { background: var(--surface-hover); }
 .admin-chat-card.active { background: rgba(37,99,235,0.08); border-left: 4px solid var(--primary-light); }
 

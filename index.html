@@ -58,7 +58,7 @@
     </div>
 
     <!-- ========================================================
-         DASHBOARD ADMIN V16.2 (Disembunyikan sebelum login)
+         DASHBOARD ADMIN V16.2 ENTERPRISE (Disembunyikan sebelum login)
          ======================================================== -->
     <div id="admin-dashboard" class="admin-layout" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:var(--bg); z-index:9000;">
         
@@ -76,13 +76,14 @@
             
             <div class="admin-nav" aria-label="Navigasi Admin">
                 <button class="admin-tab active" onclick="window.switchAdminTab('tab-ringkasan', this)"><i class="fa-solid fa-chart-pie"></i> <span>Dashboard</span></button>
-                <button class="admin-tab" onclick="window.switchAdminTab('tab-orders', this)"><i class="fa-solid fa-receipt"></i> <span>Pesanan</span> <span id="admin-tab-order-badge" class="notif-dot" style="position:static; display:inline-block; margin-left:4px; vertical-align:middle; width:8px; height:8px;"></span></button>
-                <button class="admin-tab" onclick="window.switchAdminTab('tab-stocks', this)"><i class="fa-solid fa-layer-group"></i> <span>Stok Akun</span></button>
+                <button class="admin-tab" onclick="window.switchAdminTab('tab-orders', this)"><i class="fa-solid fa-receipt"></i> <span>Pesanan Masuk</span> <span id="admin-tab-order-badge" class="notif-dot" style="position:static; display:inline-block; margin-left:4px; vertical-align:middle; width:8px; height:8px;"></span></button>
+                <button class="admin-tab" onclick="window.switchAdminTab('tab-stocks', this)"><i class="fa-solid fa-layer-group"></i> <span>Stok Akun Premium</span></button>
                 <button class="admin-tab" onclick="window.switchAdminTab('tab-products', this)"><i class="fa-solid fa-box-open"></i> <span>Manajemen Produk</span></button>
                 <button class="admin-tab" onclick="window.switchAdminTab('tab-promos', this)"><i class="fa-solid fa-tag"></i> <span>Promo Cerdas</span></button>
-                <button class="admin-tab" onclick="window.switchAdminTab('tab-members', this)"><i class="fa-solid fa-crown"></i> <span>Member+ VIP</span></button>
                 
-                <!-- FITUR BARU: KOTAK SARAN (Menggantikan Admin Staff) -->
+                <!-- FITUR BARU: MANAJEMEN USER DIPERLUAS -->
+                <button class="admin-tab" onclick="window.switchAdminTab('tab-members', this)"><i class="fa-solid fa-users-gear"></i> <span>Pengguna & Keuangan</span></button>
+                
                 <button class="admin-tab" onclick="window.switchAdminTab('tab-saran', this)"><i class="fa-solid fa-envelope-open-text"></i> <span>Kotak Saran</span></button>
                 
                 <button class="admin-tab" onclick="window.switchAdminTab('tab-news', this)"><i class="fa-solid fa-newspaper"></i> <span>Berita Web</span></button>
@@ -115,6 +116,7 @@
             </header>
 
             <div class="admin-body">
+                
                 <!-- Tab: Ringkasan & Laporan -->
                 <div id="tab-ringkasan" class="admin-tab-content" style="display: block;">
                     <div class="settings-grid" style="margin-bottom: 2rem;">
@@ -170,10 +172,9 @@
                     </div>
                 </div>
                 
-                <!-- Tab: Stok Akun Premium (DIPERBARUI PER KATEGORI) -->
+                <!-- Tab: Stok Akun Premium -->
                 <div id="tab-stocks" class="admin-tab-content" style="display: none;">
                     <div class="settings-grid">
-                        <!-- Box Kiri: Input Massal -->
                         <div style="background: var(--surface); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border); flex: 1; min-width: 300px;">
                             <h3 style="margin-bottom: 1.5rem; color:var(--primary-light); font-size: 1.2rem;"><i class="fa-solid fa-folder-plus" style="margin-right:8px;"></i> Kelola Stok Manual</h3>
                             <div class="form-group">
@@ -198,7 +199,6 @@
                             </button>
                         </div>
                         
-                        <!-- Box Kanan: View Stok Berdasarkan Kategori -->
                         <div style="background: var(--surface); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border); flex: 2; min-width: 300px; display: flex; flex-direction: column;">
                             <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom: 1.5rem;">
                                 <h3 style="color:var(--text); font-size: 1.1rem; margin:0;">Filter & Lihat Stok Database</h3>
@@ -250,17 +250,22 @@
                     </div>
                 </div>
                 
-                <!-- Tab: Manajemen Daftar Member+ -->
+                <!-- Tab: Manajemen PENGGUNA & KEUANGAN (DIPERBARUI) -->
                 <div id="tab-members" class="admin-tab-content" style="display: none;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:10px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; flex-wrap:wrap; gap:10px;">
                         <div>
-                            <h3>Manajemen Paket Member+ (VIP)</h3>
-                            <p style="font-size: 0.85rem; color: var(--text-muted);">Atur harga dasar langganan dan pantau member aktif.</p>
+                            <h3 style="color: var(--warning);"><i class="fa-solid fa-users-gear"></i> Manajemen Pengguna & Keuangan</h3>
+                            <p style="font-size: 0.85rem; color: var(--text-muted);">Pantau saldo ViperPay, Afiliasi, dan ubah status VIP pengguna secara manual.</p>
+                        </div>
+                        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                            <button class="btn btn-success" onclick="window.adminTopupManual()"><i class="fa-solid fa-wallet"></i> Top-Up Saldo Manual</button>
+                            <button class="btn btn-warning" style="background: rgba(245, 158, 11, 0.15); border-color:var(--warning);" onclick="window.adminAddVIPManual()"><i class="fa-solid fa-crown"></i> Beri VIP Manual</button>
                         </div>
                     </div>
+                    
                     <div style="display: grid; grid-template-columns: 1fr; gap: 15px; margin-bottom: 2rem; max-width: 600px;">
-                        <div style="background: var(--surface); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--warning);">
-                            <h4 style="color:var(--warning); margin-bottom:15px; font-size:1.1rem;"><i class="fa-solid fa-crown"></i> Paket VIP Member+</h4>
+                        <div style="background: var(--surface); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border);">
+                            <h4 style="margin-bottom:15px; font-size:1.1rem;"><i class="fa-solid fa-gear"></i> Konfigurasi Paket VIP Web</h4>
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                                 <div class="form-group">
                                     <label>Harga Dasar (1 Bulan) (Rp)</label>
@@ -272,21 +277,22 @@
                                 </div>
                             </div>
                             <button id="btn-save-member" class="btn btn-primary" style="width: 100%;" onclick="window.saveMemberSettings()">
-                                <i class="fa-solid fa-floppy-disk"></i> <span>Simpan Pengaturan</span>
+                                <i class="fa-solid fa-floppy-disk"></i> <span>Simpan Pengaturan Harga VIP</span>
                             </button>
                         </div>
                     </div>
+                    
                     <div class="table-responsive">
                         <table>
-                            <thead><tr><th>Nama / Email</th><th>Status Akun</th><th>Kadaluarsa</th><th>Total Trx Sukses</th><th>Aksi</th></tr></thead>
+                            <thead><tr><th>Info Pengguna</th><th>Keuangan (Saldo & Komisi)</th><th>Status & Tipe</th><th>Total Trx</th><th>Aksi</th></tr></thead>
                             <tbody id="admin-member-list">
-                                <tr><td colspan="5" style="text-align:center; color:var(--text-muted);">Memuat data member...</td></tr>
+                                <tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding: 2rem;">Memuat data pengguna...</td></tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
 
-                <!-- TAB BARU: KOTAK SARAN (MENGGANTIKAN ADMIN STAFF) -->
+                <!-- Tab: KOTAK SARAN -->
                 <div id="tab-saran" class="admin-tab-content" style="display: none;">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; flex-wrap:wrap; gap:10px;">
                         <div>
@@ -315,7 +321,7 @@
                     </div>
                 </div>
                 
-                <!-- Tab: Live Chat Admin (DIPERBAIKI UNTUK MOBILE) -->
+                <!-- Tab: Live Chat Admin -->
                 <div id="tab-livechat" class="admin-tab-content" style="display: none; padding: 0; height: calc(100vh - 80px);">
                     <div class="admin-chat-layout" id="admin-chat-layout-desktop">
                         <div class="admin-chat-sidebar" id="admin-chat-sidebar-panel">
@@ -453,7 +459,7 @@
     <!-- ========================================================
          ADMIN MODALS 
          ======================================================== -->
-    
+         
     <!-- MODAL PROSES ORDER -->
     <div class="modal-overlay" id="modal-process-order">
         <div class="modal-content wide">
@@ -579,7 +585,7 @@
                     <div class="form-group" style="margin-bottom: 0;">
                         <label for="manage-prod-type" style="color: var(--text); font-weight:bold;">Kategori Utama</label>
                         <select id="manage-prod-type" class="form-control" style="background: var(--bg); border-color: var(--border);" onchange="window.toggleInputTypeBox()">
-                            <option value="game"> Top Up Game</option><option value="app"> Aplikasi Premium</option>
+                            <option value="game">🎮 Top Up Game</option><option value="app">📱 Aplikasi Premium</option>
                         </select>
                     </div>
                     <div class="form-group" style="margin-bottom: 0;">
