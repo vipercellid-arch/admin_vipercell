@@ -10,7 +10,6 @@ import {
 // ==========================================
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'vipercell-prod';
 const isWorkspace = typeof __app_id !== 'undefined';
-
 const pathProducts = isWorkspace ? `artifacts/${appId}/public/data/products` : 'products';
 const pathOrders = isWorkspace ? `artifacts/${appId}/public/data/orders` : 'orders';
 const pathSettings = isWorkspace ? `artifacts/${appId}/public/data/settings` : 'settings';
@@ -27,24 +26,19 @@ let products = [];
 let groupedBrands = []; 
 let orders = [];
 let promos = [];
-let vipUsers = []; 
 let saranList = [];
 let allLiveChats = [];
-
 let siteSettings = { 
     logoText: 'VIPER', logoAccent: 'CELL', logoImgBase64: '', marquee: '',
-    qrisImageBase64: '', adminWa: '', igLink: '', ttLink: '',
-    newsList: [], banners: [], isStoreOpen: true, waChannelLink: '', botQrisActive: false,
-    membership: { price: 50000, disc: 5 }
+    qrisRawString: '', adminWa: '', igLink: '', ttLink: '',
+    newsList: [], banners: [], isStoreOpen: true, waChannelLink: '', botQrisActive: false
 };
-
 let currentAdminUser = null;
 let isSettingsLoaded = false;
 let currentGroupNominals = [];
 let adminChatUnsubscribe = null;
-let previousChatCount = 0;
 let previousOrdersData = {};
-window.tempProcessStocks = []; // Untuk modal ACC Manual
+window.tempProcessStocks = [];
 
 // ==========================================
 // UTILITAS & UI MODALS
@@ -174,43 +168,7 @@ window.switchAdminTab = function(tabId, btnEl) {
 };
 
 // ==========================================
-// SISTEM NOTIFIKASI NATIVE ADMIN
-// ==========================================
-window.requestSystemNotificationAdmin = async function() {
-    const btn = document.getElementById('btn-admin-notif');
-    if (!('Notification' in window)) {
-        window.customAlert('Tidak Didukung', 'Browser tidak mendukung notifikasi native.', 'warning');
-        return;
-    }
-    
-    // Unlock Audio Context on Mobile
-    const audio = document.getElementById('notif-sound');
-    if(audio) { audio.volume = 0; audio.play().catch(()=>{}); setTimeout(()=>{ audio.volume = 1; }, 500); }
-    
-    try {
-        const permission = await Notification.requestPermission();
-        if (permission === 'granted') {
-            window.customAlert('Berhasil', 'Sistem notifikasi HP aktif. Alarm akan berbunyi saat ada pesanan atau obrolan masuk.', 'success');
-            if(btn) { btn.style.color = 'var(--success)'; btn.style.borderColor = 'var(--success)'; }
-        } else {
-            window.customAlert('Ditolak', 'Izin ditolak. Silakan izinkan melalui pengaturan browser.', 'warning');
-        }
-    } catch(e) {}
-};
-
-window.fireNativeNotificationAdmin = function(title, msg, type = 'info') {
-    window.showToast(title, msg, type);
-    
-    const audio = document.getElementById('notif-sound');
-    if (audio) audio.play().catch(()=>{});
-    
-    if ('Notification' in window && Notification.permission === 'granted') {
-        try { new Notification(title, { body: msg, icon: '/favicon.ico' }); } catch(e) {}
-    }
-};
-
-// ==========================================
-// AUTHENTICATION & LOGIN FLOW (SANGAT RINGAN)
+// AUTHENTICATION & LOGIN FLOW
 // ==========================================
 async function verifyAdminAccess(user) {
     let role = 'user';
@@ -224,13 +182,12 @@ async function verifyAdminAccess(user) {
             role = userDoc.data().role;
         }
     }
-
     if (role === 'admin' || role === 'superadmin') {
         currentAdminUser = user;
         document.getElementById('admin-login-screen').style.display = 'none';
         document.getElementById('admin-dashboard').style.display = 'flex';
         
-        window.customAlert('Akses Diterima', `Selamat datang, ${user.email}. Role: ${role.toUpperCase()}`, 'success');
+        window.showToast('Berhasil Masuk', `Selamat datang kembali, Admin!`, 'success');
         listenAdminData();
     } else {
         await signOut(auth);
@@ -303,13 +260,12 @@ async function initAdminApp() {
 }
 
 // ==========================================
-// DATA LISTENERS
+// DATA LISTENERS (ADMIN)
 // ==========================================
 function listenAdminData() {
     onSnapshot(doc(db, pathSettings, 'mainConfig'), (docSnap) => {
         if (docSnap.exists()) {
             siteSettings = { ...siteSettings, ...docSnap.data() };
-            if(!siteSettings.membership) siteSettings.membership = { price: 50000, disc: 5 };
         } else {
             setDoc(doc(db, pathSettings, 'mainConfig'), siteSettings).catch(()=>{});
         }
@@ -322,7 +278,6 @@ function listenAdminData() {
     onSnapshot(collection(db, pathProducts), (snapshot) => {
         products = [];
         snapshot.forEach((docSnap) => { products.push({ dbId: docSnap.id, ...docSnap.data() }); });
-        
         groupedBrands = [];
         products.forEach(p => {
             const brandName = p.brand || p.name;
@@ -348,7 +303,6 @@ function listenAdminData() {
             filterSel.innerHTML = selFilHtml;
             if(appBrands.some(b => b.brandName === curFil)) filterSel.value = curFil;
         }
-
         const addSel = document.getElementById('stock-brand-select');
         if(addSel) {
             const curAdd = addSel.value;
@@ -365,13 +319,6 @@ function listenAdminData() {
         window.renderAdminPromos();
     });
     
-    // PEMANGKASAN MEMORI: Snapshot hanya ditujukan untuk yang berstatus VIP saja!
-    onSnapshot(query(collection(db, pathUsers), where("tier", "==", "vip")), (snapshot) => {
-        vipUsers = [];
-        snapshot.forEach(docSnap => vipUsers.push({uid: docSnap.id, ...docSnap.data()}));
-        window.renderAdminMembers();
-    });
-
     // LISTENER KOTAK SARAN
     onSnapshot(collection(db, pathSaran), (snapshot) => {
         saranList = [];
@@ -388,7 +335,7 @@ function listenAdminData() {
             
             let oldStatus = previousOrdersData[data.id];
             if (data.status === 'PENDING' && oldStatus !== 'PENDING') {
-                window.fireNativeNotificationAdmin('Pesanan Baru', `Menunggu proses manual untuk Invoice ${data.id}`, 'info');
+                window.showToast('Pesanan Baru', `Menunggu proses manual untuk Invoice ${data.id}`, 'info');
             }
             previousOrdersData[data.id] = data.status;
         });
@@ -396,7 +343,6 @@ function listenAdminData() {
         orders = newOrders.sort((a,b) => new Date(b.date) - new Date(a.date));
         window.renderAdminOrders();
         window.generateAdminReports();
-        window.renderAdminMembers(); // Update jumlah transaksi VIP
         
         const hasPending = orders.some(o => o.status === 'PENDING' || o.status === 'UNPAID');
         const adminOrderTabBadge = document.getElementById('admin-tab-order-badge');
@@ -437,7 +383,7 @@ window.renderSaran = function() {
 
 window.deleteSaran = async function(dbId) {
     await deleteDoc(doc(db, pathSaran, dbId));
-    window.showToast('Sukses', 'Saran telah dibaca dan otomatis dihapus dari pangkalan data.', 'success');
+    window.showToast('Sukses', 'Saran telah dibaca dan otomatis dihapus.', 'success');
 };
 
 // ==========================================
@@ -511,7 +457,6 @@ window.renderAdminOrders = function() {
         let itemsDesc = o.items.map(i => `${i.name} <br><span style="color:var(--text-muted);font-size:0.75rem">${i.playerInfo}</span>`).join('<br>');
         
         let promoDesc = '';
-        if (o.memberDiscountApplied) promoDesc += `<br><small style="color:var(--primary-light);">Potongan VIP (-Rp${o.memberDiscountApplied})</small>`;
         if (o.promoCode) promoDesc += `<br><small style="color:var(--success);">Promo: ${o.promoCode} (-Rp${o.promoDiscount})</small>`;
         
         let paymentMethodStr = o.paymentMethod === 'cash' ? 'Cash/Manual' : 'QRIS';
@@ -528,7 +473,7 @@ window.renderAdminOrders = function() {
         html += `<tr>
             <td><strong>${o.id}</strong></td>
             <td><small style="color:var(--text-muted)">${new Date(o.date).toLocaleDateString()}</small><br>${itemsDesc}${promoDesc}</td>
-            <td>${o.customerWa}</td>
+            <td>${o.userEmail || '-'}</td>
             <td>${paymentMethodStr}</td>
             <td>Rp${o.finalTotal.toLocaleString('id-ID')}</td>
             <td>${sBadge}</td>
@@ -547,8 +492,7 @@ window.promptProcessOrder = async function(dbId) {
     document.getElementById('proc-order-id').value = dbId;
     
     let defaultReply = '';
-    if(order.items[0].type === 'membership') defaultReply = `Paket VIP MEMBER+ berhasil diaktifkan. Terima kasih!`;
-    else if(order.items[0].type === 'game') defaultReply = `Pesanan Top Up Game Anda telah berhasil diproses. Silakan cek akun Anda.`;
+    if(order.items[0].type === 'game') defaultReply = `Pesanan Top Up Game Anda telah berhasil diproses. Silakan cek akun Anda.`;
     document.getElementById('proc-reply').value = defaultReply;
     
     const list = document.getElementById('proc-items-list');
@@ -620,18 +564,6 @@ window.markOrderComplete = async function(statusType) {
                     await updateDoc(doc(db, pathStocks, stockSel.value), { status: 'Used', usedAt: Date.now(), orderId: order.id });
                 }
             }
-            if(order.items[0].type === 'membership') {
-                const userQ = query(collection(db, pathUsers), where("email", "==", order.userEmail));
-                const userSnap = await getDocs(userQ);
-                if(!userSnap.empty) {
-                    const uDoc = userSnap.docs[0]; const curData = uDoc.data();
-                    let months = order.items[0].itemDuration || 1;
-                    let newExp = curData.tierExp || Date.now();
-                    if(newExp < Date.now()) newExp = Date.now();
-                    newExp += (months * 30 * 24 * 60 * 60 * 1000);
-                    await updateDoc(doc(db, pathUsers, uDoc.id), { tier: 'vip', tierExp: newExp });
-                }
-            }
         }
         await updateDoc(doc(db, pathOrders, dbId), { status: statusType, adminReply: reply });
         window.closeModal('modal-process-order');
@@ -654,7 +586,7 @@ window.promptDeleteOrder = function(dbId, invoiceId) {
 };
 
 // ==========================================
-// STOK AKUN PREMIUM (HEMAT MEMORI 80%)
+// STOK AKUN PREMIUM
 // ==========================================
 window.updateAdminStockItemSelect = function() {
     const brandName = document.getElementById('stock-brand-select').value;
@@ -733,7 +665,6 @@ window.addStockMassal = async function() {
         }
         document.getElementById('stock-bulk-input').value = '';
         
-        // Refresh tabel jika kategori yang sedang dilihat sama
         const curView = document.getElementById('view-stock-category').value;
         if(curView === brand) window.renderAdminStocksByCategory();
         
@@ -749,8 +680,8 @@ window.deleteStock = async function(dbId) {
     window.openConfirm('Hapus Stok', 'Hapus stok akun ini secara permanen?', async (confirmed) => {
         if(confirmed) {
             await deleteDoc(doc(db, pathStocks, dbId));
-            window.customAlert('Dihapus', 'Stok akun dihapus.', 'info');
-            window.renderAdminStocksByCategory(); // Refresh
+            window.showToast('Dihapus', 'Stok akun dihapus.', 'info');
+            window.renderAdminStocksByCategory(); 
         }
     }, 'delete');
 };
@@ -1044,7 +975,6 @@ window.renderAdminPromos = function() {
         const typeStr = p.type === 'percent' ? `${p.amount}%` : `Rp${p.amount.toLocaleString('id-ID')}`;
         const targetStr = p.targetBrand === 'all' ? 'Semua Produk' : (p.targetBrand || 'Semua');
         let userTgt = 'Semua';
-        if(p.targetUser === 'reseller') userTgt = 'Member+ VIP';
         if(p.targetUser === 'new') userTgt = 'User Baru';
         
         html += `<tr>
@@ -1133,113 +1063,9 @@ window.deletePromo = function(dbId) {
     window.openConfirm("Hapus", "Hapus Promo ini?", async (confirmed) => {
         if(confirmed) {
             await deleteDoc(doc(db, pathPromos, dbId));
-            window.customAlert('Sukses', 'Promo Dihapus.', 'success');
+            window.showToast('Dihapus', 'Promo Dihapus.', 'info');
         }
     }, 'delete');
-};
-
-// ==========================================
-// MEMBER VIP MANAGEMENT (OPTIMIZED)
-// ==========================================
-window.renderAdminMembers = function() {
-    const tbody = document.getElementById('admin-member-list');
-    if(!tbody) return;
-    if(vipUsers.length === 0) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">Belum ada member VIP aktif.</td></tr>'; return; }
-    
-    let html = '';
-    vipUsers.forEach(u => {
-        const exp = u.tierExp || 0;
-        const isExpired = Date.now() > exp;
-        const color = isExpired ? '#94a3b8' : '#f59e0b';
-        const badge = `<span style="background:rgba(0,0,0,0.2); border:1px solid ${color}; color:${color}; padding: 3px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: bold; text-transform:uppercase;">${isExpired ? 'EXPIRED' : 'VIP ACTIVE'}</span>`;
-        
-        let expStr = isExpired ? '<span style="color:var(--danger)">Berakhir</span>' : new Date(exp).toLocaleDateString('id-ID');
-        let trxCount = orders.filter(o => o.userEmail === u.email && o.status === 'SUCCESS').length;
-        
-        const actBtn = `<button class="btn btn-outline" style="padding:4px 8px; font-size:0.75rem; border-color:var(--danger); color:var(--danger);" onclick="window.adminRemoveUserTier('${u.uid}')"><i class="fa-solid fa-user-minus"></i> Cabut VIP</button>`;
-        
-        html += `
-        <tr>
-            <td><strong>${u.name || 'User'}</strong><br><small style="color:var(--text-muted)">${u.email}</small></td>
-            <td>${badge}</td>
-            <td><small>${expStr}</small></td>
-            <td>${trxCount}</td>
-            <td style="white-space:nowrap;">${actBtn}</td>
-        </tr>`;
-    });
-    tbody.innerHTML = html;
-};
-
-window.adminRemoveUserTier = function(uid) {
-    window.openConfirm('Cabut Status', 'Anda yakin ingin mereset pengguna ini kembali ke BASIC (Bronze)?', async (res) => {
-        if(res) {
-            await updateDoc(doc(db, pathUsers, uid), { tier: 'bronze', tierExp: 0 });
-            window.customAlert('Sukses', 'Status pengguna telah dikembalikan ke Bronze.', 'success');
-        }
-    }, 'delete');
-};
-
-window.saveMemberSettings = async function() {
-    const btn = document.getElementById('btn-save-member');
-    const ogHtml = btn.innerHTML;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Menyimpan...</span>';
-    btn.disabled = true;
-    try {
-        const memSettings = {
-            price: parseInt(document.getElementById('set-member-price').value) || 50000,
-            disc: parseFloat(document.getElementById('set-member-disc').value) || 5
-        };
-        await updateDoc(doc(db, pathSettings, 'mainConfig'), { membership: memSettings });
-        window.customAlert('Sukses', 'Pengaturan harga & diskon Member+ VIP berhasil disimpan.', 'success');
-    } catch(e) {
-        window.customAlert('Error', 'Gagal menyimpan.', 'error');
-    } finally {
-        btn.innerHTML = ogHtml; btn.disabled = false;
-    }
-};
-
-// FITUR BARU: TAMBAH VIP MANUAL MELALUI ADMIN
-window.openAddVipModal = function() {
-    document.getElementById('add-vip-email').value = '';
-    document.getElementById('add-vip-duration').value = '1';
-    window.openModal('modal-add-vip');
-};
-
-window.addVipManual = async function() {
-    const email = document.getElementById('add-vip-email').value.trim();
-    const months = parseInt(document.getElementById('add-vip-duration').value) || 1;
-    
-    if(!email) { window.customAlert('Peringatan', 'Email pengguna wajib diisi.', 'warning'); return; }
-    
-    const btn = document.getElementById('btn-save-vip');
-    const ogHtml = btn.innerHTML;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Memproses...</span>';
-    btn.disabled = true;
-    
-    try {
-        // Melakukan kueri untuk mencari user ID berdasarkan email
-        const q = query(collection(db, pathUsers), where("email", "==", email));
-        const snap = await getDocs(q);
-        
-        if(snap.empty) {
-            window.customAlert('Tidak Ditemukan', 'Pengguna dengan email tersebut belum mendaftar di sistem.', 'warning');
-        } else {
-            const uDoc = snap.docs[0];
-            const curData = uDoc.data();
-            let newExp = curData.tierExp || Date.now();
-            if(newExp < Date.now()) newExp = Date.now();
-            newExp += (months * 30 * 24 * 60 * 60 * 1000);
-            
-            await updateDoc(doc(db, pathUsers, uDoc.id), { tier: 'vip', tierExp: newExp });
-            window.closeModal('modal-add-vip');
-            window.customAlert('Sukses', `Akses VIP selama ${months} bulan berhasil diberikan ke ${email}.`, 'success');
-        }
-    } catch (e) {
-        window.customAlert('Error', 'Gagal memberikan akses VIP.', 'error');
-    } finally {
-        btn.innerHTML = ogHtml;
-        btn.disabled = false;
-    }
 };
 
 // ==========================================
@@ -1286,7 +1112,7 @@ window.handleNewsUpload = function(event) {
     if(!file) return;
     window.resizeImageBase64(file, (b64) => {
         document.getElementById('manage-news-image').value = b64;
-        window.customAlert('Berhasil', 'Gambar berhasil dimuat dari perangkat HP Anda.', 'success');
+        window.customAlert('Berhasil', 'Gambar berhasil dimuat dari perangkat Anda.', 'success');
     }, 800, 600);
 };
 
@@ -1322,7 +1148,7 @@ window.deleteNews = async function(index) {
             const newsList = [...siteSettings.newsList];
             newsList.splice(index, 1);
             await updateDoc(doc(db, pathSettings, 'mainConfig'), { newsList: newsList });
-            window.customAlert('Dihapus', 'Berita berhasil dihapus.', 'info');
+            window.showToast('Dihapus', 'Berita berhasil dihapus.', 'info');
         }
     }, 'delete');
 };
@@ -1333,6 +1159,8 @@ window.deleteNews = async function(index) {
 window.saveSettingsManual = async function() {
     if(!isSettingsLoaded) return;
     const botQrisEl = document.getElementById('set-bot-qris');
+    const qrisRawEl = document.getElementById('set-qris-raw');
+    
     const newSettings = {
         ...siteSettings,
         logoText: document.getElementById('set-logo-text').value.trim(),
@@ -1342,7 +1170,7 @@ window.saveSettingsManual = async function() {
         adminWa: document.getElementById('set-wa').value.trim(),
         igLink: document.getElementById('set-ig').value.trim(),
         ttLink: document.getElementById('set-tt').value.trim(),
-        qrisImageBase64: document.getElementById('set-qris-base64').value,
+        qrisRawString: qrisRawEl ? qrisRawEl.value.trim() : '', 
         waChannelLink: document.getElementById('set-wa-channel') ? document.getElementById('set-wa-channel').value.trim() : '',
         isStoreOpen: document.getElementById('set-store-status') ? document.getElementById('set-store-status').checked : true,
         botQrisActive: botQrisEl ? botQrisEl.checked : siteSettings.botQrisActive
@@ -1359,7 +1187,8 @@ window.populateAdminSettings = function() {
     document.getElementById('set-wa').value = siteSettings.adminWa || '';
     document.getElementById('set-ig').value = siteSettings.igLink || '';
     document.getElementById('set-tt').value = siteSettings.ttLink || '';
-    document.getElementById('set-qris-base64').value = siteSettings.qrisImageBase64 || '';
+    
+    if(document.getElementById('set-qris-raw')) document.getElementById('set-qris-raw').value = siteSettings.qrisRawString || '';
     
     if(document.getElementById('set-wa-channel')) document.getElementById('set-wa-channel').value = siteSettings.waChannelLink || '';
     const storeStatusEl = document.getElementById('set-store-status');
@@ -1367,19 +1196,10 @@ window.populateAdminSettings = function() {
     const botQrisEl = document.getElementById('set-bot-qris');
     if(botQrisEl) botQrisEl.checked = siteSettings.botQrisActive || false;
     
-    const memSettings = siteSettings.membership || { price: 50000, disc: 5 };
-    const pEl = document.getElementById('set-member-price'); if(pEl) pEl.value = memSettings.price;
-    const dEl = document.getElementById('set-member-disc'); if(dEl) dEl.value = memSettings.disc;
-    
     if(siteSettings.logoImgBase64) {
         const p = document.getElementById('set-logo-preview');
         p.src = siteSettings.logoImgBase64; p.style.display = 'block';
         document.getElementById('set-logo-file-name').innerText = "Gambar Dimuat";
-    }
-    if(siteSettings.qrisImageBase64) {
-        const p = document.getElementById('set-qris-preview');
-        p.src = siteSettings.qrisImageBase64; p.style.display = 'block';
-        document.getElementById('set-qris-file-name').innerText = "QRIS Dimuat";
     }
     
     const adminLogoEl = document.getElementById('admin-header-logo-img');
@@ -1392,21 +1212,6 @@ window.populateAdminSettings = function() {
         if(defAdminIco) defAdminIco.style.display = 'inline-block';
     }
 };
-
-const qrisUploadEl = document.getElementById('set-qris-upload');
-if(qrisUploadEl) {
-    qrisUploadEl.addEventListener('change', function(e) {
-        if (e.target.files[0]) {
-            document.getElementById('set-qris-file-name').innerText = e.target.files[0].name;
-            window.resizeImageBase64(e.target.files[0], (b64) => {
-                document.getElementById('set-qris-base64').value = b64;
-                const p = document.getElementById('set-qris-preview');
-                p.src = b64; p.style.display = 'block';
-                window.saveSettingsManual();
-            }, 800, 800);
-        }
-    });
-}
 
 const logoUploadEl = document.getElementById('logo-upload');
 if(logoUploadEl) {
@@ -1433,7 +1238,7 @@ if(bannerUploadEl) {
                 await updateDoc(doc(db, pathSettings, 'mainConfig'), { banners: banners });
                 siteSettings.banners = banners;
                 window.renderAdminBanners();
-                window.customAlert('Sukses', 'Banner berhasil ditambahkan.', 'success');
+                window.showToast('Sukses', 'Banner berhasil ditambahkan.', 'success');
                 e.target.value = ''; 
             }, 1200, 600); 
         }
@@ -1465,7 +1270,7 @@ window.deleteBanner = async function(idx) {
             await updateDoc(doc(db, pathSettings, 'mainConfig'), { banners: banners });
             siteSettings.banners = banners;
             window.renderAdminBanners();
-            window.customAlert('Dihapus', 'Banner telah dihapus', 'info');
+            window.showToast('Dihapus', 'Banner telah dihapus', 'info');
         }
     }, 'delete');
 };
@@ -1481,13 +1286,6 @@ function listenAdminLiveChat() {
         allLiveChats.sort((a,b) => b.updatedAt - a.updatedAt);
         window.renderAdminChatList();
         
-        if (allLiveChats.length > 0 && allLiveChats[0].messages.length > 0) {
-            const latestMsg = allLiveChats[0].messages[allLiveChats[0].messages.length-1];
-            if (latestMsg.sender === 'user' && previousChatCount !== 0 && allLiveChats.length >= previousChatCount) {
-                window.fireNativeNotificationAdmin('Pesan Masuk', `Pesan baru dari ${allLiveChats[0].userInfo}`, 'info');
-            }
-        }
-        previousChatCount = allLiveChats.length;
         const badge = document.getElementById('admin-chat-tab-badge');
         if(badge) badge.style.display = allLiveChats.length > 0 ? 'inline-block' : 'none';
         
