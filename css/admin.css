@@ -1,5 +1,6 @@
 /* ========================================================
-   VIPERCELL V16.2 - ADMIN COMMAND CENTER CSS
+   VIPERCELL V17.0 - ADMIN COMMAND CENTER CSS
+   * Updated: Dynamic QRIS Input, Reviews System, Cleaned VIP
    ======================================================== */
 
 /* ========================================================
@@ -48,11 +49,7 @@
 /* ========================================================
    2. RESET & DASAR
    ======================================================== */
-*, *::before, *::after { 
-    margin: 0; 
-    padding: 0; 
-    box-sizing: border-box; 
-}
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
@@ -68,11 +65,8 @@ body.no-scroll { overflow: hidden; }
 a { text-decoration: none; color: inherit; }
 
 button {
-    cursor: pointer; 
-    border: none; 
-    font-family: inherit;
-    outline: none; 
-    background: transparent;
+    cursor: pointer; border: none; font-family: inherit;
+    outline: none; background: transparent;
 }
 
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
@@ -97,14 +91,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     display: inline-flex; align-items: center; gap: 8px; justify-content: center; min-height: 44px;
 }
-
 .btn:disabled {
     opacity: 0.6; cursor: not-allowed;
     transform: none !important; box-shadow: none !important;
 }
 
 /* Animasi Putar Loading */
-.fa-spinner, .fa-circle-notch { animation: spin 1s linear infinite; }
+.fa-spinner { animation: spin 1s linear infinite; }
 @keyframes spin { 100% { transform: rotate(360deg); } }
 
 .btn-primary { background: var(--primary-gradient); color: white; box-shadow: 0 4px 15px rgba(37, 99, 235, 0.2); }
@@ -125,6 +118,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .btn-icon-only {
     padding: 0; width: 40px; height: 40px; border-radius: 50%; font-size: 1.1rem;
     background: var(--surface-hover); color: var(--text); border: 1px solid var(--border);
+    transition: all 0.2s ease;
 }
 .btn-icon-only:hover:not(:disabled) { background: var(--border); }
 
@@ -133,11 +127,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     border-radius: 50%; display: none; box-shadow: 0 0 5px rgba(239, 68, 68, 0.8);
 }
 
-.status-badge { padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 0.7rem; font-weight: 700; display: inline-block; white-space: nowrap; }
-.status-unpaid { background: rgba(148, 163, 184, 0.1); color: var(--text-muted); border: 1px solid rgba(148, 163, 184, 0.3); }
-.status-pending { background: rgba(245, 158, 11, 0.1); color: var(--warning); border: 1px solid rgba(245, 158, 11, 0.2); }
-.status-success { background: rgba(16, 185, 129, 0.1); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.2); }
-.status-failed { background: rgba(239, 68, 68, 0.1); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.2); }
+.status-badge { padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 0.7rem; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;}
+.status-unpaid { background: rgba(148, 163, 184, 0.1); color: var(--text-muted); border: 1px solid rgba(148, 163, 184, 0.3);}
+.status-pending { background: rgba(245, 158, 11, 0.1); color: var(--warning); border: 1px solid rgba(245, 158, 11, 0.2);}
+.status-success { background: rgba(16, 185, 129, 0.1); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.2);}
+.status-failed { background: rgba(239, 68, 68, 0.1); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.2);}
 
 /* TOAST NOTIFIKASI */
 .toast-container {
@@ -145,7 +139,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     z-index: 999999; display: flex; flex-direction: column; gap: 10px;
     pointer-events: none; width: 90%; max-width: 400px;
 }
-
 .toast-item {
     background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
     padding: 12px 16px; display: flex; align-items: center; gap: 12px;
@@ -153,7 +146,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     transform: translateY(-20px); opacity: 0; 
     transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s;
 }
-
 .toast-item.show { transform: translateY(0); opacity: 1; }
 .toast-icon { font-size: 1.5rem; flex-shrink: 0; }
 .toast-success .toast-icon { color: var(--success); }
@@ -164,7 +156,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .toast-content p { margin:0; font-size: 0.8rem; color: var(--text-muted); line-height: 1.3; }
 
 /* ========================================================
-   4. MODALS & FORMS (OPTIMIZED FOR ADMIN)
+   4. MODALS & FORMS
    ======================================================== */
 .modal-overlay, .msg-overlay {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -196,10 +188,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     color: var(--text-muted); border-radius: 50%; width: 34px; height: 34px; display: flex; justify-content: center; align-items: center;
     font-size: 1rem; transition: background-color 0.2s, color 0.2s; z-index: 100; cursor: pointer;
 }
-.close-btn:hover {
-    color: var(--danger); background: rgba(239, 68, 68, 0.1);
-    border-color: var(--danger); transform: rotate(90deg);
-}
+.close-btn:hover { color: var(--danger); background: rgba(239, 68, 68, 0.1); border-color: var(--danger); transform: rotate(90deg); }
 
 .form-group { margin-bottom: 1rem; text-align: left; }
 .form-group label { display: block; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.4rem; font-weight: 600; }
@@ -212,19 +201,16 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 textarea.form-control { resize: vertical; min-height: 80px; }
 
 /* Custom Msg Box (Alert) */
-.msg-box {
-    background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
-    padding: 2rem; width: 100%; max-width: 350px; text-align: center;
-    transform: translateY(30px) scale(0.95); transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
+.msg-box { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 2rem; width: 100%; max-width: 350px; text-align: center; transform: translateY(30px) scale(0.95); transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
 .msg-overlay.active .msg-box { transform: translateY(0) scale(1); }
 .msg-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 0.4rem; color: var(--text); }
-.msg-desc { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.5rem; line-height: 1.5; }
+.msg-desc { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.5rem; line-height: 1.5;}
 
 /* ========================================================
    5. LAYOUT UTAMA DASHBOARD ADMIN
    ======================================================== */
 .admin-layout { display: flex; height: 100vh; width: 100vw; overflow: hidden; background: var(--bg); }
+
 .admin-sidebar {
     width: 260px; background: var(--surface); border-right: 1px solid var(--border);
     display: flex; flex-direction: column; flex-shrink: 0; z-index: 100;
@@ -232,8 +218,8 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 }
 .admin-sidebar-header { padding: 1.5rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
 .admin-logo-box { display: flex; align-items: center; }
-.admin-nav { display: flex; flex-direction: column; gap: 8px; padding: 1.5rem 1rem; flex-grow: 1; overflow-y: auto; }
 
+.admin-nav { display: flex; flex-direction: column; gap: 8px; padding: 1.5rem 1rem; flex-grow: 1; overflow-y: auto; }
 .admin-tab {
     display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 12px;
     font-weight: 600; color: var(--text-muted); transition: all 0.2s; text-align: left; border: 1px solid transparent;
@@ -252,7 +238,6 @@ textarea.form-control { resize: vertical; min-height: 80px; }
     display: flex; justify-content: space-between; align-items: center; z-index: 50;
 }
 :root[data-theme="light"] .admin-main-header { background: rgba(255, 255, 255, 0.85); }
-
 .admin-body { padding: 2rem; flex-grow: 1; }
 
 /* ========================================================
@@ -287,7 +272,6 @@ th { color: var(--text-muted); font-weight: 600; background: var(--surface-hover
     display: flex; flex-direction: column; height: 75vh; min-height: 500px;
     border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--bg);
 }
-
 @media (min-width: 769px) {
     .admin-chat-layout { flex-direction: row; }
     .admin-chat-sidebar { width: 300px; border-right: 1px solid var(--border); display: flex; flex-direction: column; }
@@ -298,7 +282,6 @@ th { color: var(--text-muted); font-weight: 600; background: var(--surface-hover
     border-bottom: 1px solid var(--border); padding: 1rem; display: flex; justify-content: space-between; align-items: center;
     cursor: pointer; transition: background 0.2s;
 }
-
 .admin-chat-card:hover { background: var(--surface-hover); }
 .admin-chat-card.active { background: rgba(37,99,235,0.08); border-left: 4px solid var(--primary-light); }
 
@@ -312,7 +295,9 @@ th { color: var(--text-muted); font-weight: 600; background: var(--surface-hover
    ======================================================== */
 @media (max-width: 768px) {
     .hide-desktop { display: inline-flex !important; }
+    
     #mobile-admin-toggle { display: inline-flex !important; }
+    
     .admin-layout { flex-direction: column; }
     
     /* Mengubah Sidebar menjadi Laci (Drawer) di HP */
@@ -333,5 +318,5 @@ th { color: var(--text-muted); font-weight: 600; background: var(--surface-hover
     /* Penyesuaian Chat Admin di Mobile agar tidak tertumpuk */
     .admin-chat-layout { height: calc(100vh - 100px); border: none; flex-direction: column; border-radius: 0; }
     .admin-chat-sidebar { width: 100%; border-right: none; display: flex; flex-direction: column; height: 100%; }
-    .admin-chat-main { width: 100%; display: none; height: 100%; }
+    .admin-chat-main { width: 100%; display: none; height: 100%; } /* Disembunyikan, ditampilkan via JS */
 }

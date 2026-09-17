@@ -10,6 +10,7 @@ import {
 // ==========================================
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'vipercell-prod';
 const isWorkspace = typeof __app_id !== 'undefined';
+
 const pathProducts = isWorkspace ? `artifacts/${appId}/public/data/products` : 'products';
 const pathOrders = isWorkspace ? `artifacts/${appId}/public/data/orders` : 'orders';
 const pathSettings = isWorkspace ? `artifacts/${appId}/public/data/settings` : 'settings';
@@ -17,7 +18,7 @@ const pathPromos = isWorkspace ? `artifacts/${appId}/public/data/promos` : 'prom
 const pathChats = isWorkspace ? `artifacts/${appId}/public/data/chats` : 'chats';
 const pathStocks = isWorkspace ? `artifacts/${appId}/public/data/stocks` : 'stocks';
 const pathUsers = isWorkspace ? `artifacts/${appId}/public/data/users` : 'users';
-const pathSaran = isWorkspace ? `artifacts/${appId}/public/data/saran` : 'saran';
+const pathReviews = isWorkspace ? `artifacts/${appId}/public/data/reviews` : 'reviews';
 
 // ==========================================
 // STATE & VARIABEL GLOBAL (ADMIN)
@@ -26,19 +27,22 @@ let products = [];
 let groupedBrands = []; 
 let orders = [];
 let promos = [];
-let saranList = [];
+let reviewsList = [];
 let allLiveChats = [];
+
 let siteSettings = { 
     logoText: 'VIPER', logoAccent: 'CELL', logoImgBase64: '', marquee: '',
-    qrisRawString: '', adminWa: '', igLink: '', ttLink: '',
-    newsList: [], banners: [], isStoreOpen: true, waChannelLink: '', botQrisActive: false
+    qrisStringData: '', adminWa: '', igLink: '', ttLink: '',
+    newsList: [], banners: [], isStoreOpen: true, waChannelLink: ''
 };
+
 let currentAdminUser = null;
 let isSettingsLoaded = false;
 let currentGroupNominals = [];
 let adminChatUnsubscribe = null;
+let previousChatCount = 0;
 let previousOrdersData = {};
-window.tempProcessStocks = [];
+window.tempProcessStocks = []; // Untuk modal ACC Manual (Akun Premium)
 
 // ==========================================
 // UTILITAS & UI MODALS
@@ -60,7 +64,7 @@ window.resizeImageBase64 = function(file, callback, maxWidth, maxHeight) {
         img.src = e.target.result;
     };
     reader.readAsDataURL(file);
-};
+}
 
 window.toggleTheme = function() {
     const html = document.documentElement;
@@ -70,17 +74,16 @@ window.toggleTheme = function() {
     localStorage.setItem('vipercell_theme', newTheme);
     const icon = document.getElementById('admin-theme-icon');
     if(icon) icon.className = newTheme === 'dark' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
-};
+}
 
 window.openModal = (id) => {
     const el = document.getElementById(id);
     if(el) { el.classList.add('active'); document.body.classList.add('no-scroll'); }
-};
-
+}
 window.closeModal = (id) => {
     const el = document.getElementById(id);
     if(el) { el.classList.remove('active'); document.body.classList.remove('no-scroll'); }
-};
+}
 
 window.customAlert = (title, message, type = 'info') => {
     const titleEl = document.getElementById('ca-title');
@@ -99,13 +102,13 @@ window.customAlert = (title, message, type = 'info') => {
     }
     if(alertEl) alertEl.classList.add('active');
     document.body.classList.add('no-scroll');
-};
+}
 
 window.closeAlert = () => {
     const alertEl = document.getElementById('custom-alert');
     if(alertEl) alertEl.classList.remove('active');
     document.body.classList.remove('no-scroll');
-};
+}
 
 window.showToast = function(title, msg, type = 'info') {
     const container = document.getElementById('toast-container');
@@ -118,7 +121,7 @@ window.showToast = function(title, msg, type = 'info') {
     
     setTimeout(() => toast.classList.add('show'), 10);
     setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 5000);
-};
+}
 
 let promptCallback = null;
 window.openConfirm = function(title, message, callback, actionType = 'warning') {
@@ -144,12 +147,12 @@ window.openConfirm = function(title, message, callback, actionType = 'warning') 
         }
     }
     window.openModal('modal-confirm');
-};
+}
 
 window.resolveConfirm = function(isConfirmed) {
     window.closeModal('modal-confirm');
     if(promptCallback) promptCallback(isConfirmed);
-};
+}
 
 window.switchAdminTab = function(tabId, btnEl) {
     document.querySelectorAll('.admin-tab').forEach(b => b.classList.remove('active'));
@@ -165,14 +168,47 @@ window.switchAdminTab = function(tabId, btnEl) {
         const sidebar = document.getElementById('admin-sidebar');
         if(sidebar) sidebar.classList.remove('active');
     }
-};
+}
+
+// ==========================================
+// SISTEM NOTIFIKASI NATIVE ADMIN
+// ==========================================
+window.requestSystemNotificationAdmin = async function() {
+    const btn = document.getElementById('btn-admin-notif');
+    if (!('Notification' in window)) {
+        window.customAlert('Tidak Didukung', 'Browser tidak mendukung notifikasi native.', 'warning');
+        return;
+    }
+    
+    const audio = document.getElementById('notif-sound');
+    if(audio) { audio.volume = 0; audio.play().catch(()=>{}); setTimeout(()=>{ audio.volume = 1; }, 500); }
+    try {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+            window.customAlert('Berhasil', 'Sistem notifikasi HP aktif. Alarm akan berbunyi saat ada pesanan atau obrolan masuk.', 'success');
+            if(btn) { btn.style.color = 'var(--success)'; btn.style.borderColor = 'var(--success)'; }
+        } else {
+            window.customAlert('Ditolak', 'Izin ditolak. Silakan izinkan melalui pengaturan browser.', 'warning');
+        }
+    } catch(e) {}
+}
+
+window.fireNativeNotificationAdmin = function(title, msg, type = 'info') {
+    window.showToast(title, msg, type);
+    
+    const audio = document.getElementById('notif-sound');
+    if (audio) audio.play().catch(()=>{});
+    if ('Notification' in window && Notification.permission === 'granted') {
+        try { new Notification(title, { body: msg, icon: '/favicon.ico' }); } catch(e) {}
+    }
+}
 
 // ==========================================
 // AUTHENTICATION & LOGIN FLOW
 // ==========================================
 async function verifyAdminAccess(user) {
     let role = 'user';
-    const allowedEmails = ['vipercell.id@gmail.com', 'viperdev4@gmail.com']; // Founder bypass
+    const allowedEmails = ['vipercell.id@gmail.com', 'viperdev4@gmail.com']; 
     
     if (allowedEmails.includes(user.email)) {
         role = 'superadmin';
@@ -182,12 +218,13 @@ async function verifyAdminAccess(user) {
             role = userDoc.data().role;
         }
     }
+
     if (role === 'admin' || role === 'superadmin') {
         currentAdminUser = user;
         document.getElementById('admin-login-screen').style.display = 'none';
         document.getElementById('admin-dashboard').style.display = 'flex';
         
-        window.showToast('Berhasil Masuk', `Selamat datang kembali, Admin!`, 'success');
+        window.customAlert('Akses Diterima', `Selamat datang, ${user.email}. Role: ${role.toUpperCase()}`, 'success');
         listenAdminData();
     } else {
         await signOut(auth);
@@ -214,12 +251,11 @@ window.processAdminLogin = async function() {
     
     try {
         await signInWithEmailAndPassword(auth, em, pw);
-        // Ter-handle otomatis di onAuthStateChanged
     } catch(e) {
         window.customAlert('Akses Ditolak', 'Kredensial tidak valid.', 'error');
         resetLoginButtons();
     }
-};
+}
 
 window.processAdminGoogleLogin = async function() {
     const provider = new GoogleAuthProvider();
@@ -229,17 +265,16 @@ window.processAdminGoogleLogin = async function() {
     
     try {
         await signInWithPopup(auth, provider);
-        // Ter-handle otomatis di onAuthStateChanged
     } catch(e) {
         window.customAlert('Akses Ditolak', 'Otentikasi Google gagal atau dibatalkan.', 'error');
         resetLoginButtons();
     }
-};
+}
 
 window.logoutAdmin = async function() {
     await signOut(auth);
     window.location.reload();
-};
+}
 
 async function initAdminApp() {
     const savedTheme = localStorage.getItem('vipercell_theme') || 'dark';
@@ -260,7 +295,7 @@ async function initAdminApp() {
 }
 
 // ==========================================
-// DATA LISTENERS (ADMIN)
+// DATA LISTENERS
 // ==========================================
 function listenAdminData() {
     onSnapshot(doc(db, pathSettings, 'mainConfig'), (docSnap) => {
@@ -292,7 +327,7 @@ function listenAdminData() {
         });
         window.renderAdminProducts();
         
-        // Update Filter Dropdowns untuk Stok
+        // Update Filter Dropdowns untuk Stok Lokal
         const appBrands = groupedBrands.filter(b => b.type === 'app');
         
         const filterSel = document.getElementById('view-stock-category');
@@ -319,12 +354,12 @@ function listenAdminData() {
         window.renderAdminPromos();
     });
     
-    // LISTENER KOTAK SARAN
-    onSnapshot(collection(db, pathSaran), (snapshot) => {
-        saranList = [];
-        snapshot.forEach(docSnap => saranList.push({dbId: docSnap.id, ...docSnap.data()}));
-        saranList.sort((a,b) => b.createdAt - a.createdAt);
-        window.renderSaran();
+    // LISTENER ULASAN PEMBELI (MENGGANTIKAN KOTAK SARAN)
+    onSnapshot(collection(db, pathReviews), (snapshot) => {
+        reviewsList = [];
+        snapshot.forEach(docSnap => reviewsList.push({dbId: docSnap.id, ...docSnap.data()}));
+        reviewsList.sort((a,b) => b.timestamp - a.timestamp);
+        window.renderReviews();
     });
 
     onSnapshot(collection(db, pathOrders), (snapshot) => {
@@ -335,7 +370,7 @@ function listenAdminData() {
             
             let oldStatus = previousOrdersData[data.id];
             if (data.status === 'PENDING' && oldStatus !== 'PENDING') {
-                window.showToast('Pesanan Baru', `Menunggu proses manual untuk Invoice ${data.id}`, 'info');
+                window.fireNativeNotificationAdmin('Pesanan Baru', `Menunggu proses manual untuk Invoice ${data.id}`, 'info');
             }
             previousOrdersData[data.id] = data.status;
         });
@@ -353,38 +388,51 @@ function listenAdminData() {
 }
 
 // ==========================================
-// KOTAK SARAN (AUTO DELETE)
+// ULASAN PEMBELI (MENGGANTIKAN KOTAK SARAN)
 // ==========================================
-window.renderSaran = function() {
-    const list = document.getElementById('admin-saran-list');
+window.renderReviews = function() {
+    const list = document.getElementById('admin-reviews-list');
     if(!list) return;
     
-    if(saranList.length === 0) {
-        list.innerHTML = '<div style="text-align:center; padding: 3rem; color:var(--text-muted); background:var(--surface); border:1px solid var(--border); border-radius:12px;"><i class="fa-solid fa-envelope-circle-check" style="font-size:3rem; margin-bottom:10px; opacity:0.5;"></i><br>Tidak ada saran masuk.</div>';
+    if(reviewsList.length === 0) {
+        list.innerHTML = '<div style="text-align:center; padding: 3rem; color:var(--text-muted); background:var(--surface); border:1px solid var(--border); border-radius:12px;"><i class="fa-solid fa-comment-slash" style="font-size:3rem; margin-bottom:10px; opacity:0.5;"></i><br>Tidak ada ulasan dari pembeli.</div>';
         return;
     }
     
     let html = '';
-    saranList.forEach(s => {
+    reviewsList.forEach(r => {
+        let stars = '';
+        for(let i=0; i<5; i++) {
+            stars += `<i class="fa-${i < r.rating ? 'solid' : 'regular'} fa-star" style="color:var(--warning); font-size:0.8rem;"></i>`;
+        }
+
         html += `
-        <div style="background:var(--surface); border:1px dashed var(--primary-light); padding:1.2rem; border-radius:12px; display:flex; justify-content:space-between; align-items:center; gap: 15px; flex-wrap:wrap;">
+        <div style="background:var(--surface); border:1px solid var(--border); padding:1.2rem; border-radius:12px; display:flex; justify-content:space-between; align-items:center; gap: 15px; flex-wrap:wrap;">
             <div style="flex:1;">
-                <strong style="color:var(--text); font-size:1.05rem;">${s.name || 'Anonim'}</strong> <small style="color:var(--text-muted);">(${s.email || '-'})</small>
-                <p style="font-size:0.95rem; color:var(--text); margin-top:5px; background:rgba(0,0,0,0.2); padding:10px; border-radius:8px;">"${s.message}"</p>
-                <small style="color:var(--primary-light); font-size: 0.75rem; display:block; margin-top:5px;"><i class="fa-regular fa-clock"></i> ${new Date(s.createdAt).toLocaleString('id-ID')}</small>
+                <div style="display:flex; align-items:center; gap:10px; margin-bottom:5px;">
+                    <strong style="color:var(--text); font-size:1.05rem;">${r.userName || 'Pelanggan'}</strong>
+                    <small style="color:var(--text-muted);">${r.userEmail || '-'}</small>
+                </div>
+                <div style="margin-bottom:8px;">${stars} <span style="font-size:0.8rem; margin-left:8px; color:var(--primary-light); font-weight:bold;">${r.brandName}</span></div>
+                <p style="font-size:0.95rem; color:var(--text); background:rgba(0,0,0,0.2); padding:10px; border-radius:8px; margin:0;">"${r.text}"</p>
+                <small style="color:var(--text-muted); font-size: 0.75rem; display:block; margin-top:8px;"><i class="fa-regular fa-clock"></i> ${new Date(r.timestamp).toLocaleString('id-ID')}</small>
             </div>
-            <button class="btn btn-outline" style="color:var(--danger); border-color:var(--danger); white-space:nowrap; height: fit-content;" onclick="window.deleteSaran('${s.dbId}')">
-                <i class="fa-solid fa-check-double"></i> Tandai Dibaca (Hapus)
+            <button class="btn btn-outline" style="color:var(--danger); border-color:var(--danger); white-space:nowrap; height: fit-content;" onclick="window.deleteReview('${r.dbId}')">
+                <i class="fa-solid fa-trash"></i> Hapus Ulasan
             </button>
         </div>`;
     });
     list.innerHTML = html;
-};
+}
 
-window.deleteSaran = async function(dbId) {
-    await deleteDoc(doc(db, pathSaran, dbId));
-    window.showToast('Sukses', 'Saran telah dibaca dan otomatis dihapus.', 'success');
-};
+window.deleteReview = async function(dbId) {
+    window.openConfirm('Hapus Ulasan', 'Hapus ulasan ini secara permanen?', async (confirmed) => {
+        if(confirmed) {
+            await deleteDoc(doc(db, pathReviews, dbId));
+            window.showToast('Sukses', 'Ulasan berhasil dihapus.', 'success');
+        }
+    }, 'delete');
+}
 
 // ==========================================
 // RINGKASAN & LAPORAN DASHBOARD
@@ -400,8 +448,9 @@ window.generateAdminReports = function() {
         totalRevenue += o.finalTotal;
         o.items.forEach(item => {
             if (!productCountMap[item.name]) productCountMap[item.name] = { qty: 0, revenue: 0 };
-            productCountMap[item.name].qty += 1;
-            productCountMap[item.name].revenue += item.priceNum;
+            const iQty = item.qty || 1;
+            productCountMap[item.name].qty += iQty;
+            productCountMap[item.name].revenue += (item.priceNum * iQty);
         });
     });
     
@@ -423,14 +472,14 @@ window.generateAdminReports = function() {
             sortedProducts.forEach(prod => {
                 html += `<tr>
                     <td><strong>${prod[0]}</strong></td>
-                    <td><span class="status-badge status-success">${prod[1].qty} Kali</span></td>
+                    <td><span class="status-badge status-success">${prod[1].qty} Terjual</span></td>
                     <td>Rp${prod[1].revenue.toLocaleString('id-ID')}</td>
                 </tr>`;
             });
             topTbody.innerHTML = html;
         }
     }
-};
+}
 
 // ==========================================
 // MANAJEMEN PESANAN (ORDERS)
@@ -443,10 +492,14 @@ window.renderAdminOrders = function() {
     let queryText = ''; if(searchInput) queryText = searchInput.value.trim().toUpperCase();
     
     let filteredOrders = orders;
-    if (queryText !== '') filteredOrders = orders.filter(o => o.id.includes(queryText));
+    if (queryText !== '') {
+        filteredOrders = orders.filter(o => 
+            o.id.includes(queryText) || (o.userEmail && o.userEmail.toUpperCase().includes(queryText))
+        );
+    }
     
     if(filteredOrders.length === 0) { 
-        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-muted); padding: 2rem;">${queryText ? 'Tidak ada invoice yang cocok' : 'Kosong'}</td></tr>`; 
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-muted); padding: 2rem;">${queryText ? 'Tidak ada data yang cocok' : 'Kosong'}</td></tr>`; 
         return; 
     }
     
@@ -454,7 +507,8 @@ window.renderAdminOrders = function() {
     let html = '';
     renderLimit.forEach(o => {
         const sBadge = o.status === 'UNPAID' ? `<span class="status-badge status-unpaid">UNPAID</span>` : o.status === 'PENDING' ? `<span class="status-badge status-pending">PENDING</span>` : o.status === 'FAILED' ? `<span class="status-badge status-failed">FAILED</span>` : o.status === 'EXPIRED' ? `<span class="status-badge status-failed" style="background:rgba(239, 68, 68, 0.2);">EXPIRED</span>` : `<span class="status-badge status-success">SUCCESS</span>`;
-        let itemsDesc = o.items.map(i => `${i.name} <br><span style="color:var(--text-muted);font-size:0.75rem">${i.playerInfo}</span>`).join('<br>');
+        
+        let itemsDesc = o.items.map(i => `<strong>${i.name}</strong> <span style="color:var(--warning);">(x${i.qty || 1})</span> <br><span style="color:var(--text-muted);font-size:0.75rem">${i.playerInfo}</span>`).join('<br>');
         
         let promoDesc = '';
         if (o.promoCode) promoDesc += `<br><small style="color:var(--success);">Promo: ${o.promoCode} (-Rp${o.promoDiscount})</small>`;
@@ -482,7 +536,7 @@ window.renderAdminOrders = function() {
     });
     if (filteredOrders.length > 100) html += `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">Menampilkan 100 pesanan terbaru...</td></tr>`;
     tbody.innerHTML = html;
-};
+}
 
 window.promptProcessOrder = async function(dbId) {
     const order = orders.find(o => o.dbId === dbId);
@@ -491,8 +545,7 @@ window.promptProcessOrder = async function(dbId) {
     document.getElementById('proc-inv').innerText = order.id;
     document.getElementById('proc-order-id').value = dbId;
     
-    let defaultReply = '';
-    if(order.items[0].type === 'game') defaultReply = `Pesanan Top Up Game Anda telah berhasil diproses. Silakan cek akun Anda.`;
+    let defaultReply = `Pesanan Top Up Anda telah berhasil diproses. Silakan cek akun Anda.`;
     document.getElementById('proc-reply').value = defaultReply;
     
     const list = document.getElementById('proc-items-list');
@@ -508,7 +561,7 @@ window.promptProcessOrder = async function(dbId) {
         
         const appItem = order.items.find(i => i.type === 'app');
         const targetBrand = appItem.brandName || appItem.name.split(' - ')[0];
-        const exactItemName = appItem.exactItemName || appItem.name;
+        const exactItemName = appItem.exactItemName || appItem.name.replace(`(x${appItem.qty})`, '').trim();
         
         try {
             const q = query(collection(db, pathStocks), where("brand", "==", targetBrand), where("itemName", "==", exactItemName), where("status", "==", "Ready"));
@@ -544,7 +597,7 @@ window.promptProcessOrder = async function(dbId) {
         stockSec.style.display = 'none';
     }
     window.openModal('modal-process-order');
-};
+}
 
 window.markOrderComplete = async function(statusType) {
     const dbId = document.getElementById('proc-order-id').value;
@@ -574,7 +627,7 @@ window.markOrderComplete = async function(statusType) {
     } finally {
         btn.innerHTML = ogHtml; btn.disabled = false;
     }
-};
+}
 
 window.promptDeleteOrder = function(dbId, invoiceId) {
     window.openConfirm("Hapus Permanen", `Hapus seluruh riwayat Invoice ${invoiceId}?`, async (confirmed) => {
@@ -583,10 +636,10 @@ window.promptDeleteOrder = function(dbId, invoiceId) {
             window.customAlert("Terhapus", `Invoice ${invoiceId} berhasil dihapus.`, "success");
         }
     }, 'delete');
-};
+}
 
 // ==========================================
-// STOK AKUN PREMIUM
+// STOK AKUN PREMIUM LOKAL
 // ==========================================
 window.updateAdminStockItemSelect = function() {
     const brandName = document.getElementById('stock-brand-select').value;
@@ -597,7 +650,7 @@ window.updateAdminStockItemSelect = function() {
     const brand = groupedBrands.find(b => b.brandName === brandName);
     if(brand) { brand.items.forEach(i => { html += `<option value="${i.name}">${i.name}</option>`; }); }
     itemSel.innerHTML = html;
-};
+}
 
 window.renderAdminStocksByCategory = async function() {
     const brand = document.getElementById('view-stock-category').value;
@@ -640,7 +693,7 @@ window.renderAdminStocksByCategory = async function() {
     } catch(e) {
         tb.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--danger);">Gagal mengambil data.</td></tr>';
     }
-};
+}
 
 window.addStockMassal = async function() {
     const brand = document.getElementById('stock-brand-select').value;
@@ -674,20 +727,20 @@ window.addStockMassal = async function() {
     } finally {
         btn.innerHTML = ogHtml; btn.disabled = false;
     }
-};
+}
 
 window.deleteStock = async function(dbId) {
     window.openConfirm('Hapus Stok', 'Hapus stok akun ini secara permanen?', async (confirmed) => {
         if(confirmed) {
             await deleteDoc(doc(db, pathStocks, dbId));
-            window.showToast('Dihapus', 'Stok akun dihapus.', 'info');
+            window.customAlert('Dihapus', 'Stok akun dihapus.', 'info');
             window.renderAdminStocksByCategory(); 
         }
     }, 'delete');
-};
+}
 
 // ==========================================
-// MANAJEMEN PRODUK
+// MANAJEMEN PRODUK (KATALOG)
 // ==========================================
 window.renderAdminProducts = function() {
     const tbody = document.getElementById('admin-prod-list');
@@ -722,13 +775,13 @@ window.renderAdminProducts = function() {
         </div>`;
     });
     tbody.innerHTML = html;
-};
+}
 
 window.toggleInputTypeBox = function() {
     const type = document.getElementById('manage-prod-type').value;
     const inputGroup = document.getElementById('group-tipe-input');
     inputGroup.style.display = type === 'game' ? 'block' : 'none';
-};
+}
 
 window.selectInputType = function(val, el) {
     document.querySelectorAll('.type-card').forEach(c => {
@@ -747,7 +800,7 @@ window.selectInputType = function(val, el) {
     if(val === 'id_only') previewBox.innerText = 'Contoh: 123456789 (9 digit Player ID)';
     else if(val === 'id_zone') previewBox.innerText = 'Player ID: 12345678 -> Zone ID: (1234)';
     else if(val === 'custom') previewBox.innerText = 'Contoh: Server Asia, Nama Karakter Viper';
-};
+}
 
 window.openProductGroupModal = function(brandName = null) {
     currentGroupNominals = [];
@@ -794,7 +847,7 @@ window.openProductGroupModal = function(brandName = null) {
     window.clearTempNominalInput();
     window.renderTempNominals();
     window.openModal('modal-manage-product');
-};
+}
 
 window.clearTempNominalInput = function() {
     document.getElementById('temp-nom-name').value = '';
@@ -803,7 +856,7 @@ window.clearTempNominalInput = function() {
     document.getElementById('temp-nom-index').value = '-1';
     document.getElementById('btn-add-item').innerHTML = '<i class="fa-solid fa-plus"></i> Tambah ke Daftar';
     document.getElementById('btn-cancel-edit-item').style.display = 'none';
-};
+}
 
 window.editTempNominal = function(idx) {
     const item = currentGroupNominals[idx];
@@ -814,7 +867,7 @@ window.editTempNominal = function(idx) {
     document.getElementById('temp-nom-index').value = idx;
     document.getElementById('btn-add-item').innerHTML = '<i class="fa-solid fa-check"></i> Update Item';
     document.getElementById('btn-cancel-edit-item').style.display = 'block';
-};
+}
 
 window.addOrUpdateTempNominal = function() {
     const idx = parseInt(document.getElementById('temp-nom-index').value);
@@ -832,23 +885,23 @@ window.addOrUpdateTempNominal = function() {
     window.clearTempNominalInput();
     document.getElementById('manage-prod-soldout').checked = false; 
     window.renderTempNominals();
-};
+}
 
 window.removeTempNominal = function(index) {
     currentGroupNominals.splice(index, 1);
     window.renderTempNominals();
-};
+}
 
 window.toggleIndividualSoldOut = function(index, isChecked) {
     currentGroupNominals[index].soldOut = isChecked;
     const allSoldOut = currentGroupNominals.length > 0 && currentGroupNominals.every(n => n.soldOut);
     document.getElementById('manage-prod-soldout').checked = allSoldOut;
-};
+}
 
 window.toggleAllSoldOut = function(isChecked) {
     currentGroupNominals.forEach(n => n.soldOut = isChecked);
     window.renderTempNominals();
-};
+}
 
 window.renderTempNominals = function() {
     const container = document.getElementById('manage-prod-nominals-list');
@@ -884,7 +937,7 @@ window.renderTempNominals = function() {
         </div>`;
     });
     container.innerHTML = html;
-};
+}
 
 window.saveProductGroup = async function() {
     const type = document.getElementById('manage-prod-type').value;
@@ -932,7 +985,7 @@ window.saveProductGroup = async function() {
     } finally {
         btn.innerHTML = ogHtml; btn.disabled = false;
     }
-};
+}
 
 window.deleteProductGroup = function(brandName) {
     window.openConfirm("Hapus Grup", `Menghapus seluruh item ${brandName}?`, async (confirmed) => {
@@ -944,7 +997,7 @@ window.deleteProductGroup = function(brandName) {
             }
         }
     }, 'delete');
-};
+}
 
 const manageProdImgEl = document.getElementById('manage-prod-img-file');
 if(manageProdImgEl) {
@@ -991,7 +1044,7 @@ window.renderAdminPromos = function() {
         </tr>`;
     });
     tbody.innerHTML = html;
-};
+}
 
 window.openPromoModal = function(dbId = null) {
     const targetSelect = document.getElementById('manage-promo-target');
@@ -1023,7 +1076,7 @@ window.openPromoModal = function(dbId = null) {
         document.getElementById('manage-promo-active').checked = true;
     }
     window.openModal('modal-manage-promo');
-};
+}
 
 window.savePromo = async function() {
     const dbId = document.getElementById('manage-promo-id').value;
@@ -1057,16 +1110,16 @@ window.savePromo = async function() {
     } finally {
         btn.innerHTML = ogHtml; btn.disabled = false;
     }
-};
+}
 
 window.deletePromo = function(dbId) {
     window.openConfirm("Hapus", "Hapus Promo ini?", async (confirmed) => {
         if(confirmed) {
             await deleteDoc(doc(db, pathPromos, dbId));
-            window.showToast('Dihapus', 'Promo Dihapus.', 'info');
+            window.customAlert('Sukses', 'Promo Dihapus.', 'success');
         }
     }, 'delete');
-};
+}
 
 // ==========================================
 // NEWS / BERITA
@@ -1088,7 +1141,7 @@ window.renderAdminNews = function() {
         </div>`;
     });
     list.innerHTML = html;
-};
+}
 
 window.openNewsModal = function(index = -1) {
     document.getElementById('manage-news-index').value = index;
@@ -1105,16 +1158,16 @@ window.openNewsModal = function(index = -1) {
         document.getElementById('modal-news-title').innerText = "Tambah Berita / Info";
     }
     window.openModal('modal-manage-news');
-};
+}
 
 window.handleNewsUpload = function(event) {
     const file = event.target.files[0];
     if(!file) return;
     window.resizeImageBase64(file, (b64) => {
         document.getElementById('manage-news-image').value = b64;
-        window.customAlert('Berhasil', 'Gambar berhasil dimuat dari perangkat Anda.', 'success');
+        window.customAlert('Berhasil', 'Gambar berhasil dimuat dari perangkat HP Anda.', 'success');
     }, 800, 600);
-};
+}
 
 window.saveNews = async function() {
     const idx = parseInt(document.getElementById('manage-news-index').value);
@@ -1140,7 +1193,7 @@ window.saveNews = async function() {
     } finally {
         btn.innerHTML = ogHtml; btn.disabled = false;
     }
-};
+}
 
 window.deleteNews = async function(index) {
     window.openConfirm('Hapus Info', 'Hapus berita/informasi ini secara permanen?', async (confirmed) => {
@@ -1148,19 +1201,16 @@ window.deleteNews = async function(index) {
             const newsList = [...siteSettings.newsList];
             newsList.splice(index, 1);
             await updateDoc(doc(db, pathSettings, 'mainConfig'), { newsList: newsList });
-            window.showToast('Dihapus', 'Berita berhasil dihapus.', 'info');
+            window.customAlert('Dihapus', 'Berita berhasil dihapus.', 'info');
         }
     }, 'delete');
-};
+}
 
 // ==========================================
 // PENGATURAN WEB (SETTINGS)
 // ==========================================
 window.saveSettingsManual = async function() {
     if(!isSettingsLoaded) return;
-    const botQrisEl = document.getElementById('set-bot-qris');
-    const qrisRawEl = document.getElementById('set-qris-raw');
-    
     const newSettings = {
         ...siteSettings,
         logoText: document.getElementById('set-logo-text').value.trim(),
@@ -1170,13 +1220,12 @@ window.saveSettingsManual = async function() {
         adminWa: document.getElementById('set-wa').value.trim(),
         igLink: document.getElementById('set-ig').value.trim(),
         ttLink: document.getElementById('set-tt').value.trim(),
-        qrisRawString: qrisRawEl ? qrisRawEl.value.trim() : '', 
+        qrisStringData: document.getElementById('set-qris-string').value.trim(), // QRIS Baru
         waChannelLink: document.getElementById('set-wa-channel') ? document.getElementById('set-wa-channel').value.trim() : '',
-        isStoreOpen: document.getElementById('set-store-status') ? document.getElementById('set-store-status').checked : true,
-        botQrisActive: botQrisEl ? botQrisEl.checked : siteSettings.botQrisActive
+        isStoreOpen: document.getElementById('set-store-status') ? document.getElementById('set-store-status').checked : true
     };
     await updateDoc(doc(db, pathSettings, 'mainConfig'), newSettings);
-};
+}
 
 window.populateAdminSettings = function() {
     document.getElementById('set-logo-text').value = siteSettings.logoText || '';
@@ -1188,13 +1237,12 @@ window.populateAdminSettings = function() {
     document.getElementById('set-ig').value = siteSettings.igLink || '';
     document.getElementById('set-tt').value = siteSettings.ttLink || '';
     
-    if(document.getElementById('set-qris-raw')) document.getElementById('set-qris-raw').value = siteSettings.qrisRawString || '';
+    // QRIS Baru
+    document.getElementById('set-qris-string').value = siteSettings.qrisStringData || '';
     
     if(document.getElementById('set-wa-channel')) document.getElementById('set-wa-channel').value = siteSettings.waChannelLink || '';
     const storeStatusEl = document.getElementById('set-store-status');
     if(storeStatusEl) storeStatusEl.checked = siteSettings.isStoreOpen !== false;
-    const botQrisEl = document.getElementById('set-bot-qris');
-    if(botQrisEl) botQrisEl.checked = siteSettings.botQrisActive || false;
     
     if(siteSettings.logoImgBase64) {
         const p = document.getElementById('set-logo-preview');
@@ -1211,7 +1259,7 @@ window.populateAdminSettings = function() {
         if(adminLogoEl) adminLogoEl.style.display = 'none';
         if(defAdminIco) defAdminIco.style.display = 'inline-block';
     }
-};
+}
 
 const logoUploadEl = document.getElementById('logo-upload');
 if(logoUploadEl) {
@@ -1238,7 +1286,7 @@ if(bannerUploadEl) {
                 await updateDoc(doc(db, pathSettings, 'mainConfig'), { banners: banners });
                 siteSettings.banners = banners;
                 window.renderAdminBanners();
-                window.showToast('Sukses', 'Banner berhasil ditambahkan.', 'success');
+                window.customAlert('Sukses', 'Banner berhasil ditambahkan.', 'success');
                 e.target.value = ''; 
             }, 1200, 600); 
         }
@@ -1260,7 +1308,7 @@ window.renderAdminBanners = function() {
         </div>`;
     });
     list.innerHTML = html;
-};
+}
 
 window.deleteBanner = async function(idx) {
     window.openConfirm('Hapus', 'Hapus banner ini?', async (confirmed) => {
@@ -1270,10 +1318,10 @@ window.deleteBanner = async function(idx) {
             await updateDoc(doc(db, pathSettings, 'mainConfig'), { banners: banners });
             siteSettings.banners = banners;
             window.renderAdminBanners();
-            window.showToast('Dihapus', 'Banner telah dihapus', 'info');
+            window.customAlert('Dihapus', 'Banner telah dihapus', 'info');
         }
     }, 'delete');
-};
+}
 
 // ==========================================
 // LIVE CHAT (ADMIN - MOBILE OPTIMIZED)
@@ -1286,6 +1334,13 @@ function listenAdminLiveChat() {
         allLiveChats.sort((a,b) => b.updatedAt - a.updatedAt);
         window.renderAdminChatList();
         
+        if (allLiveChats.length > 0 && allLiveChats[0].messages.length > 0) {
+            const latestMsg = allLiveChats[0].messages[allLiveChats[0].messages.length-1];
+            if (latestMsg.sender === 'user' && previousChatCount !== 0 && allLiveChats.length >= previousChatCount) {
+                window.fireNativeNotificationAdmin('Pesan Masuk', `Pesan baru dari ${allLiveChats[0].userInfo}`, 'info');
+            }
+        }
+        previousChatCount = allLiveChats.length;
         const badge = document.getElementById('admin-chat-tab-badge');
         if(badge) badge.style.display = allLiveChats.length > 0 ? 'inline-block' : 'none';
         
@@ -1327,12 +1382,12 @@ window.renderAdminChatList = function() {
         `;
     });
     list.innerHTML = html;
-};
+}
 
 window.backToChatListMobile = function() {
     document.getElementById('admin-chat-main-panel').style.display = 'none';
     document.getElementById('admin-chat-sidebar-panel').style.display = 'flex';
-};
+}
 
 window.openAdminChatDetailDesk = function(chatId) {
     const chat = allLiveChats.find(c => c.id === chatId);
@@ -1367,12 +1422,12 @@ window.openAdminChatDetailDesk = function(chatId) {
     document.querySelectorAll('.admin-chat-card').forEach(el => el.classList.remove('active'));
     const activeCard = document.getElementById(`chat-card-${chatId}`);
     if(activeCard) activeCard.classList.add('active');
-};
+}
 
 window.insertQuickReplyDesk = function(text) {
     const input = document.getElementById('admin-chat-input-desk');
     if(input) { input.value = input.value + text + " "; input.focus(); }
-};
+}
 
 window.sendAdminChatDesk = async function() {
     const chatId = document.getElementById('admin-active-chat-id-desk').value;
@@ -1386,7 +1441,7 @@ window.sendAdminChatDesk = async function() {
         updatedAt: Date.now(),
         messages: arrayUnion({ sender: 'admin', text: text, timestamp: Date.now() })
     });
-};
+}
 
 window.resolveChatDesktop = async function() {
     const chatId = document.getElementById('admin-active-chat-id-desk').value;
@@ -1410,7 +1465,7 @@ window.resolveChatDesktop = async function() {
     } finally {
         btn.innerHTML = ogHtml; btn.disabled = false;
     }
-};
+}
 
 // Inisialisasi Aplikasi Admin
 if (document.readyState === 'loading') {
