@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Vipercell - Admin Command Center</title>
+    <title>Vipercell - Admin </title>
     <meta name="robots" content="noindex, nofollow"> <!-- Mencegah Google mengindeks halaman admin -->
     
     <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
@@ -29,11 +29,11 @@
     <div id="admin-login-screen" style="display: flex; justify-content: center; align-items: center; min-height: 100vh; background: var(--bg); padding: 1rem;">
         <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 3rem 2rem; width: 100%; max-width: 400px; box-shadow: 0 15px 35px rgba(0,0,0,0.3); text-align: center; backdrop-filter: blur(10px);">
             <i class="fa-solid fa-shield-halved" style="font-size: 3.5rem; color: var(--primary-light); margin-bottom: 1rem; filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.5));"></i>
-            <h1 style="color: var(--text); font-size: 1.6rem; margin-bottom: 0.5rem; font-weight: 800;">Admin Command Center</h1>
-            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 2rem;">Sistem otentikasi level tinggi.</p>
+            <h1 style="color: var(--text); font-size: 1.6rem; margin-bottom: 0.5rem; font-weight: 800;">vipercell</h1>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 2rem;">selamat datang admin.</p>
             
             <div class="form-group" style="text-align: left;">
-                <label for="admin-email">Email Administrator</label>
+                <label for="admin-email">Email </label>
                 <input type="email" id="admin-email" class="form-control" placeholder="admin@vipercell.com">
             </div>
             <div class="form-group" style="text-align: left;">
@@ -58,7 +58,7 @@
     </div>
 
     <!-- ========================================================
-         DASHBOARD ADMIN V17.0 (Disembunyikan sebelum login)
+         DASHBOARD ADMIN V17.1 (Digiflazz & VPS Integration)
          ======================================================== -->
     <div id="admin-dashboard" class="admin-layout" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:var(--bg); z-index:9000;">
         
@@ -80,14 +80,11 @@
                 <button class="admin-tab" onclick="window.switchAdminTab('tab-stocks', this)"><i class="fa-solid fa-layer-group"></i> <span>Stok Akun (Lokal)</span></button>
                 <button class="admin-tab" onclick="window.switchAdminTab('tab-products', this)"><i class="fa-solid fa-box-open"></i> <span>Katalog & Harga</span></button>
                 <button class="admin-tab" onclick="window.switchAdminTab('tab-promos', this)"><i class="fa-solid fa-tag"></i> <span>Promo & Diskon</span></button>
-                
-                <!-- TAB BARU: MANAJEMEN ULASAN -->
                 <button class="admin-tab" onclick="window.switchAdminTab('tab-reviews', this)"><i class="fa-solid fa-star"></i> <span>Ulasan Pembeli</span></button>
-                
                 <button class="admin-tab" onclick="window.switchAdminTab('tab-news', this)"><i class="fa-solid fa-newspaper"></i> <span>Berita Web</span></button>
                 <button class="admin-tab" onclick="window.switchAdminTab('tab-livechat', this)"><i class="fa-solid fa-headset"></i> <span>Live Chat User</span> <span id="admin-chat-tab-badge" class="notif-dot" style="position:static; display:inline-block; margin-left:4px; vertical-align:middle; width:8px; height:8px;"></span></button>
                 <button class="admin-tab" onclick="window.switchAdminTab('tab-settings', this)"><i class="fa-solid fa-gear"></i> <span>Pengaturan Web</span></button>
-                <button class="admin-tab" onclick="window.switchAdminTab('tab-api', this)" style="color: var(--success);"><i class="fa-solid fa-laptop-code"></i> <span>Sistem / API</span></button>
+                <button class="admin-tab" onclick="window.switchAdminTab('tab-api', this)" style="color: var(--success);"><i class="fa-solid fa-laptop-code"></i> <span>Sistem / API VPS</span></button>
             </div>
             
             <div class="admin-sidebar-footer">
@@ -246,7 +243,7 @@
                     </div>
                 </div>
                 
-                <!-- TAB BARU: MANAJEMEN ULASAN (REVIEWS) -->
+                <!-- Tab: Manajemen Ulasan (Reviews) -->
                 <div id="tab-reviews" class="admin-tab-content" style="display: none;">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; flex-wrap:wrap; gap:10px;">
                         <div>
@@ -351,7 +348,6 @@
                         <div style="background: var(--surface); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border); flex: 1; min-width: 300px;">
                             <h3 style="margin-bottom: 1.5rem; color:var(--primary-light); font-size: 1.1rem;"><i class="fa-solid fa-address-card"></i> Pembayaran & Kontak</h3>
                             
-                            <!-- QRIS DINAMIS - MENGGANTIKAN FILE UPLOAD -->
                             <div class="form-group">
                                 <label for="set-qris-string">String Mentah QRIS (Untuk Sistem Dinamis)</label>
                                 <textarea id="set-qris-string" class="form-control" rows="5" placeholder="00020101021126670016COM.NOBUBANK...6304" onchange="window.saveSettingsManual()" style="background: var(--bg); font-family: monospace; font-size:0.75rem; word-break: break-all;"></textarea>
@@ -376,18 +372,25 @@
                 <div id="tab-api" class="admin-tab-content" style="display: none;">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; flex-wrap:wrap; gap:10px;">
                         <div>
-                            <h3 style="color: var(--success);"><i class="fa-solid fa-laptop-code"></i> Developer Console</h3>
-                            <p style="font-size:0.85rem; color:var(--text-muted); margin-top: 5px;">Panel untuk memantau status VPS Node.js Backend.</p>
+                            <h3 style="color: var(--success);"><i class="fa-solid fa-laptop-code"></i> Developer Console & Server VPS</h3>
+                            <p style="font-size:0.85rem; color:var(--text-muted); margin-top: 5px;">Konfigurasi jalur komunikasi antara Web dan Server Node.js Anda.</p>
                         </div>
                     </div>
                     
                     <div class="settings-grid">
+                        <!-- PENGATURAN ENDPOINT VPS DIGIFLAZZ -->
                         <div style="background: var(--surface); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border); grid-column: 1 / -1;">
-                            <h3 style="margin-bottom: 1.5rem; color:var(--success); font-size: 1.1rem;"><i class="fa-solid fa-server"></i> Status Pemrosesan Backend VPS</h3>
-                            <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1.5rem;">Sistem Fulfillment Otomatis (Digiflazz Game & Akun Aplikasi Premium Lokal) saat ini diproses secara aman melalui Server VPS Node.js secara Real-Time.</p>
+                            <h3 style="margin-bottom: 1.5rem; color:var(--success); font-size: 1.1rem;"><i class="fa-solid fa-server"></i> Konfigurasi Server VPS & Digiflazz</h3>
+                            <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1.5rem;">Sistem Fulfillment Otomatis (Digiflazz Game & Akun Aplikasi Premium Lokal) diproses secara aman melalui Server VPS Node.js. Masukkan URL Endpoint VPS Anda di bawah ini agar Frontend dapat menembak API VPS saat diperlukan.</p>
+                            
+                            <div class="form-group" style="background: rgba(16, 185, 129, 0.1); padding: 15px; border-radius: 8px; border: 1px solid rgba(16, 185, 129, 0.3);">
+                                <label style="color:var(--success); font-weight:bold; margin-bottom: 10px; display: block;"><i class="fa-solid fa-link"></i> Endpoint VPS (Base URL)</label>
+                                <input type="text" id="set-vps-endpoint" class="form-control" placeholder="Contoh: https://api.vipercell.cloud" onchange="window.saveSettingsManual()" style="background: var(--bg); border-color: var(--success); font-family: monospace;">
+                                <small style="color:var(--text); margin-top:8px; display:block;">Web akan mengirimkan payload ke URL ini untuk dieksekusi VPS (misal: webhook/mutasi atau koneksi API ke Digiflazz).</small>
+                            </div>
                             
                             <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px dashed var(--border);">
-                                <label style="font-size: 0.85rem; color: var(--text-muted); display: block; margin-bottom: 5px;">Status Koneksi Sistem Server</label>
+                                <label style="font-size: 0.85rem; color: var(--text-muted); display: block; margin-bottom: 5px;">Status Deteksi Koneksi</label>
                                 <div style="display: inline-flex; align-items: center; gap: 8px; background: var(--bg); padding: 8px 15px; border-radius: 20px; border: 1px solid var(--border);">
                                     <span style="width: 10px; height: 10px; background: var(--success); border-radius: 50%; display: inline-block; box-shadow: 0 0 8px var(--success);"></span>
                                     <span style="font-size: 0.8rem; font-weight: bold; color: var(--text);">SECURE CLOUD API READY</span>
@@ -422,7 +425,7 @@
             </div>
             <div class="form-group">
                 <label>Keterangan / Balasan ke User</label>
-                <textarea id="proc-reply" class="form-control" rows="4" placeholder="Pesanan selesai / Detail Akun..."></textarea>
+                <textarea id="proc-reply" class="form-control" rows="4" placeholder="Pesanan selesai / Detail Akun / Serial Number Digiflazz..."></textarea>
             </div>
             
             <div style="display:flex; gap:10px;">
@@ -549,7 +552,7 @@
                 
                 <div class="form-group" style="margin-top: 15px;">
                     <label style="color: var(--text); font-weight:bold;">Deskripsi Tambahan / Cara Klaim (Opsional)</label>
-                    <textarea id="manage-prod-desc" class="form-control" rows="4" placeholder="Contoh:&#10;1. Masukkan ID Anda&#10;2. Selesaikan Pembayaran&#10;3. Akun dikirim instan via Web" style="line-height: 1.5; font-size: 0.85rem; background: rgba(0,0,0,0.1); border-color:var(--border);"></textarea>
+                    <textarea id="manage-prod-desc" class="form-control" rows="4" placeholder="Contoh:&#10;1. Masukkan ID Anda&#10;2. Selesaikan Pembayaran&#10;3. Otomatis masuk" style="line-height: 1.5; font-size: 0.85rem; background: rgba(0,0,0,0.1); border-color:var(--border);"></textarea>
                     <small style="color:var(--primary-light); margin-top:5px; display:block;"><i class="fa-solid fa-circle-info"></i> Mendukung format line-break otomatis.</small>
                 </div>
             </div>
@@ -561,7 +564,6 @@
                     <label class="type-card" onclick="window.selectInputType('id_zone', this)" style="border: 1px solid var(--border); background: var(--surface); border-radius: 8px; padding: 10px; cursor: pointer; text-align: center;"><input type="radio" name="manage_input_type" value="id_zone" style="display:none;"><i class="fa-solid fa-gamepad" style="color:var(--text-muted); font-size:1.2rem; display:block; margin-bottom:5px;"></i><strong style="font-size:0.8rem; color:var(--text);">ID + ZONE</strong></label>
                     <label class="type-card" onclick="window.selectInputType('custom', this)" style="border: 1px solid var(--border); background: var(--surface); border-radius: 8px; padding: 10px; cursor: pointer; text-align: center;"><input type="radio" name="manage_input_type" value="custom" style="display:none;"><i class="fa-solid fa-list-ul" style="color:var(--text-muted); font-size:1.2rem; display:block; margin-bottom:5px;"></i><strong style="font-size:0.8rem; color:var(--text);">Lainnya / Teks</strong></label>
                 </div>
-                <div id="type-preview-box" class="type-preview" style="background: rgba(37,99,235,0.1); border-left: 3px solid var(--primary-light); margin-top:10px; font-size:0.85rem; padding: 10px;">Contoh Form: Meminta 9 digit Player ID</div>
             </div>
             
             <div class="modern-group-card" style="background: var(--surface-hover); border: 1px solid var(--border); border-radius: 12px; padding: 1.2rem; margin-bottom: 1.2rem;">
@@ -571,7 +573,11 @@
                     <input type="hidden" id="temp-nom-index" value="-1">
                     
                     <div style="display: flex; gap: 10px; margin-bottom: 10px; align-items: flex-end; flex-wrap:wrap;">
-                        <div style="flex: 2; min-width: 150px;"><label for="temp-nom-name" style="font-size: 0.75rem; color: var(--text-muted); margin-bottom:5px; display:block;">Nama Item / SKU</label><input type="text" id="temp-nom-name" class="form-control" style="background: var(--surface);" placeholder="Cth: 86 Diamond"></div>
+                        <!-- PERUBAHAN TEKS: INFO SKU -->
+                        <div style="flex: 2; min-width: 150px;">
+                            <label for="temp-nom-name" style="font-size: 0.75rem; color: var(--text-muted); margin-bottom:5px; display:block;">Nama Item (Isi SKU Digiflazz jika Game)</label>
+                            <input type="text" id="temp-nom-name" class="form-control" style="background: var(--surface);" placeholder="Cth Game: mlbb86 / Cth App: Netflix 1B">
+                        </div>
                         
                         <div style="flex: 1; min-width: 100px;"><label for="temp-nom-price" style="font-size: 0.75rem; color: var(--text-muted); margin-bottom:5px; display:block;">Harga Jual</label><input type="number" id="temp-nom-price" class="form-control" style="background: var(--surface);"></div>
                         

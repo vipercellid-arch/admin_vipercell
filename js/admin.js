@@ -33,7 +33,7 @@ let allLiveChats = [];
 let siteSettings = { 
     logoText: 'VIPER', logoAccent: 'CELL', logoImgBase64: '', marquee: '',
     qrisStringData: '', adminWa: '', igLink: '', ttLink: '',
-    newsList: [], banners: [], isStoreOpen: true, waChannelLink: ''
+    newsList: [], banners: [], isStoreOpen: true, waChannelLink: '', vpsEndpoint: ''
 };
 
 let currentAdminUser = null;
@@ -354,7 +354,7 @@ function listenAdminData() {
         window.renderAdminPromos();
     });
     
-    // LISTENER ULASAN PEMBELI (MENGGANTIKAN KOTAK SARAN)
+    // LISTENER ULASAN PEMBELI
     onSnapshot(collection(db, pathReviews), (snapshot) => {
         reviewsList = [];
         snapshot.forEach(docSnap => reviewsList.push({dbId: docSnap.id, ...docSnap.data()}));
@@ -388,7 +388,7 @@ function listenAdminData() {
 }
 
 // ==========================================
-// ULASAN PEMBELI (MENGGANTIKAN KOTAK SARAN)
+// ULASAN PEMBELI
 // ==========================================
 window.renderReviews = function() {
     const list = document.getElementById('admin-reviews-list');
@@ -1221,6 +1221,7 @@ window.saveSettingsManual = async function() {
         igLink: document.getElementById('set-ig').value.trim(),
         ttLink: document.getElementById('set-tt').value.trim(),
         qrisStringData: document.getElementById('set-qris-string').value.trim(), // QRIS Baru
+        vpsEndpoint: document.getElementById('set-vps-endpoint') ? document.getElementById('set-vps-endpoint').value.trim() : '', // VPS Endpoint
         waChannelLink: document.getElementById('set-wa-channel') ? document.getElementById('set-wa-channel').value.trim() : '',
         isStoreOpen: document.getElementById('set-store-status') ? document.getElementById('set-store-status').checked : true
     };
@@ -1237,8 +1238,9 @@ window.populateAdminSettings = function() {
     document.getElementById('set-ig').value = siteSettings.igLink || '';
     document.getElementById('set-tt').value = siteSettings.ttLink || '';
     
-    // QRIS Baru
+    // QRIS Baru & VPS Endpoint
     document.getElementById('set-qris-string').value = siteSettings.qrisStringData || '';
+    if(document.getElementById('set-vps-endpoint')) document.getElementById('set-vps-endpoint').value = siteSettings.vpsEndpoint || '';
     
     if(document.getElementById('set-wa-channel')) document.getElementById('set-wa-channel').value = siteSettings.waChannelLink || '';
     const storeStatusEl = document.getElementById('set-store-status');
