@@ -42,7 +42,7 @@ let currentGroupNominals = [];
 let adminChatUnsubscribe = null;
 let previousChatCount = 0;
 let previousOrdersData = {};
-window.tempProcessStocks = []; // Untuk modal ACC Manual (Akun Premium)
+window.tempProcessStocks = []; 
 
 // ==========================================
 // UTILITAS & UI MODALS
@@ -137,13 +137,16 @@ window.openConfirm = function(title, message, callback, actionType = 'warning') 
     if (iconContainer && confirmBtn) {
         if (actionType === 'delete') {
             iconContainer.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
-            iconContainer.style.color = 'var(--danger)'; confirmBtn.style.background = 'var(--danger)'; confirmBtn.style.borderColor = 'var(--danger)';
+            iconContainer.classList.remove('text-primary', 'text-success'); iconContainer.classList.add('text-danger');
+            confirmBtn.className = 'btn btn-danger flex-1';
         } else if (actionType === 'success') {
             iconContainer.innerHTML = '<i class="fa-solid fa-circle-check"></i>';
-            iconContainer.style.color = 'var(--success)'; confirmBtn.style.background = 'var(--success)'; confirmBtn.style.borderColor = 'var(--success)';
+            iconContainer.classList.remove('text-primary', 'text-danger'); iconContainer.classList.add('text-success');
+            confirmBtn.className = 'btn btn-success flex-1';
         } else {
             iconContainer.innerHTML = '<i class="fa-solid fa-circle-question"></i>';
-            iconContainer.style.color = 'var(--primary-light)'; confirmBtn.style.background = 'var(--primary)'; confirmBtn.style.borderColor = 'var(--primary)';
+            iconContainer.classList.remove('text-danger', 'text-success'); iconContainer.classList.add('text-primary');
+            confirmBtn.className = 'btn btn-primary flex-1';
         }
     }
     window.openModal('modal-confirm');
@@ -224,7 +227,7 @@ async function verifyAdminAccess(user) {
         document.getElementById('admin-login-screen').style.display = 'none';
         document.getElementById('admin-dashboard').style.display = 'flex';
         
-        window.customAlert('Akses Diterima', `Selamat datang, ${user.email}. Role: ${role.toUpperCase()}`, 'success');
+        window.showToast('Berhasil Masuk', `Selamat datang kembali, Admin.`, 'success');
         listenAdminData();
     } else {
         await signOut(auth);
@@ -236,7 +239,7 @@ async function verifyAdminAccess(user) {
 function resetLoginButtons() {
     const btn = document.getElementById('btn-admin-login');
     const btnG = document.getElementById('btn-admin-google');
-    if(btn) { btn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> <span>Masuk Sistem</span>'; btn.disabled = false; }
+    if(btn) { btn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> <span>Masuk ke Sistem</span>'; btn.disabled = false; }
     if(btnG) { btnG.innerHTML = '<i class="fa-brands fa-google"></i> <span>Masuk dengan Google</span>'; btnG.disabled = false; }
 }
 
@@ -333,7 +336,7 @@ function listenAdminData() {
         const filterSel = document.getElementById('view-stock-category');
         if(filterSel) {
             const curFil = filterSel.value;
-            let selFilHtml = '<option value="">-- Pilih Kategori untuk Melihat --</option>';
+            let selFilHtml = '<option value="">-- Filter Kategori --</option>';
             appBrands.forEach(b => { selFilHtml += `<option value="${b.brandName}">${b.brandName}</option>`; });
             filterSel.innerHTML = selFilHtml;
             if(appBrands.some(b => b.brandName === curFil)) filterSel.value = curFil;
@@ -370,7 +373,7 @@ function listenAdminData() {
             
             let oldStatus = previousOrdersData[data.id];
             if (data.status === 'PENDING' && oldStatus !== 'PENDING') {
-                window.fireNativeNotificationAdmin('Pesanan Baru', `Menunggu proses manual untuk Invoice ${data.id}`, 'info');
+                window.fireNativeNotificationAdmin('Pesanan Baru', `Menunggu ACC untuk Invoice ${data.id}`, 'info');
             }
             previousOrdersData[data.id] = data.status;
         });
@@ -395,7 +398,7 @@ window.renderReviews = function() {
     if(!list) return;
     
     if(reviewsList.length === 0) {
-        list.innerHTML = '<div style="text-align:center; padding: 3rem; color:var(--text-muted); background:var(--surface); border:1px solid var(--border); border-radius:12px;"><i class="fa-solid fa-comment-slash" style="font-size:3rem; margin-bottom:10px; opacity:0.5;"></i><br>Tidak ada ulasan dari pembeli.</div>';
+        list.innerHTML = '<div class="text-center text-muted w-100 dashboard-panel" style="padding: 3rem;"><i class="fa-solid fa-comment-slash" style="font-size:3rem; margin-bottom:10px; opacity:0.5;"></i><br>Tidak ada ulasan dari pembeli.</div>';
         return;
     }
     
@@ -407,18 +410,18 @@ window.renderReviews = function() {
         }
 
         html += `
-        <div style="background:var(--surface); border:1px solid var(--border); padding:1.2rem; border-radius:12px; display:flex; justify-content:space-between; align-items:center; gap: 15px; flex-wrap:wrap;">
+        <div class="dashboard-panel panel-flex flex-row flex-between align-center mb-2" style="padding: 1.2rem;">
             <div style="flex:1;">
                 <div style="display:flex; align-items:center; gap:10px; margin-bottom:5px;">
                     <strong style="color:var(--text); font-size:1.05rem;">${r.userName || 'Pelanggan'}</strong>
                     <small style="color:var(--text-muted);">${r.userEmail || '-'}</small>
                 </div>
                 <div style="margin-bottom:8px;">${stars} <span style="font-size:0.8rem; margin-left:8px; color:var(--primary-light); font-weight:bold;">${r.brandName}</span></div>
-                <p style="font-size:0.95rem; color:var(--text); background:rgba(0,0,0,0.2); padding:10px; border-radius:8px; margin:0;">"${r.text}"</p>
+                <p style="font-size:0.95rem; color:var(--text); background:var(--bg); padding:10px; border-radius:8px; margin:0; border: 1px solid var(--border);">"${r.text}"</p>
                 <small style="color:var(--text-muted); font-size: 0.75rem; display:block; margin-top:8px;"><i class="fa-regular fa-clock"></i> ${new Date(r.timestamp).toLocaleString('id-ID')}</small>
             </div>
             <button class="btn btn-outline" style="color:var(--danger); border-color:var(--danger); white-space:nowrap; height: fit-content;" onclick="window.deleteReview('${r.dbId}')">
-                <i class="fa-solid fa-trash"></i> Hapus Ulasan
+                <i class="fa-solid fa-trash"></i> Hapus
             </button>
         </div>`;
     });
@@ -466,7 +469,7 @@ window.generateAdminReports = function() {
     
     if(topTbody) {
         if (sortedProducts.length === 0) {
-            topTbody.innerHTML = '<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">Belum ada penjualan.</td></tr>';
+            topTbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">Belum ada penjualan.</td></tr>';
         } else {
             let html = '';
             sortedProducts.forEach(prod => {
@@ -499,7 +502,7 @@ window.renderAdminOrders = function() {
     }
     
     if(filteredOrders.length === 0) { 
-        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-muted); padding: 2rem;">${queryText ? 'Tidak ada data yang cocok' : 'Kosong'}</td></tr>`; 
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted" style="padding: 2rem;">${queryText ? 'Tidak ada data yang cocok' : 'Kosong'}</td></tr>`; 
         return; 
     }
     
@@ -508,33 +511,33 @@ window.renderAdminOrders = function() {
     renderLimit.forEach(o => {
         const sBadge = o.status === 'UNPAID' ? `<span class="status-badge status-unpaid">UNPAID</span>` : o.status === 'PENDING' ? `<span class="status-badge status-pending">PENDING</span>` : o.status === 'FAILED' ? `<span class="status-badge status-failed">FAILED</span>` : o.status === 'EXPIRED' ? `<span class="status-badge status-failed" style="background:rgba(239, 68, 68, 0.2);">EXPIRED</span>` : `<span class="status-badge status-success">SUCCESS</span>`;
         
-        let itemsDesc = o.items.map(i => `<strong>${i.name}</strong> <span style="color:var(--warning);">(x${i.qty || 1})</span> <br><span style="color:var(--text-muted);font-size:0.75rem">${i.playerInfo}</span>`).join('<br>');
+        let itemsDesc = o.items.map(i => `<strong>${i.name}</strong> <span style="color:var(--warning);">(x${i.qty || 1})</span> <br><span class="text-muted text-sm">${i.playerInfo}</span>`).join('<br>');
         
         let promoDesc = '';
         if (o.promoCode) promoDesc += `<br><small style="color:var(--success);">Promo: ${o.promoCode} (-Rp${o.promoDiscount})</small>`;
         
-        let paymentMethodStr = o.paymentMethod === 'cash' ? 'Cash/Manual' : 'QRIS';
+        let paymentMethodStr = o.paymentMethod === 'cash' ? 'Cash/Tunai' : 'QRIS';
         
         let actionBtn = '';
         if(o.status === 'PENDING' || o.status === 'UNPAID' || o.status === 'EXPIRED' || (o.status === 'SUCCESS' && !o.adminReply)) {
-            actionBtn = `<button aria-label="Proses Manual" class="btn btn-primary" style="padding:0.4rem 0.8rem; font-size:0.75rem;" onclick="window.promptProcessOrder('${o.dbId}')" title="Proses / ACC Manual"><i class="fa-solid fa-bolt"></i> Manual ACC</button>`;
+            actionBtn = `<button aria-label="Proses Manual" class="btn btn-primary btn-sm" onclick="window.promptProcessOrder('${o.dbId}')" title="Proses / ACC Manual"><i class="fa-solid fa-bolt"></i> Proses</button>`;
         } else {
-            actionBtn = `<span style="font-size:0.75rem;color:var(--text-muted)">Ditinjau/Selesai</span>`;
+            actionBtn = `<span class="text-muted text-sm">Selesai</span>`;
         }
             
-        let deleteBtn = `<button aria-label="Hapus Order" class="btn btn-outline" style="padding:0.4rem; margin-left:4px; color:var(--danger); border-color:transparent;" title="Hapus Permanen" onclick="window.promptDeleteOrder('${o.dbId}', '${o.id}')"><i class="fa-solid fa-trash"></i></button>`;
+        let deleteBtn = `<button aria-label="Hapus Order" class="btn btn-icon-only text-danger border-none" style="width:30px; height:30px;" title="Hapus Permanen" onclick="window.promptDeleteOrder('${o.dbId}', '${o.id}')"><i class="fa-solid fa-trash"></i></button>`;
         
         html += `<tr>
             <td><strong>${o.id}</strong></td>
-            <td><small style="color:var(--text-muted)">${new Date(o.date).toLocaleDateString()}</small><br>${itemsDesc}${promoDesc}</td>
+            <td><small class="text-muted">${new Date(o.date).toLocaleDateString()}</small><br>${itemsDesc}${promoDesc}</td>
             <td>${o.userEmail || '-'}</td>
             <td>${paymentMethodStr}</td>
-            <td>Rp${o.finalTotal.toLocaleString('id-ID')}</td>
+            <td class="text-primary fw-bold">Rp${o.finalTotal.toLocaleString('id-ID')}</td>
             <td>${sBadge}</td>
             <td style="white-space:nowrap;">${actionBtn} ${deleteBtn}</td>
         </tr>`;
     });
-    if (filteredOrders.length > 100) html += `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">Menampilkan 100 pesanan terbaru...</td></tr>`;
+    if (filteredOrders.length > 100) html += `<tr><td colspan="7" class="text-center text-muted">Menampilkan 100 pesanan terbaru...</td></tr>`;
     tbody.innerHTML = html;
 }
 
@@ -549,7 +552,7 @@ window.promptProcessOrder = async function(dbId) {
     document.getElementById('proc-reply').value = defaultReply;
     
     const list = document.getElementById('proc-items-list');
-    list.innerHTML = '<strong>Detail Item:</strong><ul style="margin-left:20px; font-size:0.85rem; color:var(--text);">' + order.items.map(i => `<li>${i.name} (${i.processType || 'auto'})<br><small style="color:var(--text-muted);">${i.playerInfo}</small></li>`).join('') + '</ul>';
+    list.innerHTML = '<strong class="text-dark">Detail Item:</strong><ul style="margin-left:20px; font-size:0.85rem; color:var(--text);">' + order.items.map(i => `<li>${i.name} (${i.processType || 'auto'})<br><small class="text-muted">${i.playerInfo}</small></li>`).join('') + '</ul>';
     
     const hasApp = order.items.some(i => i.type === 'app');
     const stockSec = document.getElementById('proc-stock-section');
@@ -657,11 +660,11 @@ window.renderAdminStocksByCategory = async function() {
     const tb = document.getElementById('admin-stock-list');
     
     if(!brand) {
-        tb.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 3rem; color:var(--text-muted);"><i class="fa-solid fa-filter" style="font-size:2rem; display:block; margin-bottom:10px; opacity:0.5;"></i> Pilih kategori produk di atas untuk merender tabel stok. (Penghematan Memori Aktif)</td></tr>';
+        tb.innerHTML = '<tr><td colspan="6" class="text-center text-muted" style="padding: 3rem;"><i class="fa-solid fa-filter" style="font-size:2rem; display:block; margin-bottom:10px; opacity:0.5;"></i> Pilih kategori produk untuk merender tabel stok. (Penghematan Memori Aktif)</td></tr>';
         return;
     }
     
-    tb.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 2rem;"><i class="fa-solid fa-spinner fa-spin"></i> Mengambil data dari server...</td></tr>';
+    tb.innerHTML = '<tr><td colspan="6" class="text-center" style="padding: 2rem;"><i class="fa-solid fa-spinner fa-spin"></i> Mengambil data dari server...</td></tr>';
     
     try {
         const q = query(collection(db, pathStocks), where("brand", "==", brand));
@@ -670,7 +673,7 @@ window.renderAdminStocksByCategory = async function() {
         snap.forEach(d => localStocks.push({dbId: d.id, ...d.data()}));
         
         if(localStocks.length === 0) {
-            tb.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--text-muted); padding:2rem;">Stok kosong untuk kategori ini.</td></tr>';
+            tb.innerHTML = '<tr><td colspan="6" class="text-center text-muted" style="padding:2rem;">Stok kosong untuk kategori ini.</td></tr>';
             return;
         }
         
@@ -682,16 +685,16 @@ window.renderAdminStocksByCategory = async function() {
             const badge = s.status === 'Ready' ? '<span class="status-badge status-success">Ready</span>' : '<span class="status-badge status-failed">Terjual</span>';
             html += `<tr>
                 <td>${i+1}</td>
-                <td><strong>${s.brand}</strong><br><small style="color:var(--primary-light)">${s.itemName || '-'}</small></td>
-                <td><strong>${em}</strong><br><small style="color:var(--text-muted)">${pw}</small></td>
+                <td><strong>${s.brand}</strong><br><small class="text-primary">${s.itemName || '-'}</small></td>
+                <td><strong>${em}</strong><br><small class="text-muted">${pw}</small></td>
                 <td>${dur}</td>
                 <td>${badge}</td>
-                <td><button aria-label="Hapus Stok" class="btn btn-outline" style="color:var(--danger); padding:4px;" onclick="window.deleteStock('${s.dbId}')"><i class="fa-solid fa-trash"></i></button></td>
+                <td><button aria-label="Hapus Stok" class="btn btn-outline border-none text-danger" style="padding:4px;" onclick="window.deleteStock('${s.dbId}')"><i class="fa-solid fa-trash"></i></button></td>
             </tr>`;
         });
         tb.innerHTML = html;
     } catch(e) {
-        tb.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--danger);">Gagal mengambil data.</td></tr>';
+        tb.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Gagal mengambil data.</td></tr>';
     }
 }
 
@@ -733,7 +736,7 @@ window.deleteStock = async function(dbId) {
     window.openConfirm('Hapus Stok', 'Hapus stok akun ini secara permanen?', async (confirmed) => {
         if(confirmed) {
             await deleteDoc(doc(db, pathStocks, dbId));
-            window.customAlert('Dihapus', 'Stok akun dihapus.', 'info');
+            window.showToast('Dihapus', 'Stok akun dihapus.', 'info');
             window.renderAdminStocksByCategory(); 
         }
     }, 'delete');
@@ -745,11 +748,11 @@ window.deleteStock = async function(dbId) {
 window.renderAdminProducts = function() {
     const tbody = document.getElementById('admin-prod-list');
     if(!tbody) return;
-    if(groupedBrands.length === 0) { tbody.innerHTML = `<div style="text-align:center; padding: 2rem; color:var(--text-muted);">Katalog kosong. Klik Tambah Grup Baru.</div>`; return; }
+    if(groupedBrands.length === 0) { tbody.innerHTML = `<div class="text-center text-muted w-100" style="padding: 2rem;">Katalog kosong. Klik Tambah Grup Baru.</div>`; return; }
     
     let html = '';
     groupedBrands.forEach(b => {
-        const imgHtml = b.imgUrlBase64 ? `<img src="${b.imgUrlBase64}" style="width:40px; height:40px; object-fit:cover; border-radius:8px;" loading="lazy" alt="${b.brandName}">` : `<div style="width:40px; height:40px; background:var(--primary); color:white; display:flex; justify-content:center; align-items:center; border-radius:8px; font-weight:bold;">${b.brandName.charAt(0)}</div>`;
+        const imgHtml = b.imgUrlBase64 ? `<img src="${b.imgUrlBase64}" style="width:45px; height:45px; object-fit:cover; border-radius:10px;" loading="lazy" alt="${b.brandName}">` : `<div style="width:45px; height:45px; background:var(--primary); color:white; display:flex; justify-content:center; align-items:center; border-radius:10px; font-weight:bold;">${b.brandName.charAt(0)}</div>`;
         const itemsCount = b.items.length;
         const isSoldOut = b.items.every(i => i.soldOut);
         
@@ -757,20 +760,18 @@ window.renderAdminProducts = function() {
         if (b.isGangguan) statusBadgeHtml = '<span class="status-badge status-failed" style="background:var(--warning); color:black; border-color:var(--warning);">Gangguan Server</span>';
         
         html += `
-        <div style="background:var(--surface); border:1px solid var(--border); padding:1rem; border-radius:12px; display:flex; flex-direction:column; gap:10px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-                <div style="display:flex; align-items:center; gap:12px;">
-                    ${imgHtml}
-                    <div>
-                        <strong style="font-size:1.05rem;">${b.brandName}</strong><br>
-                        <span style="font-size:0.75rem; color:var(--text-muted);">${b.type === 'app' ? 'Aplikasi Premium' : 'Top Up Game'} &bull; ${itemsCount} Varian</span>
-                    </div>
+        <div class="dashboard-panel panel-flex flex-row flex-between align-center mb-2" style="padding:1.2rem;">
+            <div style="display:flex; align-items:center; gap:12px;">
+                ${imgHtml}
+                <div>
+                    <strong style="font-size:1.05rem;">${b.brandName}</strong><br>
+                    <span class="text-sm text-muted">${b.type === 'app' ? 'Aplikasi Premium' : 'Top Up Game'} &bull; ${itemsCount} Varian</span>
                 </div>
-                <div style="display:flex; align-items:center; gap:10px;">
-                    ${statusBadgeHtml}
-                    <button aria-label="Edit Grup" class="btn btn-outline" style="padding:6px 12px; font-size:0.8rem;" onclick="window.openProductGroupModal('${b.brandName}')"><i class="fa-solid fa-pen"></i> Edit</button>
-                    <button aria-label="Hapus Grup" class="btn btn-danger" style="padding:6px 12px; font-size:0.8rem;" onclick="window.deleteProductGroup('${b.brandName}')"><i class="fa-solid fa-trash"></i></button>
-                </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px;">
+                ${statusBadgeHtml}
+                <button aria-label="Edit Grup" class="btn btn-outline btn-sm" onclick="window.openProductGroupModal('${b.brandName}')"><i class="fa-solid fa-pen"></i> Edit</button>
+                <button aria-label="Hapus Grup" class="btn btn-danger btn-sm" onclick="window.deleteProductGroup('${b.brandName}')"><i class="fa-solid fa-trash"></i></button>
             </div>
         </div>`;
     });
@@ -786,7 +787,7 @@ window.toggleInputTypeBox = function() {
 window.selectInputType = function(val, el) {
     document.querySelectorAll('.type-card').forEach(c => {
         c.classList.remove('active');
-        c.style.background = 'var(--surface)';
+        c.style.background = 'transparent';
         c.style.borderColor = 'var(--border)';
         c.querySelector('i').style.color = 'var(--text-muted)';
     });
@@ -795,11 +796,6 @@ window.selectInputType = function(val, el) {
     el.style.borderColor = 'var(--primary-light)';
     el.querySelector('i').style.color = 'var(--primary-light)';
     el.querySelector('input').checked = true;
-    
-    const previewBox = document.getElementById('type-preview-box');
-    if(val === 'id_only') previewBox.innerText = 'Contoh: 123456789 (9 digit Player ID)';
-    else if(val === 'id_zone') previewBox.innerText = 'Player ID: 12345678 -> Zone ID: (1234)';
-    else if(val === 'custom') previewBox.innerText = 'Contoh: Server Asia, Nama Karakter Viper';
 }
 
 window.openProductGroupModal = function(brandName = null) {
@@ -908,7 +904,7 @@ window.renderTempNominals = function() {
     if(!container) return;
     
     if(currentGroupNominals.length === 0) {
-        container.innerHTML = `<div style="text-align:center; color:#64748b; font-size:0.8rem; padding: 10px;">Belum ada nominal ditambahkan.</div>`;
+        container.innerHTML = `<div class="text-center text-muted text-sm" style="padding: 10px;">Belum ada nominal ditambahkan.</div>`;
         return;
     }
     
@@ -919,20 +915,20 @@ window.renderTempNominals = function() {
     
     currentGroupNominals.forEach((nom, index) => {
         const isSold = nom.soldOut ? 'checked' : '';
-        const badgeType = nom.processType === 'manual' ? `<span style="font-size:0.65rem; color:var(--warning); border:1px solid var(--warning); padding:1px 4px; border-radius:4px;">Manual</span>` : `<span style="font-size:0.65rem; color:var(--success); border:1px solid var(--success); padding:1px 4px; border-radius:4px;">Auto</span>`;
+        const badgeType = nom.processType === 'manual' ? `<span class="status-badge" style="font-size:0.6rem; color:var(--warning); border-color:var(--warning); background:transparent; padding:2px 4px;">Manual</span>` : `<span class="status-badge" style="font-size:0.6rem; color:var(--success); border-color:var(--success); background:transparent; padding:2px 4px;">Auto</span>`;
         html += `
-        <div style="display: flex; justify-content: space-between; align-items: center; background: transparent; padding: 10px 0; border-bottom: 1px solid var(--border);">
+        <div class="flex-between align-center border-bottom" style="padding: 10px 0;">
             <div style="display:flex; align-items:center; gap:10px;">
                 ${finalImg}
                 <div>
-                    <div style="font-size: 0.85rem; font-weight: bold; color: var(--text);">${nom.name} ${badgeType}</div>
-                    <div style="font-size: 0.75rem; color: var(--text-muted);">Rp${nom.priceNum.toLocaleString('id-ID')}</div>
+                    <div class="fw-bold text-dark text-sm">${nom.name} ${badgeType}</div>
+                    <div class="text-muted text-xs">Rp${nom.priceNum.toLocaleString('id-ID')}</div>
                 </div>
             </div>
             <div style="display: flex; align-items: center; gap: 8px;">
-                <input type="checkbox" style="width:18px; height:18px; cursor:pointer; accent-color: var(--danger);" title="Tandai Habis Individual" onchange="window.toggleIndividualSoldOut(${index}, this.checked)" ${isSold}>
-                <button aria-label="Edit Item" class="btn btn-outline" style="border: none; color: var(--primary-light); padding: 5px; font-size:1rem;" onclick="window.editTempNominal(${index})" title="Edit"><i class="fa-solid fa-pen"></i></button>
-                <button aria-label="Hapus Item" class="btn btn-outline" style="border: none; color: #ef4444; padding: 5px; font-size:1rem;" onclick="window.removeTempNominal(${index})" title="Hapus"><i class="fa-solid fa-trash"></i></button>
+                <input type="checkbox" class="large-checkbox" style="width:18px; height:18px; accent-color: var(--danger);" title="Tandai Habis" onchange="window.toggleIndividualSoldOut(${index}, this.checked)" ${isSold}>
+                <button aria-label="Edit Item" class="btn-icon-only text-primary border-none" style="width:30px; height:30px;" onclick="window.editTempNominal(${index})" title="Edit"><i class="fa-solid fa-pen"></i></button>
+                <button aria-label="Hapus Item" class="btn-icon-only text-danger border-none" style="width:30px; height:30px;" onclick="window.removeTempNominal(${index})" title="Hapus"><i class="fa-solid fa-trash"></i></button>
             </div>
         </div>`;
     });
@@ -979,7 +975,7 @@ window.saveProductGroup = async function() {
         }
         
         window.closeModal('modal-manage-product');
-        window.customAlert('Sukses', `Seluruh item grup ${brand} tersimpan.`, 'success');
+        window.showToast('Sukses', `Seluruh item grup ${brand} tersimpan.`, 'success');
     } catch(e) {
         window.customAlert('Error', 'Gagal menyimpan grup.', 'error');
     } finally {
@@ -993,7 +989,7 @@ window.deleteProductGroup = function(brandName) {
             const group = groupedBrands.find(b => b.brandName === brandName);
             if(group) {
                 for(const item of group.items) { await deleteDoc(doc(db, pathProducts, item.dbId)); }
-                window.customAlert('Sukses', `Semua Item ${brandName} telah dihapus.`, 'info');
+                window.showToast('Sukses', `Semua Item ${brandName} telah dihapus.`, 'info');
             }
         }
     }, 'delete');
@@ -1020,7 +1016,7 @@ window.renderAdminPromos = function() {
     if(!tbody) return;
     
     if(promos.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">Belum ada kode promo</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Belum ada kode promo</td></tr>';
         return;
     }
     let html = '';
@@ -1034,12 +1030,12 @@ window.renderAdminPromos = function() {
             <td><strong>${p.code}</strong></td>
             <td><span class="status-badge status-success">${typeStr}</span></td>
             <td>${targetStr}</td>
-            <td><span style="color:var(--warning); font-size:0.8rem;">${userTgt}</span></td>
+            <td><span class="text-warning text-sm">${userTgt}</span></td>
             <td>${p.usedCount || 0} / ${p.maxUses}</td>
             <td>${p.active ? '<span class="status-badge status-success">Aktif</span>' : '<span class="status-badge status-failed">Mati</span>'}</td>
             <td style="white-space:nowrap;">
-                <button aria-label="Edit Promo" class="btn btn-outline" style="padding:0.4rem; font-size:0.75rem; margin-right:4px;" onclick="window.openPromoModal('${p.dbId}')"><i class="fa-solid fa-pen"></i></button>
-                <button aria-label="Hapus Promo" class="btn btn-danger" style="padding:0.4rem; font-size:0.75rem;" onclick="window.deletePromo('${p.dbId}')"><i class="fa-solid fa-trash"></i></button>
+                <button aria-label="Edit Promo" class="btn-icon-only border-none text-primary" style="width:30px; height:30px;" onclick="window.openPromoModal('${p.dbId}')"><i class="fa-solid fa-pen"></i></button>
+                <button aria-label="Hapus Promo" class="btn-icon-only border-none text-danger" style="width:30px; height:30px;" onclick="window.deletePromo('${p.dbId}')"><i class="fa-solid fa-trash"></i></button>
             </td>
         </tr>`;
     });
@@ -1104,7 +1100,7 @@ window.savePromo = async function() {
             await addDoc(collection(db, pathPromos), data);
         }
         window.closeModal('modal-manage-promo');
-        window.customAlert('Sukses', 'Promo disimpan.', 'success');
+        window.showToast('Sukses', 'Promo disimpan.', 'success');
     } catch(e) {
         window.customAlert('Error', 'Gagal menyimpan promo.', 'error');
     } finally {
@@ -1116,27 +1112,27 @@ window.deletePromo = function(dbId) {
     window.openConfirm("Hapus", "Hapus Promo ini?", async (confirmed) => {
         if(confirmed) {
             await deleteDoc(doc(db, pathPromos, dbId));
-            window.customAlert('Sukses', 'Promo Dihapus.', 'success');
+            window.showToast('Sukses', 'Promo Dihapus.', 'success');
         }
     }, 'delete');
 }
 
 // ==========================================
-// NEWS / BERITA
+// NEWS / BERITA WEB
 // ==========================================
 window.renderAdminNews = function() {
     const list = document.getElementById('admin-news-list');
     if(!list) return;
     const newsData = siteSettings.newsList || [];
-    if(newsData.length === 0) { list.innerHTML = '<p style="color:var(--text-muted)">Belum ada info komunitas.</p>'; return; }
+    if(newsData.length === 0) { list.innerHTML = '<p class="text-muted text-center p-3">Belum ada info komunitas.</p>'; return; }
     
     let html = '';
     newsData.forEach((t, i) => {
-        html += `<div style="background:var(--surface); border:1px solid var(--border); padding:1rem; border-radius:8px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
-            <div><strong>${t.title}</strong><br><small style="color:var(--text-muted)">Info/Promo</small></div>
-            <div>
-                <button aria-label="Edit Info" class="btn btn-outline" style="margin-right:4px;" onclick="window.openNewsModal(${i})"><i class="fa-solid fa-pen"></i></button>
-                <button aria-label="Hapus Info" class="btn btn-danger" onclick="window.deleteNews(${i})"><i class="fa-solid fa-trash"></i></button>
+        html += `<div class="dashboard-panel panel-flex flex-row flex-between align-center mb-2">
+            <div><strong class="text-dark">${t.title}</strong><br><small class="text-muted">Berita Web</small></div>
+            <div class="flex-gap">
+                <button aria-label="Edit Info" class="btn-icon-only border-none text-primary" style="width:30px; height:30px;" onclick="window.openNewsModal(${i})"><i class="fa-solid fa-pen"></i></button>
+                <button aria-label="Hapus Info" class="btn-icon-only border-none text-danger" style="width:30px; height:30px;" onclick="window.deleteNews(${i})"><i class="fa-solid fa-trash"></i></button>
             </div>
         </div>`;
     });
@@ -1165,7 +1161,7 @@ window.handleNewsUpload = function(event) {
     if(!file) return;
     window.resizeImageBase64(file, (b64) => {
         document.getElementById('manage-news-image').value = b64;
-        window.customAlert('Berhasil', 'Gambar berhasil dimuat dari perangkat HP Anda.', 'success');
+        window.showToast('Berhasil', 'Gambar berhasil dimuat.', 'success');
     }, 800, 600);
 }
 
@@ -1187,7 +1183,7 @@ window.saveNews = async function() {
         
         await updateDoc(doc(db, pathSettings, 'mainConfig'), { newsList: newsList });
         window.closeModal('modal-manage-news');
-        window.customAlert('Sukses', 'Berita berhasil disimpan.', 'success');
+        window.showToast('Sukses', 'Berita berhasil disimpan.', 'success');
     } catch(e) {
         window.customAlert('Error', 'Gagal menyimpan.', 'error');
     } finally {
@@ -1201,7 +1197,7 @@ window.deleteNews = async function(index) {
             const newsList = [...siteSettings.newsList];
             newsList.splice(index, 1);
             await updateDoc(doc(db, pathSettings, 'mainConfig'), { newsList: newsList });
-            window.customAlert('Dihapus', 'Berita berhasil dihapus.', 'info');
+            window.showToast('Dihapus', 'Berita berhasil dihapus.', 'info');
         }
     }, 'delete');
 }
@@ -1220,8 +1216,8 @@ window.saveSettingsManual = async function() {
         adminWa: document.getElementById('set-wa').value.trim(),
         igLink: document.getElementById('set-ig').value.trim(),
         ttLink: document.getElementById('set-tt').value.trim(),
-        qrisStringData: document.getElementById('set-qris-string').value.trim(), // QRIS Baru
-        vpsEndpoint: document.getElementById('set-vps-endpoint') ? document.getElementById('set-vps-endpoint').value.trim() : '', // VPS Endpoint
+        qrisStringData: document.getElementById('set-qris-string').value.trim(),
+        vpsEndpoint: document.getElementById('set-vps-endpoint') ? document.getElementById('set-vps-endpoint').value.trim() : '',
         waChannelLink: document.getElementById('set-wa-channel') ? document.getElementById('set-wa-channel').value.trim() : '',
         isStoreOpen: document.getElementById('set-store-status') ? document.getElementById('set-store-status').checked : true
     };
@@ -1238,7 +1234,6 @@ window.populateAdminSettings = function() {
     document.getElementById('set-ig').value = siteSettings.igLink || '';
     document.getElementById('set-tt').value = siteSettings.ttLink || '';
     
-    // QRIS Baru & VPS Endpoint
     document.getElementById('set-qris-string').value = siteSettings.qrisStringData || '';
     if(document.getElementById('set-vps-endpoint')) document.getElementById('set-vps-endpoint').value = siteSettings.vpsEndpoint || '';
     
@@ -1288,7 +1283,7 @@ if(bannerUploadEl) {
                 await updateDoc(doc(db, pathSettings, 'mainConfig'), { banners: banners });
                 siteSettings.banners = banners;
                 window.renderAdminBanners();
-                window.customAlert('Sukses', 'Banner berhasil ditambahkan.', 'success');
+                window.showToast('Sukses', 'Banner berhasil ditambahkan.', 'success');
                 e.target.value = ''; 
             }, 1200, 600); 
         }
@@ -1299,16 +1294,17 @@ window.renderAdminBanners = function() {
     const list = document.getElementById('admin-banner-list');
     if(!list) return;
     const banners = siteSettings.banners || [];
-    if(banners.length === 0){ list.innerHTML = '<span style="color:var(--text-muted); font-size:0.85rem;">Belum ada banner.</span>'; return; }
+    if(banners.length === 0){ list.innerHTML = '<span class="text-muted text-sm d-block mt-2">Belum ada banner.</span>'; return; }
     
-    let html = '';
+    let html = '<div class="grid-2col mt-3">';
     banners.forEach((b64, idx) => {
         html += `
-        <div style="position:relative; border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-bottom: 10px;">
-            <img src="${b64}" style="width:100%; height:100px; object-fit:cover;" loading="lazy" alt="Banner">
-            <button aria-label="Hapus Banner" class="btn btn-danger" style="position:absolute; top:5px; right:5px; padding:5px 8px;" onclick="window.deleteBanner(${idx})"><i class="fa-solid fa-trash"></i></button>
+        <div style="position:relative; border:1px solid var(--border); border-radius:12px; overflow:hidden;">
+            <img src="${b64}" style="width:100%; height:120px; object-fit:cover;" loading="lazy" alt="Banner">
+            <button aria-label="Hapus Banner" class="btn btn-danger btn-sm" style="position:absolute; top:5px; right:5px; padding:4px 8px;" onclick="window.deleteBanner(${idx})"><i class="fa-solid fa-trash"></i></button>
         </div>`;
     });
+    html += '</div>';
     list.innerHTML = html;
 }
 
@@ -1320,13 +1316,13 @@ window.deleteBanner = async function(idx) {
             await updateDoc(doc(db, pathSettings, 'mainConfig'), { banners: banners });
             siteSettings.banners = banners;
             window.renderAdminBanners();
-            window.customAlert('Dihapus', 'Banner telah dihapus', 'info');
+            window.showToast('Dihapus', 'Banner telah dihapus', 'info');
         }
     }, 'delete');
 }
 
 // ==========================================
-// LIVE CHAT (ADMIN - MOBILE OPTIMIZED)
+// LIVE CHAT (ADMIN LAYOUT BARU)
 // ==========================================
 function listenAdminLiveChat() {
     if(adminChatUnsubscribe) adminChatUnsubscribe();
@@ -1358,7 +1354,7 @@ window.renderAdminChatList = function() {
     const list = document.getElementById('admin-chat-list');
     if(!list) return;
     if(allLiveChats.length === 0) {
-        list.innerHTML = '<p style="color:var(--text-muted); text-align:center; padding: 2rem;">Tidak ada pesan aktif.</p>';
+        list.innerHTML = '<div class="chat-empty-state"><p>Tidak ada pesan aktif.</p></div>';
         document.getElementById('admin-chat-empty').style.display = 'flex';
         document.getElementById('admin-chat-active').style.display = 'none';
         return;
@@ -1374,12 +1370,12 @@ window.renderAdminChatList = function() {
         const isActive = chat.id === activeId ? 'active' : '';
         
         html += `
-            <div id="chat-card-${chat.id}" class="admin-chat-card ${isActive}" onclick="window.openAdminChatDetailDesk('${chat.id}')">
-                <div style="flex:1; overflow:hidden;">
-                    <strong style="color:var(--text); font-size:0.9rem; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${chat.userInfo || 'User'}</strong>
-                    <small style="color:var(--text-muted); display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${lastMsg ? lastMsg.text : '...'}</small>
+            <div id="chat-card-${chat.id}" class="chat-user-item ${isActive}" onclick="window.openAdminChatDetailDesk('${chat.id}')">
+                <div class="chat-user-info">
+                    <strong class="chat-user-name">${chat.userInfo || 'User'}</strong>
+                    <span class="chat-user-msg">${lastMsg ? lastMsg.text : '...'}</span>
                 </div>
-                ${hasUnread ? '<span class="notif-dot" style="position:static; display:inline-block;"></span>' : ''}
+                ${hasUnread ? '<span class="notif-dot badge-static"></span>' : ''}
             </div>
         `;
     });
@@ -1407,21 +1403,22 @@ window.openAdminChatDetailDesk = function(chatId) {
     }
     
     const body = document.getElementById('admin-chat-body-desktop');
-    let html = '';
+    let html = '<div style="display:flex; flex-direction:column; gap:10px;">';
     
     (chat.messages || []).forEach(msg => {
         const isAdmin = msg.sender === 'admin';
         html += `
-            <div class="chat-msg ${isAdmin ? 'user' : 'admin'}" style="${isAdmin ? 'align-self:flex-end; background:var(--primary); color:white;' : 'align-self:flex-start; background:var(--surface-hover); color:var(--text); border:1px solid var(--border);'}">
+            <div class="chat-msg ${isAdmin ? 'user' : 'admin'}">
                 ${msg.text}
-                <span class="chat-time" style="color:${isAdmin ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)'};">${new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                <span class="chat-time">${new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
             </div>
         `;
     });
+    html += '</div>';
     body.innerHTML = html;
     
     setTimeout(() => { body.scrollTop = body.scrollHeight; }, 50);
-    document.querySelectorAll('.admin-chat-card').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.chat-user-item').forEach(el => el.classList.remove('active'));
     const activeCard = document.getElementById(`chat-card-${chatId}`);
     if(activeCard) activeCard.classList.add('active');
 }
@@ -1461,7 +1458,7 @@ window.resolveChatDesktop = async function() {
         
         if(window.innerWidth <= 768) window.backToChatListMobile();
         
-        window.customAlert('Dihapus', 'Sesi Live Chat diselesaikan dan dihapus dari server.', 'success');
+        window.showToast('Diselesaikan', 'Sesi chat telah dihapus.', 'success');
     } catch(e) {
         window.customAlert('Gagal', 'Tidak dapat menghapus sesi.', 'error');
     } finally {
