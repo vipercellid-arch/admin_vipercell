@@ -95,10 +95,10 @@ window.customAlert = (title, message, type = 'info') => {
     if(descEl) descEl.innerHTML = message;
     if(iconEl) {
         iconEl.className = `msg-icon ${type}`;
-        if(type === 'success') iconEl.innerHTML = '<i class="fa-solid fa-circle-check"></i>';
-        else if(type === 'error') iconEl.innerHTML = '<i class="fa-solid fa-circle-xmark"></i>';
-        else if(type === 'warning') iconEl.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i>';
-        else iconEl.innerHTML = '<i class="fa-solid fa-circle-info"></i>';
+        if(type === 'success') iconEl.innerHTML = '<i class="fa-solid fa-circle-check text-success"></i>';
+        else if(type === 'error') iconEl.innerHTML = '<i class="fa-solid fa-circle-xmark text-danger"></i>';
+        else if(type === 'warning') iconEl.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-warning"></i>';
+        else iconEl.innerHTML = '<i class="fa-solid fa-circle-info text-primary"></i>';
     }
     if(alertEl) alertEl.classList.add('active');
     document.body.classList.add('no-scroll');
@@ -357,6 +357,7 @@ function listenAdminData() {
         window.renderAdminPromos();
     });
     
+    // LISTENER ULASAN PEMBELI
     onSnapshot(collection(db, pathReviews), (snapshot) => {
         reviewsList = [];
         snapshot.forEach(docSnap => reviewsList.push({dbId: docSnap.id, ...docSnap.data()}));
@@ -405,7 +406,7 @@ window.renderReviews = function() {
     reviewsList.forEach(r => {
         let stars = '';
         for(let i=0; i<5; i++) {
-            stars += `<i class="fa-${i < r.rating ? 'solid' : 'regular'} fa-star text-warning text-xs"></i>`;
+            stars += `<i class="fa-${i < r.rating ? 'solid' : 'regular'} fa-star" style="color:var(--warning); font-size:0.8rem;"></i>`;
         }
 
         html += `
@@ -419,7 +420,7 @@ window.renderReviews = function() {
                 <p class="bg-bg border-border text-dark" style="padding:10px; border-radius:8px; margin:0; font-size:0.95rem;">"${r.text}"</p>
                 <small class="text-muted text-xs d-block mt-2"><i class="fa-regular fa-clock"></i> ${new Date(r.timestamp).toLocaleString('id-ID')}</small>
             </div>
-            <button class="btn btn-outline border-danger text-danger ml-auto" style="white-space:nowrap; height: fit-content;" onclick="window.deleteReview('${r.dbId}')">
+            <button class="btn btn-outline border-danger text-danger ml-auto mt-mobile-3" style="white-space:nowrap; height: fit-content;" onclick="window.deleteReview('${r.dbId}')">
                 <i class="fa-solid fa-trash"></i> Hapus
             </button>
         </div>`;
@@ -751,7 +752,7 @@ window.renderAdminProducts = function() {
     
     let html = '';
     groupedBrands.forEach(b => {
-        const imgHtml = b.imgUrlBase64 ? `<img src="${b.imgUrlBase64}" style="width:50px; height:50px; object-fit:cover; border-radius:12px;" loading="lazy" alt="${b.brandName}">` : `<div style="width:50px; height:50px; background:var(--primary); color:white; display:flex; justify-content:center; align-items:center; border-radius:12px; font-weight:bold; font-size:1.5rem;">${b.brandName.charAt(0)}</div>`;
+        const imgHtml = b.imgUrlBase64 ? `<img src="${b.imgUrlBase64}" style="width:45px; height:45px; object-fit:cover; border-radius:10px;" loading="lazy" alt="${b.brandName}">` : `<div style="width:45px; height:45px; background:var(--primary); color:white; display:flex; justify-content:center; align-items:center; border-radius:10px; font-weight:bold;">${b.brandName.charAt(0)}</div>`;
         const itemsCount = b.items.length;
         const isSoldOut = b.items.every(i => i.soldOut);
         
@@ -760,14 +761,14 @@ window.renderAdminProducts = function() {
         
         html += `
         <div class="dashboard-panel panel-flex flex-row flex-between align-center mb-2" style="padding:1.2rem;">
-            <div class="flex-gap align-center">
+            <div style="display:flex; align-items:center; gap:12px;">
                 ${imgHtml}
                 <div>
-                    <strong class="text-dark" style="font-size:1.1rem;">${b.brandName}</strong><br>
+                    <strong style="font-size:1.05rem;" class="text-dark">${b.brandName}</strong><br>
                     <span class="text-sm text-muted">${b.type === 'app' ? 'Aplikasi Premium' : 'Top Up Game'} &bull; ${itemsCount} Varian</span>
                 </div>
             </div>
-            <div class="flex-gap align-center">
+            <div class="flex-wrap-gap align-center mt-mobile-1">
                 ${statusBadgeHtml}
                 <button aria-label="Edit Grup" class="btn btn-outline btn-sm" onclick="window.openProductGroupModal('${b.brandName}')"><i class="fa-solid fa-pen"></i> Edit</button>
                 <button aria-label="Hapus Grup" class="btn btn-danger btn-sm" onclick="window.deleteProductGroup('${b.brandName}')"><i class="fa-solid fa-trash"></i></button>
@@ -811,7 +812,6 @@ window.openProductGroupModal = function(brandName = null) {
             
             const allSoldOut = currentGroupNominals.length > 0 && currentGroupNominals.every(n => n.soldOut);
             document.getElementById('manage-prod-soldout').checked = allSoldOut;
-            
             let inpType = group.items[0]?.inputType || 'id_zone';
             const targetEl = document.querySelector(`.type-card input[value="${inpType}"]`);
             if(targetEl) window.selectInputType(inpType, targetEl.parentElement);
@@ -919,7 +919,7 @@ window.renderTempNominals = function() {
                     <div class="text-muted text-xs">Rp${nom.priceNum.toLocaleString('id-ID')}</div>
                 </div>
             </div>
-            <div class="flex-gap align-center">
+            <div class="flex-gap align-center mt-mobile-1">
                 <input type="checkbox" class="large-checkbox" style="width:18px; height:18px; accent-color: var(--danger);" title="Tandai Habis" onchange="window.toggleIndividualSoldOut(${index}, this.checked)" ${isSold}>
                 <button aria-label="Edit Item" class="btn-icon-only text-primary border-none" style="width:30px; height:30px;" onclick="window.editTempNominal(${index})" title="Edit"><i class="fa-solid fa-pen"></i></button>
                 <button aria-label="Hapus Item" class="btn-icon-only text-danger border-none" style="width:30px; height:30px;" onclick="window.removeTempNominal(${index})" title="Hapus"><i class="fa-solid fa-trash"></i></button>
@@ -1124,7 +1124,7 @@ window.renderAdminNews = function() {
     newsData.forEach((t, i) => {
         html += `<div class="dashboard-panel panel-flex flex-row flex-between align-center mb-2">
             <div><strong class="text-dark">${t.title}</strong><br><small class="text-muted">Berita Web</small></div>
-            <div class="flex-gap">
+            <div class="flex-gap mt-mobile-1">
                 <button aria-label="Edit Info" class="btn-icon-only border-none text-primary" style="width:30px; height:30px;" onclick="window.openNewsModal(${i})"><i class="fa-solid fa-pen"></i></button>
                 <button aria-label="Hapus Info" class="btn-icon-only border-none text-danger" style="width:30px; height:30px;" onclick="window.deleteNews(${i})"><i class="fa-solid fa-trash"></i></button>
             </div>
