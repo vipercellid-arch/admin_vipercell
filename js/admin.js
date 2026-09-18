@@ -211,6 +211,7 @@ window.fireNativeNotificationAdmin = function(title, msg, type = 'info') {
 // ==========================================
 async function verifyAdminAccess(user) {
     let role = 'user';
+    // Gunakan email verifikasi statis & dinamis dari database Users
     const allowedEmails = ['vipercell.id@gmail.com', 'viperdev4@gmail.com']; 
     
     if (allowedEmails.includes(user.email)) {
@@ -406,7 +407,7 @@ window.renderReviews = function() {
     reviewsList.forEach(r => {
         let stars = '';
         for(let i=0; i<5; i++) {
-            stars += `<i class="fa-${i < r.rating ? 'solid' : 'regular'} fa-star" style="color:var(--warning); font-size:0.8rem;"></i>`;
+            stars += `<i class="fa-${i < r.rating ? 'solid' : 'regular'} fa-star text-warning text-xs"></i>`;
         }
 
         html += `
@@ -612,6 +613,7 @@ window.markOrderComplete = async function(statusType) {
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Memproses...</span>';
     btn.disabled = true;
     
+    // Integrasi Murni Google Apps Script / MacroDroid. (Tanpa API Digiflazz)
     try {
         if(statusType === 'SUCCESS') {
             if(order.items.some(i => i.type === 'app')) {
@@ -752,7 +754,7 @@ window.renderAdminProducts = function() {
     
     let html = '';
     groupedBrands.forEach(b => {
-        const imgHtml = b.imgUrlBase64 ? `<img src="${b.imgUrlBase64}" style="width:45px; height:45px; object-fit:cover; border-radius:10px;" loading="lazy" alt="${b.brandName}">` : `<div style="width:45px; height:45px; background:var(--primary); color:white; display:flex; justify-content:center; align-items:center; border-radius:10px; font-weight:bold;">${b.brandName.charAt(0)}</div>`;
+        const imgHtml = b.imgUrlBase64 ? `<img src="${b.imgUrlBase64}" style="width:50px; height:50px; object-fit:cover; border-radius:12px;" loading="lazy" alt="${b.brandName}">` : `<div style="width:50px; height:50px; background:var(--primary); color:white; display:flex; justify-content:center; align-items:center; border-radius:12px; font-weight:bold; font-size:1.5rem;">${b.brandName.charAt(0)}</div>`;
         const itemsCount = b.items.length;
         const isSoldOut = b.items.every(i => i.soldOut);
         
@@ -761,10 +763,10 @@ window.renderAdminProducts = function() {
         
         html += `
         <div class="dashboard-panel panel-flex flex-row flex-between align-center mb-2" style="padding:1.2rem;">
-            <div style="display:flex; align-items:center; gap:12px;">
+            <div class="flex-gap align-center">
                 ${imgHtml}
                 <div>
-                    <strong style="font-size:1.05rem;" class="text-dark">${b.brandName}</strong><br>
+                    <strong class="text-dark" style="font-size:1.1rem;">${b.brandName}</strong><br>
                     <span class="text-sm text-muted">${b.type === 'app' ? 'Aplikasi Premium' : 'Top Up Game'} &bull; ${itemsCount} Varian</span>
                 </div>
             </div>
@@ -812,6 +814,7 @@ window.openProductGroupModal = function(brandName = null) {
             
             const allSoldOut = currentGroupNominals.length > 0 && currentGroupNominals.every(n => n.soldOut);
             document.getElementById('manage-prod-soldout').checked = allSoldOut;
+            
             let inpType = group.items[0]?.inputType || 'id_zone';
             const targetEl = document.querySelector(`.type-card input[value="${inpType}"]`);
             if(targetEl) window.selectInputType(inpType, targetEl.parentElement);
@@ -939,6 +942,7 @@ window.saveProductGroup = async function() {
     const gangguanEl = document.getElementById('manage-prod-gangguan');
     const isGangguan = gangguanEl ? gangguanEl.checked : false;
     
+    // PEMBACAAN INPUT TIPE ROBLOX DI SINI
     let inputType = 'id_zone';
     const checkedType = document.querySelector('input[name="manage_input_type"]:checked');
     if(checkedType) inputType = checkedType.value;
@@ -1316,7 +1320,7 @@ window.deleteBanner = async function(idx) {
 }
 
 // ==========================================
-// LIVE CHAT (ADMIN LAYOUT BARU)
+// LIVE CHAT (TRANSISI MULUS UNTUK MOBILE)
 // ==========================================
 function listenAdminLiveChat() {
     if(adminChatUnsubscribe) adminChatUnsubscribe();
@@ -1377,23 +1381,39 @@ window.renderAdminChatList = function() {
 }
 
 window.backToChatListMobile = function() {
-    document.getElementById('admin-chat-main-panel').style.display = 'none';
-    document.getElementById('admin-chat-sidebar-panel').style.display = 'flex';
+    // Transisi mulus untuk mobile saat kembali ke daftar chat
+    const mainPanel = document.getElementById('admin-chat-main-panel');
+    const sidePanel = document.getElementById('admin-chat-sidebar-panel');
+    
+    mainPanel.style.transform = 'translateX(100%)';
+    setTimeout(() => {
+        mainPanel.style.display = 'none';
+        sidePanel.style.display = 'flex';
+    }, 300);
 }
 
 window.openAdminChatDetailDesk = function(chatId) {
     const chat = allLiveChats.find(c => c.id === chatId);
     if(!chat) return;
     
-    document.getElementById('admin-chat-empty').style.display = 'none';
-    document.getElementById('admin-chat-active').style.display = 'flex';
+    const emptyState = document.getElementById('admin-chat-empty');
+    const activeState = document.getElementById('admin-chat-active');
+    
+    emptyState.style.display = 'none';
+    activeState.style.display = 'flex';
     document.getElementById('admin-active-chat-id-desk').value = chatId;
     document.getElementById('admin-chat-title-desk').innerText = chat.userInfo || 'User';
     
+    const mainPanel = document.getElementById('admin-chat-main-panel');
+    const sidePanel = document.getElementById('admin-chat-sidebar-panel');
+    
     if(window.innerWidth <= 768) {
-        document.getElementById('admin-chat-sidebar-panel').style.display = 'none';
-        document.getElementById('admin-chat-main-panel').style.display = 'flex';
-        document.getElementById('btn-back-chat').style.display = 'inline-block';
+        sidePanel.style.display = 'none';
+        mainPanel.style.display = 'flex';
+        // Animasi geser (slide)
+        mainPanel.style.transform = 'translateX(100%)';
+        setTimeout(() => { mainPanel.style.transform = 'translateX(0)'; }, 10);
+        document.getElementById('btn-back-chat').style.display = 'inline-flex';
     }
     
     const body = document.getElementById('admin-chat-body-desktop');
@@ -1402,7 +1422,7 @@ window.openAdminChatDetailDesk = function(chatId) {
     (chat.messages || []).forEach(msg => {
         const isAdmin = msg.sender === 'admin';
         html += `
-            <div class="chat-msg ${isAdmin ? 'user' : 'admin'}">
+            <div class="chat-msg ${isAdmin ? 'admin' : 'user'}">
                 ${msg.text}
                 <span class="chat-time">${new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
             </div>
@@ -1450,7 +1470,15 @@ window.resolveChatDesktop = async function() {
         document.getElementById('admin-chat-empty').style.display = 'flex';
         document.getElementById('admin-chat-active').style.display = 'none';
         
-        if(window.innerWidth <= 768) window.backToChatListMobile();
+        if(window.innerWidth <= 768) {
+            const mainPanel = document.getElementById('admin-chat-main-panel');
+            const sidePanel = document.getElementById('admin-chat-sidebar-panel');
+            mainPanel.style.transform = 'translateX(100%)';
+            setTimeout(() => {
+                mainPanel.style.display = 'none';
+                sidePanel.style.display = 'flex';
+            }, 300);
+        }
         
         window.showToast('Diselesaikan', 'Sesi chat telah dihapus.', 'success');
     } catch(e) {

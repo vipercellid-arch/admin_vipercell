@@ -1,7 +1,7 @@
 /* ========================================================
-   VIPERCELL V18.2 - ADMIN COMMAND CENTER CSS
+   VIPERCELL V18.3 - ADMIN COMMAND CENTER CSS
    * Updated: SaaS Enterprise Layout, API Panel, Roblox UI
-   * Fixed: Mobile Chat UI, Grid Wrapping, Modal Overflow
+   * Fixed: Mobile Chat Slide Transition, Grid Layouts
    ======================================================== */
 
 /* ========================================================
@@ -118,6 +118,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .flex-1 { flex: 1 1 0% !important; }
 .flex-2 { flex: 2 1 0% !important; }
 .flex-grow { flex-grow: 1 !important; }
+.flex-shrink-0 { flex-shrink: 0 !important; }
 .w-100 { width: 100% !important; }
 .min-w-100 { min-width: 100px !important; }
 .min-w-150 { min-width: 150px !important; }
@@ -386,11 +387,14 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .chat-empty-state { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100%; color: var(--text-muted); }
 .chat-empty-state i { font-size: 4rem; opacity: 0.2; margin-bottom: 1rem; }
 
+/* Memastikan wrapper flexbox ini tidak tumpang tindih */
+.chat-active-state { display: flex; flex-direction: column; height: 100%; width: 100%; background: var(--bg); }
+
 .chat-active-header { padding: 1rem 1.5rem; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; z-index: 5;}
-.chat-active-body { flex: 1; padding: 1.5rem; overflow-y: auto; }
-.chat-quick-replies { padding: 10px 1.5rem; background: var(--surface); border-top: 1px solid var(--border); display: flex; gap: 8px; overflow-x: auto; }
+.chat-active-body { flex: 1; padding: 1.5rem; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+.chat-quick-replies { padding: 10px 1.5rem; background: var(--surface); border-top: 1px solid var(--border); display: flex; gap: 8px; overflow-x: auto; flex-wrap: nowrap; }
 .chat-quick-replies::-webkit-scrollbar { height: 0; }
-.chat-active-footer { padding: 1rem 1.5rem; background: var(--surface); display: flex; gap: 10px; align-items: center; z-index: 5;}
+.chat-active-footer { padding: 1rem 1.5rem; background: var(--surface); display: flex; gap: 10px; align-items: center; z-index: 5; border-top: 1px solid var(--border); }
 
 .chat-msg { max-width: 80%; padding: 10px 15px; border-radius: 16px; font-size: 0.95rem; line-height: 1.4; word-wrap: break-word; position: relative; }
 .chat-msg.admin { background: var(--primary); color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
@@ -433,9 +437,14 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     .form-control { font-size: 1rem; /* Prevent iOS zoom */ }
     .min-w-100, .min-w-150 { min-width: 0 !important; width: 100% !important; }
     
-    /* Penyesuaian Fitur Chat Mobile Tumpuk (Slide Over) */
-    .chat-dashboard-wrapper { height: calc(100vh - 120px); border: none; border-radius: 0; position: relative;}
-    .chat-sidebar-panel { width: 100%; border-right: none; height: 100%; }
+    /* 
+       ====================================================
+       Penyesuaian Fitur Chat Mobile Tumpuk (Slide Over) 
+       SANGAT PENTING: Diperbaiki agar tidak hancur saat membalas pesan.
+       ==================================================== 
+    */
+    .chat-dashboard-wrapper { height: calc(100vh - 120px); border: none; border-radius: 0; position: relative; overflow: hidden;}
+    .chat-sidebar-panel { width: 100%; border-right: none; height: 100%; display: flex; flex-direction: column; }
     .chat-main-panel { 
         width: 100%; 
         height: 100%; 
@@ -445,6 +454,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
         z-index: 100; 
         background: var(--bg); 
         display: none; 
+        transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     }
     
     /* Login Mobile */
