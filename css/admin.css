@@ -1,6 +1,7 @@
 /* ========================================================
-   VIPERCELL V18.0 - ADMIN COMMAND CENTER CSS
-   * Updated: SaaS Enterprise Layout, Modern Grid, API Panel
+   VIPERCELL V18.1 - ADMIN COMMAND CENTER CSS
+   * Updated: SaaS Enterprise Layout, API Panel, Roblox UI
+   * Fixed: Mobile Responsiveness (Anti Berantakan)
    ======================================================== */
 
 /* ========================================================
@@ -116,6 +117,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
 .flex-1 { flex: 1 !important; }
 .flex-2 { flex: 2 !important; }
+.flex-grow { flex-grow: 1 !important; }
 .w-100 { width: 100% !important; }
 .min-w-100 { min-width: 100px !important; }
 .min-w-150 { min-width: 150px !important; }
@@ -218,13 +220,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .auth-divider hr { flex: 1; border: none; border-top: 1px solid var(--border); }
 .auth-divider span { padding: 0 15px; }
 
-@media (max-width: 768px) {
-    .login-container { max-width: 400px; flex-direction: column; }
-    .login-left-panel { display: none; }
-    .login-right-panel { padding: 2rem; }
-    .login-header-mobile { display: block; }
-}
-
 /* ========================================================
    6. LAYOUT UTAMA ADMIN (SIDEBAR & MAIN)
    ======================================================== */
@@ -247,7 +242,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
 .admin-tab {
     display: flex; align-items: center; gap: 12px; padding: 10px 15px; border-radius: 10px;
-    font-weight: 600; color: var(--text-muted); transition: all 0.2s; text-align: left; position: relative;
+    font-weight: 600; color: var(--text-muted); transition: all 0.2s; text-align: left; position: relative; width: 100%;
 }
 .admin-tab i { font-size: 1.1rem; width: 20px; text-align: center; }
 .admin-tab:hover { background: var(--surface-hover); color: var(--text); }
@@ -279,8 +274,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 /* ========================================================
    7. FORM, GRID, & KARTU DASHBOARD (PANELS)
    ======================================================== */
+/* Sistem Grid Responsif Pintar */
 .grid-2col { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; }
-.grid-3col { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.grid-3col { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; }
+.input-type-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; }
 
 /* Stats Card */
 .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; }
@@ -305,20 +302,28 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .search-box input { padding-left: 40px; border-radius: 20px; }
 
 /* Forms & Inputs */
-.form-group { margin-bottom: 1.2rem; }
+.form-group { margin-bottom: 1.2rem; width: 100%; }
 .form-group label { display: block; font-size: 0.85rem; color: var(--text-muted); font-weight: 600; margin-bottom: 6px; }
 .form-control { width: 100%; padding: 10px 15px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); color: var(--text); outline: none; transition: 0.2s; font-size: 0.9rem; font-family: inherit; }
 .form-control:focus { border-color: var(--primary-light); }
 .code-input { font-family: monospace; font-size: 0.85rem; }
-.select-compact { width: auto; max-width: 200px; padding: 6px 12px; font-weight: 600; }
+.select-compact { width: auto; max-width: 100%; padding: 6px 12px; font-weight: 600; }
+
+/* Grid Type Card Khusus Produk (Dukungan Roblox) */
+.type-card { border: 2px solid var(--border); background: transparent; border-radius: 12px; padding: 15px 10px; cursor: pointer; text-align: center; transition: all 0.2s; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.type-card i { font-size: 1.5rem; color: var(--text-muted); margin-bottom: 8px; transition: color 0.2s; }
+.type-card strong { font-size: 0.85rem; color: var(--text); }
+.type-card:hover { border-color: var(--primary-light); background: rgba(37,99,235,0.05); }
+.type-card.active { border-color: var(--primary-light); background: rgba(37,99,235,0.08); }
+.type-card.active i { color: var(--primary-light); }
 
 /* Upload Box */
-.file-upload-box { display: flex; align-items: center; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 6px; }
+.file-upload-box { display: flex; align-items: center; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 6px; width: 100%; }
 .file-upload-box.outline { border: 1px dashed var(--border); padding: 10px; }
 
 /* Toggle Box */
 .toggle-box { display: flex; align-items: center; gap: 10px; }
-.large-checkbox { width: 20px; height: 20px; cursor: pointer; accent-color: var(--primary-light); }
+.large-checkbox { width: 20px; height: 20px; cursor: pointer; accent-color: var(--primary-light); flex-shrink:0; }
 
 /* Info Box */
 .info-box { padding: 15px; border-radius: 12px; }
@@ -391,32 +396,59 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .chat-msg.user { background: var(--surface-hover); color: var(--text); align-self: flex-start; border-bottom-left-radius: 4px; border: 1px solid var(--border); }
 .chat-time { font-size: 0.65rem; color: inherit; opacity: 0.7; display: block; text-align: right; margin-top: 4px; }
 
-/* Grid Produk Input */
-.type-card { border: 2px solid var(--border); background: transparent; border-radius: 12px; padding: 15px 10px; cursor: pointer; text-align: center; transition: all 0.2s; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-.type-card i { font-size: 1.5rem; color: var(--text-muted); margin-bottom: 8px; }
-.type-card strong { font-size: 0.85rem; color: var(--text); }
-.type-card:hover { border-color: var(--primary-light); background: rgba(37,99,235,0.05); }
-
 /* ========================================================
-   11. RESPONSIVE MOBILE
+   11. RESPONSIVE MOBILE FIX (ANTI BERANTAKAN)
    ======================================================== */
 @media (max-width: 768px) {
     .hide-desktop { display: inline-flex !important; }
     
     .admin-layout { flex-direction: column; }
     
+    /* Layout Mobile Laci */
     .admin-sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: 280px; transform: translateX(-100%); z-index: 10000; box-shadow: 5px 0 25px rgba(0,0,0,0.5); }
     .admin-sidebar.active { transform: translateX(0); }
+    
+    /* Utility Reset Mobile */
+    .w-mobile-100 { width: 100% !important; margin-top: 10px; }
+    .align-start-mobile { align-items: flex-start !important; flex-direction: column !important; gap: 10px; }
+    .flex-wrap-gap { display: flex; flex-wrap: wrap; gap: 10px; width: 100%; }
     
     .top-header { padding: 1rem; }
     .admin-body { padding: 1rem; }
     
-    .stats-grid { grid-template-columns: 1fr; }
-    .grid-2col, .grid-3col { grid-template-columns: 1fr; }
+    /* Grid Breakdown */
+    .grid-2col, .grid-3col, .stats-grid { grid-template-columns: 1fr; gap: 1rem; }
     
-    .modal-content { padding: 1.5rem; }
+    /* Panel Adjustments */
+    .dashboard-panel { padding: 1rem; margin-bottom: 1rem; }
+    .panel-toolbar { flex-direction: column; align-items: flex-start; gap: 10px; }
+    .toolbar-title h3 { font-size: 1.15rem; }
+    .toolbar-action { width: 100%; }
+    .search-box { width: 100%; }
     
+    /* Inputs di Modals & Cards */
+    .modal-content { padding: 1.5rem 1rem; }
+    .form-control { font-size: 1rem; /* Prevent iOS zoom */ }
+    .min-w-100, .min-w-150 { min-width: 0 !important; width: 100% !important; }
+    .flex-1, .flex-2 { flex: 1 1 100% !important; }
+    
+    /* Penyesuaian Fitur Chat Mobile */
     .chat-dashboard-wrapper { height: calc(100vh - 120px); border: none; border-radius: 0; }
     .chat-sidebar-panel { width: 100%; border-right: none; height: 100%; }
-    .chat-main-panel { width: 100%; display: none; height: 100%; position: fixed; top: 0; left: 0; z-index: 100; }
+    .chat-main-panel { width: 100%; display: none; height: 100%; position: fixed; top: 0; left: 0; z-index: 100; background: var(--bg); }
+    
+    /* Login Mobile */
+    .login-container { max-width: 400px; flex-direction: column; min-height: auto; margin-top: 20px;}
+    .login-left-panel { display: none; }
+    .login-right-panel { padding: 2rem; }
+    .login-header-mobile { display: block; }
+}
+
+@media (max-width: 480px) {
+    .page-title { font-size: 1.2rem; }
+    .stat-value { font-size: 1.4rem; }
+    .stat-icon { width: 40px; height: 40px; font-size: 1.2rem; }
+    
+    /* Make Varian Input Stack nicely on extra small screens */
+    .input-type-grid { grid-template-columns: 1fr 1fr; }
 }

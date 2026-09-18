@@ -137,15 +137,15 @@ window.openConfirm = function(title, message, callback, actionType = 'warning') 
     if (iconContainer && confirmBtn) {
         if (actionType === 'delete') {
             iconContainer.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
-            iconContainer.classList.remove('text-primary', 'text-success'); iconContainer.classList.add('text-danger');
+            iconContainer.className = 'msg-icon text-danger';
             confirmBtn.className = 'btn btn-danger flex-1';
         } else if (actionType === 'success') {
             iconContainer.innerHTML = '<i class="fa-solid fa-circle-check"></i>';
-            iconContainer.classList.remove('text-primary', 'text-danger'); iconContainer.classList.add('text-success');
+            iconContainer.className = 'msg-icon text-success';
             confirmBtn.className = 'btn btn-success flex-1';
         } else {
             iconContainer.innerHTML = '<i class="fa-solid fa-circle-question"></i>';
-            iconContainer.classList.remove('text-danger', 'text-success'); iconContainer.classList.add('text-primary');
+            iconContainer.className = 'msg-icon text-primary';
             confirmBtn.className = 'btn btn-primary flex-1';
         }
     }
@@ -189,7 +189,7 @@ window.requestSystemNotificationAdmin = async function() {
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
             window.customAlert('Berhasil', 'Sistem notifikasi HP aktif. Alarm akan berbunyi saat ada pesanan atau obrolan masuk.', 'success');
-            if(btn) { btn.style.color = 'var(--success)'; btn.style.borderColor = 'var(--success)'; }
+            if(btn) { btn.classList.add('text-success'); btn.classList.add('border-success'); }
         } else {
             window.customAlert('Ditolak', 'Izin ditolak. Silakan izinkan melalui pengaturan browser.', 'warning');
         }
@@ -357,7 +357,6 @@ function listenAdminData() {
         window.renderAdminPromos();
     });
     
-    // LISTENER ULASAN PEMBELI
     onSnapshot(collection(db, pathReviews), (snapshot) => {
         reviewsList = [];
         snapshot.forEach(docSnap => reviewsList.push({dbId: docSnap.id, ...docSnap.data()}));
@@ -406,21 +405,21 @@ window.renderReviews = function() {
     reviewsList.forEach(r => {
         let stars = '';
         for(let i=0; i<5; i++) {
-            stars += `<i class="fa-${i < r.rating ? 'solid' : 'regular'} fa-star" style="color:var(--warning); font-size:0.8rem;"></i>`;
+            stars += `<i class="fa-${i < r.rating ? 'solid' : 'regular'} fa-star text-warning text-xs"></i>`;
         }
 
         html += `
         <div class="dashboard-panel panel-flex flex-row flex-between align-center mb-2" style="padding: 1.2rem;">
             <div style="flex:1;">
-                <div style="display:flex; align-items:center; gap:10px; margin-bottom:5px;">
-                    <strong style="color:var(--text); font-size:1.05rem;">${r.userName || 'Pelanggan'}</strong>
-                    <small style="color:var(--text-muted);">${r.userEmail || '-'}</small>
+                <div class="flex-gap align-center mb-1">
+                    <strong class="text-dark" style="font-size:1.05rem;">${r.userName || 'Pelanggan'}</strong>
+                    <small class="text-muted">${r.userEmail || '-'}</small>
                 </div>
-                <div style="margin-bottom:8px;">${stars} <span style="font-size:0.8rem; margin-left:8px; color:var(--primary-light); font-weight:bold;">${r.brandName}</span></div>
-                <p style="font-size:0.95rem; color:var(--text); background:var(--bg); padding:10px; border-radius:8px; margin:0; border: 1px solid var(--border);">"${r.text}"</p>
-                <small style="color:var(--text-muted); font-size: 0.75rem; display:block; margin-top:8px;"><i class="fa-regular fa-clock"></i> ${new Date(r.timestamp).toLocaleString('id-ID')}</small>
+                <div class="mb-1">${stars} <span class="text-primary fw-bold text-sm ms-2">${r.brandName}</span></div>
+                <p class="bg-bg border-border text-dark" style="padding:10px; border-radius:8px; margin:0; font-size:0.95rem;">"${r.text}"</p>
+                <small class="text-muted text-xs d-block mt-2"><i class="fa-regular fa-clock"></i> ${new Date(r.timestamp).toLocaleString('id-ID')}</small>
             </div>
-            <button class="btn btn-outline" style="color:var(--danger); border-color:var(--danger); white-space:nowrap; height: fit-content;" onclick="window.deleteReview('${r.dbId}')">
+            <button class="btn btn-outline border-danger text-danger ml-auto" style="white-space:nowrap; height: fit-content;" onclick="window.deleteReview('${r.dbId}')">
                 <i class="fa-solid fa-trash"></i> Hapus
             </button>
         </div>`;
@@ -474,9 +473,9 @@ window.generateAdminReports = function() {
             let html = '';
             sortedProducts.forEach(prod => {
                 html += `<tr>
-                    <td><strong>${prod[0]}</strong></td>
-                    <td><span class="status-badge status-success">${prod[1].qty} Terjual</span></td>
-                    <td>Rp${prod[1].revenue.toLocaleString('id-ID')}</td>
+                    <td><strong class="text-dark">${prod[0]}</strong></td>
+                    <td><span class="badge-status success"><span class="dot"></span> ${prod[1].qty} Terjual</span></td>
+                    <td class="text-dark">Rp${prod[1].revenue.toLocaleString('id-ID')}</td>
                 </tr>`;
             });
             topTbody.innerHTML = html;
@@ -511,10 +510,10 @@ window.renderAdminOrders = function() {
     renderLimit.forEach(o => {
         const sBadge = o.status === 'UNPAID' ? `<span class="status-badge status-unpaid">UNPAID</span>` : o.status === 'PENDING' ? `<span class="status-badge status-pending">PENDING</span>` : o.status === 'FAILED' ? `<span class="status-badge status-failed">FAILED</span>` : o.status === 'EXPIRED' ? `<span class="status-badge status-failed" style="background:rgba(239, 68, 68, 0.2);">EXPIRED</span>` : `<span class="status-badge status-success">SUCCESS</span>`;
         
-        let itemsDesc = o.items.map(i => `<strong>${i.name}</strong> <span style="color:var(--warning);">(x${i.qty || 1})</span> <br><span class="text-muted text-sm">${i.playerInfo}</span>`).join('<br>');
+        let itemsDesc = o.items.map(i => `<strong class="text-dark">${i.name}</strong> <span class="text-warning text-xs">(x${i.qty || 1})</span> <br><span class="text-muted text-xs">${i.playerInfo}</span>`).join('<br>');
         
         let promoDesc = '';
-        if (o.promoCode) promoDesc += `<br><small style="color:var(--success);">Promo: ${o.promoCode} (-Rp${o.promoDiscount})</small>`;
+        if (o.promoCode) promoDesc += `<br><small class="text-success text-xs">Promo: ${o.promoCode} (-Rp${o.promoDiscount})</small>`;
         
         let paymentMethodStr = o.paymentMethod === 'cash' ? 'Cash/Tunai' : 'QRIS';
         
@@ -525,16 +524,16 @@ window.renderAdminOrders = function() {
             actionBtn = `<span class="text-muted text-sm">Selesai</span>`;
         }
             
-        let deleteBtn = `<button aria-label="Hapus Order" class="btn btn-icon-only text-danger border-none" style="width:30px; height:30px;" title="Hapus Permanen" onclick="window.promptDeleteOrder('${o.dbId}', '${o.id}')"><i class="fa-solid fa-trash"></i></button>`;
+        let deleteBtn = `<button aria-label="Hapus Order" class="btn-icon-only text-danger border-none" style="width:30px; height:30px;" title="Hapus Permanen" onclick="window.promptDeleteOrder('${o.dbId}', '${o.id}')"><i class="fa-solid fa-trash"></i></button>`;
         
         html += `<tr>
-            <td><strong>${o.id}</strong></td>
+            <td><strong class="text-dark">${o.id}</strong></td>
             <td><small class="text-muted">${new Date(o.date).toLocaleDateString()}</small><br>${itemsDesc}${promoDesc}</td>
             <td>${o.userEmail || '-'}</td>
             <td>${paymentMethodStr}</td>
             <td class="text-primary fw-bold">Rp${o.finalTotal.toLocaleString('id-ID')}</td>
             <td>${sBadge}</td>
-            <td style="white-space:nowrap;">${actionBtn} ${deleteBtn}</td>
+            <td class="flex-gap align-center">${actionBtn} ${deleteBtn}</td>
         </tr>`;
     });
     if (filteredOrders.length > 100) html += `<tr><td colspan="7" class="text-center text-muted">Menampilkan 100 pesanan terbaru...</td></tr>`;
@@ -552,7 +551,7 @@ window.promptProcessOrder = async function(dbId) {
     document.getElementById('proc-reply').value = defaultReply;
     
     const list = document.getElementById('proc-items-list');
-    list.innerHTML = '<strong class="text-dark">Detail Item:</strong><ul style="margin-left:20px; font-size:0.85rem; color:var(--text);">' + order.items.map(i => `<li>${i.name} (${i.processType || 'auto'})<br><small class="text-muted">${i.playerInfo}</small></li>`).join('') + '</ul>';
+    list.innerHTML = '<strong class="text-dark mb-1 d-block">Detail Item:</strong><ul style="margin-left:20px; font-size:0.85rem; color:var(--text);">' + order.items.map(i => `<li>${i.name} (${i.processType || 'auto'})<br><small class="text-muted">${i.playerInfo}</small></li>`).join('') + '</ul>';
     
     const hasApp = order.items.some(i => i.type === 'app');
     const stockSec = document.getElementById('proc-stock-section');
@@ -636,7 +635,7 @@ window.promptDeleteOrder = function(dbId, invoiceId) {
     window.openConfirm("Hapus Permanen", `Hapus seluruh riwayat Invoice ${invoiceId}?`, async (confirmed) => {
         if(confirmed) {
             await deleteDoc(doc(db, pathOrders, dbId));
-            window.customAlert("Terhapus", `Invoice ${invoiceId} berhasil dihapus.`, "success");
+            window.showToast("Terhapus", `Invoice ${invoiceId} berhasil dihapus.`, "success");
         }
     }, 'delete');
 }
@@ -685,11 +684,11 @@ window.renderAdminStocksByCategory = async function() {
             const badge = s.status === 'Ready' ? '<span class="status-badge status-success">Ready</span>' : '<span class="status-badge status-failed">Terjual</span>';
             html += `<tr>
                 <td>${i+1}</td>
-                <td><strong>${s.brand}</strong><br><small class="text-primary">${s.itemName || '-'}</small></td>
-                <td><strong>${em}</strong><br><small class="text-muted">${pw}</small></td>
-                <td>${dur}</td>
+                <td><strong class="text-dark">${s.brand}</strong><br><small class="text-primary">${s.itemName || '-'}</small></td>
+                <td><strong class="text-dark">${em}</strong><br><small class="text-muted">${pw}</small></td>
+                <td class="text-dark">${dur}</td>
                 <td>${badge}</td>
-                <td><button aria-label="Hapus Stok" class="btn btn-outline border-none text-danger" style="padding:4px;" onclick="window.deleteStock('${s.dbId}')"><i class="fa-solid fa-trash"></i></button></td>
+                <td><button aria-label="Hapus Stok" class="btn-icon-only border-none text-danger" style="width:30px; height:30px;" onclick="window.deleteStock('${s.dbId}')"><i class="fa-solid fa-trash"></i></button></td>
             </tr>`;
         });
         tb.innerHTML = html;
@@ -752,7 +751,7 @@ window.renderAdminProducts = function() {
     
     let html = '';
     groupedBrands.forEach(b => {
-        const imgHtml = b.imgUrlBase64 ? `<img src="${b.imgUrlBase64}" style="width:45px; height:45px; object-fit:cover; border-radius:10px;" loading="lazy" alt="${b.brandName}">` : `<div style="width:45px; height:45px; background:var(--primary); color:white; display:flex; justify-content:center; align-items:center; border-radius:10px; font-weight:bold;">${b.brandName.charAt(0)}</div>`;
+        const imgHtml = b.imgUrlBase64 ? `<img src="${b.imgUrlBase64}" style="width:50px; height:50px; object-fit:cover; border-radius:12px;" loading="lazy" alt="${b.brandName}">` : `<div style="width:50px; height:50px; background:var(--primary); color:white; display:flex; justify-content:center; align-items:center; border-radius:12px; font-weight:bold; font-size:1.5rem;">${b.brandName.charAt(0)}</div>`;
         const itemsCount = b.items.length;
         const isSoldOut = b.items.every(i => i.soldOut);
         
@@ -761,14 +760,14 @@ window.renderAdminProducts = function() {
         
         html += `
         <div class="dashboard-panel panel-flex flex-row flex-between align-center mb-2" style="padding:1.2rem;">
-            <div style="display:flex; align-items:center; gap:12px;">
+            <div class="flex-gap align-center">
                 ${imgHtml}
                 <div>
-                    <strong style="font-size:1.05rem;">${b.brandName}</strong><br>
+                    <strong class="text-dark" style="font-size:1.1rem;">${b.brandName}</strong><br>
                     <span class="text-sm text-muted">${b.type === 'app' ? 'Aplikasi Premium' : 'Top Up Game'} &bull; ${itemsCount} Varian</span>
                 </div>
             </div>
-            <div style="display:flex; align-items:center; gap:10px;">
+            <div class="flex-gap align-center">
                 ${statusBadgeHtml}
                 <button aria-label="Edit Grup" class="btn btn-outline btn-sm" onclick="window.openProductGroupModal('${b.brandName}')"><i class="fa-solid fa-pen"></i> Edit</button>
                 <button aria-label="Hapus Grup" class="btn btn-danger btn-sm" onclick="window.deleteProductGroup('${b.brandName}')"><i class="fa-solid fa-trash"></i></button>
@@ -787,14 +786,8 @@ window.toggleInputTypeBox = function() {
 window.selectInputType = function(val, el) {
     document.querySelectorAll('.type-card').forEach(c => {
         c.classList.remove('active');
-        c.style.background = 'transparent';
-        c.style.borderColor = 'var(--border)';
-        c.querySelector('i').style.color = 'var(--text-muted)';
     });
     el.classList.add('active');
-    el.style.background = 'rgba(37,99,235,0.08)';
-    el.style.borderColor = 'var(--primary-light)';
-    el.querySelector('i').style.color = 'var(--primary-light)';
     el.querySelector('input').checked = true;
 }
 
@@ -818,6 +811,7 @@ window.openProductGroupModal = function(brandName = null) {
             
             const allSoldOut = currentGroupNominals.length > 0 && currentGroupNominals.every(n => n.soldOut);
             document.getElementById('manage-prod-soldout').checked = allSoldOut;
+            
             let inpType = group.items[0]?.inputType || 'id_zone';
             const targetEl = document.querySelector(`.type-card input[value="${inpType}"]`);
             if(targetEl) window.selectInputType(inpType, targetEl.parentElement);
@@ -850,7 +844,7 @@ window.clearTempNominalInput = function() {
     document.getElementById('temp-nom-price').value = '';
     document.getElementById('temp-nom-status').value = 'auto';
     document.getElementById('temp-nom-index').value = '-1';
-    document.getElementById('btn-add-item').innerHTML = '<i class="fa-solid fa-plus"></i> Tambah ke Daftar';
+    document.getElementById('btn-add-item').innerHTML = '<i class="fa-solid fa-plus"></i> Tambah Item';
     document.getElementById('btn-cancel-edit-item').style.display = 'none';
 }
 
@@ -915,17 +909,17 @@ window.renderTempNominals = function() {
     
     currentGroupNominals.forEach((nom, index) => {
         const isSold = nom.soldOut ? 'checked' : '';
-        const badgeType = nom.processType === 'manual' ? `<span class="status-badge" style="font-size:0.6rem; color:var(--warning); border-color:var(--warning); background:transparent; padding:2px 4px;">Manual</span>` : `<span class="status-badge" style="font-size:0.6rem; color:var(--success); border-color:var(--success); background:transparent; padding:2px 4px;">Auto</span>`;
+        const badgeType = nom.processType === 'manual' ? `<span class="status-badge border-warning text-warning" style="font-size:0.6rem; background:transparent; padding:2px 4px;">Manual</span>` : `<span class="status-badge border-success text-success" style="font-size:0.6rem; background:transparent; padding:2px 4px;">Auto</span>`;
         html += `
         <div class="flex-between align-center border-bottom" style="padding: 10px 0;">
-            <div style="display:flex; align-items:center; gap:10px;">
+            <div class="flex-gap align-center">
                 ${finalImg}
                 <div>
                     <div class="fw-bold text-dark text-sm">${nom.name} ${badgeType}</div>
                     <div class="text-muted text-xs">Rp${nom.priceNum.toLocaleString('id-ID')}</div>
                 </div>
             </div>
-            <div style="display: flex; align-items: center; gap: 8px;">
+            <div class="flex-gap align-center">
                 <input type="checkbox" class="large-checkbox" style="width:18px; height:18px; accent-color: var(--danger);" title="Tandai Habis" onchange="window.toggleIndividualSoldOut(${index}, this.checked)" ${isSold}>
                 <button aria-label="Edit Item" class="btn-icon-only text-primary border-none" style="width:30px; height:30px;" onclick="window.editTempNominal(${index})" title="Edit"><i class="fa-solid fa-pen"></i></button>
                 <button aria-label="Hapus Item" class="btn-icon-only text-danger border-none" style="width:30px; height:30px;" onclick="window.removeTempNominal(${index})" title="Hapus"><i class="fa-solid fa-trash"></i></button>
@@ -1027,13 +1021,13 @@ window.renderAdminPromos = function() {
         if(p.targetUser === 'new') userTgt = 'User Baru';
         
         html += `<tr>
-            <td><strong>${p.code}</strong></td>
-            <td><span class="status-badge status-success">${typeStr}</span></td>
-            <td>${targetStr}</td>
-            <td><span class="text-warning text-sm">${userTgt}</span></td>
-            <td>${p.usedCount || 0} / ${p.maxUses}</td>
+            <td><strong class="text-dark">${p.code}</strong></td>
+            <td><span class="badge-status success">${typeStr}</span></td>
+            <td class="text-dark">${targetStr}</td>
+            <td><span class="text-warning text-sm fw-bold">${userTgt}</span></td>
+            <td class="text-dark">${p.usedCount || 0} / ${p.maxUses}</td>
             <td>${p.active ? '<span class="status-badge status-success">Aktif</span>' : '<span class="status-badge status-failed">Mati</span>'}</td>
-            <td style="white-space:nowrap;">
+            <td class="flex-gap align-center">
                 <button aria-label="Edit Promo" class="btn-icon-only border-none text-primary" style="width:30px; height:30px;" onclick="window.openPromoModal('${p.dbId}')"><i class="fa-solid fa-pen"></i></button>
                 <button aria-label="Hapus Promo" class="btn-icon-only border-none text-danger" style="width:30px; height:30px;" onclick="window.deletePromo('${p.dbId}')"><i class="fa-solid fa-trash"></i></button>
             </td>

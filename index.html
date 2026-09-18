@@ -4,13 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Vipercell - Admin Command Center</title>
-    <meta name="robots" content="noindex, nofollow"> <!-- Mencegah Google mengindeks halaman admin -->
+    <meta name="robots" content="noindex, nofollow">
     
     <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- CSS Khusus Admin -->
     <link rel="stylesheet" href="css/admin.css">
     
     <script>
@@ -19,13 +18,10 @@
     </script>
 </head>
 <body>
-    <!-- WADAH NOTIFIKASI TOAST MELAYANG & SUARA -->
     <div id="toast-container" class="toast-container"></div>
     <audio id="notif-sound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="none"></audio>
 
-    <!-- ========================================================
-         LAYAR LOGIN ADMIN (PREMIUM SAAS DESIGN)
-         ======================================================== -->
+    <!-- LAYAR LOGIN ADMIN -->
     <div id="admin-login-screen" class="login-wrapper">
         <div class="login-container">
             <div class="login-left-panel hide-mobile">
@@ -63,9 +59,7 @@
                         <i class="fa-solid fa-right-to-bracket"></i> <span>Masuk ke Sistem</span>
                     </button>
                     
-                    <div class="auth-divider">
-                        <hr> <span>ATAU</span> <hr>
-                    </div>
+                    <div class="auth-divider"><hr> <span>ATAU</span> <hr></div>
                     
                     <button id="btn-admin-google" class="btn btn-outline btn-block" style="border-color: rgba(234,67,53,0.3); color: #ea4335;" onclick="window.processAdminGoogleLogin()">
                         <i class="fa-brands fa-google"></i> <span>Masuk dengan Google</span>
@@ -75,12 +69,9 @@
         </div>
     </div>
 
-    <!-- ========================================================
-         DASHBOARD ADMIN V18.0 (MODERN ENTERPRISE LAYOUT)
-         ======================================================== -->
+    <!-- DASHBOARD ADMIN -->
     <div id="admin-dashboard" class="admin-layout" style="display:none;">
         
-        <!-- Sidebar Admin -->
         <aside class="admin-sidebar" id="admin-sidebar">
             <div class="sidebar-header">
                 <div class="sidebar-logo">
@@ -92,7 +83,6 @@
             </div>
             
             <div class="sidebar-menu" aria-label="Navigasi Admin">
-                <!-- Kategori 1: Utama -->
                 <span class="menu-label">MENU UTAMA</span>
                 <button class="admin-tab active" onclick="window.switchAdminTab('tab-ringkasan', this)"><i class="fa-solid fa-chart-pie"></i> <span>Dashboard</span></button>
                 <button class="admin-tab" onclick="window.switchAdminTab('tab-orders', this)">
@@ -104,7 +94,6 @@
                     <span id="admin-chat-tab-badge" class="notif-dot badge-right"></span>
                 </button>
 
-                <!-- Kategori 2: Manajemen -->
                 <span class="menu-label" style="margin-top: 15px;">MANAJEMEN</span>
                 <button class="admin-tab" onclick="window.switchAdminTab('tab-products', this)"><i class="fa-solid fa-box-open"></i> <span>Katalog & Harga</span></button>
                 <button class="admin-tab" onclick="window.switchAdminTab('tab-stocks', this)"><i class="fa-solid fa-layer-group"></i> <span>Stok Akun (Lokal)</span></button>
@@ -112,7 +101,6 @@
                 <button class="admin-tab" onclick="window.switchAdminTab('tab-reviews', this)"><i class="fa-solid fa-star"></i> <span>Ulasan Pembeli</span></button>
                 <button class="admin-tab" onclick="window.switchAdminTab('tab-news', this)"><i class="fa-solid fa-newspaper"></i> <span>Berita Web</span></button>
                 
-                <!-- Kategori 3: Sistem -->
                 <span class="menu-label" style="margin-top: 15px;">SISTEM</span>
                 <button class="admin-tab" onclick="window.switchAdminTab('tab-settings', this)"><i class="fa-solid fa-gear"></i> <span>Pengaturan Web</span></button>
                 <button class="admin-tab" onclick="window.switchAdminTab('tab-api', this)" style="color: var(--success);"><i class="fa-solid fa-laptop-code"></i> <span>API & VPS</span></button>
@@ -130,7 +118,6 @@
             </div>
         </aside>
 
-        <!-- Main Content Admin Area -->
         <main class="admin-main">
             <header class="top-header">
                 <div class="header-left">
@@ -153,7 +140,7 @@
 
             <div class="admin-body">
                 
-                <!-- TAB: DASHBOARD (RINGKASAN) -->
+                <!-- TAB: DASHBOARD -->
                 <div id="tab-ringkasan" class="admin-tab-content active" style="display: block;">
                     <div class="stats-grid" style="margin-bottom: 2rem;">
                         <div class="stat-card">
@@ -192,14 +179,14 @@
                     </div>
                 </div>
                 
-                <!-- TAB: ORDERS (PESANAN MASUK) -->
+                <!-- TAB: ORDERS -->
                 <div id="tab-orders" class="admin-tab-content" style="display: none;">
                     <div class="panel-toolbar">
                         <div class="toolbar-title">
                             <h3>Manajemen Pesanan Masuk</h3>
                             <p>Proses atau pantau invoice secara manual</p>
                         </div>
-                        <div class="toolbar-action">
+                        <div class="toolbar-action w-mobile-100">
                             <div class="search-box">
                                 <i class="fa-solid fa-magnifying-glass"></i>
                                 <input aria-label="Cari Invoice" type="text" id="admin-search-order" class="form-control" placeholder="Cari ID Invoice / Email..." onkeyup="window.renderAdminOrders()">
@@ -219,7 +206,6 @@
                 <!-- TAB: STOK AKUN PREMIUM -->
                 <div id="tab-stocks" class="admin-tab-content" style="display: none;">
                     <div class="grid-2col">
-                        <!-- Input Massal -->
                         <div class="dashboard-panel">
                             <div class="panel-header">
                                 <h3><i class="fa-solid fa-folder-plus text-primary"></i> Kelola Stok Manual</h3>
@@ -246,20 +232,18 @@
                             </button>
                         </div>
                         
-                        <!-- Lihat Stok -->
                         <div class="dashboard-panel panel-flex">
-                            <div class="panel-header flex-between">
+                            <div class="panel-header flex-between align-start-mobile">
                                 <h3>Data Stok Tersedia</h3>
-                                <select id="view-stock-category" class="form-control select-compact" onchange="window.renderAdminStocksByCategory()">
+                                <select id="view-stock-category" class="form-control select-compact w-mobile-100" onchange="window.renderAdminStocksByCategory()">
                                     <option value="">-- Filter Kategori --</option>
                                 </select>
                             </div>
-                            
                             <div class="table-responsive flex-grow">
                                 <table class="modern-table">
                                     <thead><tr><th>No.</th><th>Varian</th><th>Data Akun</th><th>Detail Tambahan</th><th>Status</th><th>Aksi</th></tr></thead>
                                     <tbody id="admin-stock-list">
-                                        <tr><td colspan="6" class="text-center text-muted" style="padding: 3rem;"><i class="fa-solid fa-filter" style="font-size:2rem; margin-bottom:10px; opacity:0.5; display:block;"></i> Pilih kategori produk untuk merender tabel stok. (Penghematan Memori Aktif)</td></tr>
+                                        <tr><td colspan="6" class="text-center text-muted" style="padding: 3rem;"><i class="fa-solid fa-filter" style="font-size:2rem; margin-bottom:10px; opacity:0.5; display:block;"></i> Pilih kategori produk untuk merender tabel stok.</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -267,18 +251,17 @@
                     </div>
                 </div>
                 
-                <!-- TAB: PRODUCTS (KATALOG & HARGA) -->
+                <!-- TAB: PRODUCTS -->
                 <div id="tab-products" class="admin-tab-content" style="display: none;">
                     <div class="panel-toolbar highlight-toolbar">
                         <div class="toolbar-title">
                             <h3><i class="fa-solid fa-boxes-stacked"></i> Pusat Manajemen Produk</h3>
                             <p>Kelola produk aplikasi atau game secara manual.</p>
                         </div>
-                        <div class="toolbar-action">
-                            <button class="btn btn-primary" onclick="window.openProductGroupModal()"><i class="fa-solid fa-plus"></i> Tambah Grup Baru</button>
+                        <div class="toolbar-action w-mobile-100">
+                            <button class="btn btn-primary btn-block" onclick="window.openProductGroupModal()"><i class="fa-solid fa-plus"></i> Tambah Grup Baru</button>
                         </div>
                     </div>
-                    
                     <div id="admin-prod-list" class="product-grid-admin">
                         <div class="text-center text-muted w-100" style="padding: 2rem;">Memuat produk...</div>
                     </div>
@@ -290,8 +273,8 @@
                         <div class="toolbar-title">
                             <h3>Kelola Kode Promo Cerdas</h3>
                         </div>
-                        <div class="toolbar-action">
-                            <button class="btn btn-primary" onclick="window.openPromoModal()"><i class="fa-solid fa-plus"></i> Buat Promo Baru</button>
+                        <div class="toolbar-action w-mobile-100">
+                            <button class="btn btn-primary btn-block" onclick="window.openPromoModal()"><i class="fa-solid fa-plus"></i> Buat Promo Baru</button>
                         </div>
                     </div>
                     <div class="dashboard-panel">
@@ -304,7 +287,7 @@
                     </div>
                 </div>
                 
-                <!-- TAB: MANAJEMEN ULASAN (REVIEWS) -->
+                <!-- TAB: REVIEWS -->
                 <div id="tab-reviews" class="admin-tab-content" style="display: none;">
                     <div class="panel-toolbar">
                         <div class="toolbar-title">
@@ -312,23 +295,21 @@
                             <p>Pantau dan kelola ulasan yang dikirimkan oleh pengguna setelah transaksi sukses.</p>
                         </div>
                     </div>
-                    
                     <div id="admin-reviews-list" class="reviews-grid-admin">
                         <div class="text-center text-muted w-100 dashboard-panel" style="padding: 2rem;">Memuat ulasan...</div>
                     </div>
                 </div>
                 
-                <!-- TAB: NEWS / BERITA WEB -->
+                <!-- TAB: NEWS -->
                 <div id="tab-news" class="admin-tab-content" style="display: none;">
                     <div class="grid-2col">
                         <div class="dashboard-panel">
-                            <div class="panel-header flex-between">
+                            <div class="panel-header flex-between align-start-mobile">
                                 <h3>Kelola Berita & Promo Web</h3>
-                                <button class="btn btn-primary btn-sm" onclick="window.openNewsModal()"><i class="fa-solid fa-plus"></i> Tambah</button>
+                                <button class="btn btn-primary btn-sm w-mobile-100" onclick="window.openNewsModal()"><i class="fa-solid fa-plus"></i> Tambah</button>
                             </div>
                             <div id="admin-news-list" class="news-list-admin"></div>
                         </div>
-                        
                         <div class="dashboard-panel">
                             <div class="panel-header">
                                 <h3>Link Komunitas (WhatsApp)</h3>
@@ -347,23 +328,17 @@
                 <!-- TAB: LIVE CHAT ADMIN -->
                 <div id="tab-livechat" class="admin-tab-content" style="display: none; padding: 0; min-height: 0;">
                     <div class="chat-dashboard-wrapper">
-                        <!-- Sidebar Chat -->
                         <div class="chat-sidebar-panel" id="admin-chat-sidebar-panel">
                             <div class="chat-sidebar-header">
                                 <h3>Sesi Obrolan Aktif</h3>
                             </div>
                             <div id="admin-chat-list" class="chat-user-list"></div>
                         </div>
-                        
-                        <!-- Main Chat Panel -->
                         <div class="chat-main-panel" id="admin-chat-main-panel">
-                            <!-- State Kosong -->
                             <div id="admin-chat-empty" class="chat-empty-state">
                                 <i class="fa-brands fa-whatsapp"></i>
                                 <p>Pilih pesan pelanggan untuk membalas.</p>
                             </div>
-                            
-                            <!-- State Aktif -->
                             <div id="admin-chat-active" style="display:none; flex-direction:column; height:100%;">
                                 <div class="chat-active-header">
                                     <div style="display:flex; align-items:center; gap:10px;">
@@ -374,9 +349,7 @@
                                         <i class="fa-solid fa-check-double"></i> <span>Selesai</span>
                                     </button>
                                 </div>
-                                
                                 <div class="chat-active-body" id="admin-chat-body-desktop"></div>
-                                
                                 <div class="chat-quick-replies">
                                     <button class="btn btn-outline btn-sm round" onclick="window.insertQuickReplyDesk('Halo kak, ada yang bisa kami bantu?')">Halo</button>
                                     <button class="btn btn-outline btn-sm round" onclick="window.insertQuickReplyDesk('Baik kak, pesanan sedang kami proses ya, mohon ditunggu sebentar.')">Proses</button>
@@ -384,7 +357,6 @@
                                     <button class="btn btn-outline btn-sm round" onclick="window.insertQuickReplyDesk('Silakan cek detail info akun di menu Lacak Pesanan ya kak.')">Cek Akun</button>
                                     <button class="btn btn-outline btn-sm round" onclick="window.insertQuickReplyDesk('Mohon maaf kak, stok produk tersebut sedang kosong/gangguan.')">Kosong</button>
                                 </div>
-                                
                                 <div class="chat-active-footer">
                                     <input type="hidden" id="admin-active-chat-id-desk">
                                     <input type="text" id="admin-chat-input-desk" class="form-control" placeholder="Ketik balasan..." onkeypress="if(event.key === 'Enter') window.sendAdminChatDesk()">
@@ -395,7 +367,7 @@
                     </div>
                 </div>
                 
-                <!-- TAB: PENGATURAN WEB (SETTINGS) -->
+                <!-- TAB: PENGATURAN WEB -->
                 <div id="tab-settings" class="admin-tab-content" style="display: none;">
                     <div class="settings-grid">
                         <div class="dashboard-panel">
@@ -409,22 +381,19 @@
                                 <label>Logo Gambar Web</label>
                                 <div class="file-upload-box">
                                     <button class="btn btn-outline btn-sm" onclick="document.getElementById('logo-upload').click()">Pilih File</button>
-                                    <span id="set-logo-file-name" class="text-muted">Tersimpan</span>
+                                    <span id="set-logo-file-name" class="text-muted flex-1 ms-2">Tersimpan</span>
                                     <input type="file" id="logo-upload" accept="image/*" style="display: none;">
                                     <input type="hidden" id="set-logo-base64">
                                 </div>
-                                <img id="set-logo-preview" src="" alt="Preview Logo" class="preview-img-small mt-2" style="display: none;">
+                                <img id="set-logo-preview" src="" alt="Preview Logo" class="preview-img-small mt-2" style="display: none; max-height: 40px; border-radius:4px;">
                             </div>
                             <div class="form-group">
                                 <label for="set-marquee">Teks Promo / Berjalan (Header)</label>
                                 <textarea id="set-marquee" class="form-control" rows="3" onchange="window.saveSettingsManual()"></textarea>
                             </div>
                             <div class="toggle-box mt-3">
-                                <label class="fw-bold text-primary mb-0">Status Toko</label>
-                                <div class="toggle-switch">
-                                    <input type="checkbox" id="set-store-status" onchange="window.saveSettingsManual()" checked>
-                                    <span class="toggle-label">Toko Terbuka</span>
-                                </div>
+                                <label class="fw-bold text-primary mb-0 flex-1">Status Toko</label>
+                                <input type="checkbox" id="set-store-status" class="large-checkbox" onchange="window.saveSettingsManual()" checked>
                             </div>
                         </div>
                         
@@ -482,7 +451,7 @@
                             <div class="form-group mb-0">
                                 <label class="text-success"><i class="fa-solid fa-link"></i> Endpoint VPS (Base URL)</label>
                                 <input type="text" id="set-vps-endpoint" class="form-control code-input mt-2" placeholder="Contoh: https://api.vipercell.cloud" onchange="window.saveSettingsManual()" style="border-color: var(--success);">
-                                <small class="text-dark mt-2 d-block opacity-75">Web akan mengirimkan request API ke URL ini saat dibutuhkan (misal eksekusi order sukses ke Digiflazz).</small>
+                                <small class="text-dark mt-2 d-block opacity-75">Web akan mengirimkan request API ke URL ini saat dibutuhkan.</small>
                             </div>
                         </div>
                         
@@ -498,10 +467,6 @@
         </main>
     </div>
 
-    <!-- ========================================================
-         ADMIN MODALS 
-         ======================================================== -->
-    
     <!-- MODAL PROSES ORDER -->
     <div class="modal-overlay" id="modal-process-order">
         <div class="modal-content wide">
@@ -510,27 +475,22 @@
                 <button class="close-btn" aria-label="Tutup" onclick="window.closeModal('modal-process-order')"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <input type="hidden" id="proc-order-id">
-            
             <div id="proc-items-list" class="info-box bg-surface-hover mb-3"></div>
             
             <div id="proc-stock-section" class="info-box bg-primary-light border-primary mb-3" style="display:none;">
                 <label class="text-primary fw-bold mb-2 d-block">Pilih Akun dari Stok Ready:</label>
                 <select id="proc-stock-select" class="form-control border-primary"></select>
-                <small class="text-muted d-block mt-2">Sistem otomatis mengubah status stok menjadi "Digunakan" dan mengisi balasan di bawah.</small>
+                <small class="text-muted d-block mt-2">Otomatis mengubah status stok menjadi "Digunakan".</small>
             </div>
             
             <div class="form-group">
                 <label>Keterangan / Balasan ke Pembeli</label>
-                <textarea id="proc-reply" class="form-control" rows="4" placeholder="Pesanan selesai / Detail Akun / Serial Number Digiflazz..."></textarea>
+                <textarea id="proc-reply" class="form-control" rows="4" placeholder="Pesanan selesai / Detail Akun / Serial Number..."></textarea>
             </div>
             
-            <div class="flex-gap mt-4">
-                <button id="btn-proc-fail" class="btn btn-danger flex-1" onclick="window.markOrderComplete('FAILED')">
-                    <i class="fa-solid fa-ban"></i> <span>Gagalkan</span>
-                </button>
-                <button id="btn-proc-success" class="btn btn-success flex-1" onclick="window.markOrderComplete('SUCCESS')">
-                    <i class="fa-solid fa-paper-plane"></i> <span>Kirim & Selesaikan</span>
-                </button>
+            <div class="flex-gap mt-4 flex-wrap-gap">
+                <button id="btn-proc-fail" class="btn btn-danger flex-1" onclick="window.markOrderComplete('FAILED')"><i class="fa-solid fa-ban"></i> <span>Gagalkan</span></button>
+                <button id="btn-proc-success" class="btn btn-success flex-1" onclick="window.markOrderComplete('SUCCESS')"><i class="fa-solid fa-paper-plane"></i> <span>Kirim & Selesaikan</span></button>
             </div>
         </div>
     </div>
@@ -543,26 +503,17 @@
                 <button class="close-btn" aria-label="Tutup" onclick="window.closeModal('modal-manage-news')"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <input type="hidden" id="manage-news-index">
+            <div class="form-group"><label>Judul Berita</label><input type="text" id="manage-news-title" class="form-control" placeholder="Contoh: Promo Weekend!"></div>
             <div class="form-group">
-                <label for="manage-news-title">Judul Berita</label>
-                <input type="text" id="manage-news-title" class="form-control" placeholder="Contoh: Promo Weekend!">
-            </div>
-            <div class="form-group">
-                <label>Upload Gambar (Auto WebP)</label>
+                <label>Upload Gambar</label>
                 <div class="file-upload-box mt-2">
-                    <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('manage-news-file').click()"><i class="fa-solid fa-upload"></i> Pilih Gambar</button>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('manage-news-file').click()"><i class="fa-solid fa-upload"></i> Upload</button>
                     <input type="file" id="manage-news-file" accept="image/*" style="display:none;" onchange="window.handleNewsUpload(event)">
                 </div>
                 <input type="hidden" id="manage-news-image">
-                <small class="text-muted d-block mt-1">Abaikan jika hanya ingin mengirim teks.</small>
             </div>
-            <div class="form-group">
-                <label for="manage-news-desc">Isi Konten</label>
-                <textarea id="manage-news-desc" class="form-control" rows="5" placeholder="Tulis pengumuman di sini..."></textarea>
-            </div>
-            <button id="btn-save-news" class="btn btn-primary btn-block mt-3" onclick="window.saveNews()">
-                <i class="fa-solid fa-floppy-disk"></i> <span>Simpan Berita</span>
-            </button>
+            <div class="form-group"><label>Isi Konten</label><textarea id="manage-news-desc" class="form-control" rows="5"></textarea></div>
+            <button id="btn-save-news" class="btn btn-primary btn-block mt-3" onclick="window.saveNews()"><i class="fa-solid fa-floppy-disk"></i> <span>Simpan Berita</span></button>
         </div>
     </div>
 
@@ -575,50 +526,22 @@
             </div>
             <input type="hidden" id="manage-promo-id">
             
-            <div class="form-group">
-                <label for="manage-promo-code">Kode Promo (Tanpa Spasi)</label>
-                <input type="text" id="manage-promo-code" class="form-control code-input uppercase" placeholder="Contoh: DISKONMANTAP">
-            </div>
+            <div class="form-group"><label>Kode Promo</label><input type="text" id="manage-promo-code" class="form-control code-input uppercase" placeholder="DISKONMANTAP"></div>
             
             <div class="grid-2col">
-                <div class="form-group">
-                    <label for="manage-promo-type">Tipe Potongan</label>
-                    <select id="manage-promo-type" class="form-control">
-                        <option value="nominal">Rupiah (Rp)</option>
-                        <option value="percent">Persen (%)</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="manage-promo-amount">Nominal / Angka</label>
-                    <input type="number" id="manage-promo-amount" class="form-control" placeholder="Contoh: 10000">
-                </div>
+                <div class="form-group"><label>Tipe Potongan</label><select id="manage-promo-type" class="form-control"><option value="nominal">Rupiah (Rp)</option><option value="percent">Persen (%)</option></select></div>
+                <div class="form-group"><label>Nominal</label><input type="number" id="manage-promo-amount" class="form-control" placeholder="10000"></div>
             </div>
             
-            <div class="form-group">
-                <label for="manage-promo-target">Target Brand Produk</label>
-                <select id="manage-promo-target" class="form-control">
-                    <option value="all">Semua Produk (Bebas)</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="manage-promo-user">Target Pengguna</label>
-                <select id="manage-promo-user" class="form-control bg-primary-light border-primary">
-                    <option value="all">Semua Pengguna</option>
-                    <option value="new">Khusus Transaksi Pertama</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="manage-promo-max">Batas Kuota Penggunaan</label>
-                <input type="number" id="manage-promo-max" class="form-control" placeholder="Contoh: 50">
-            </div>
+            <div class="form-group"><label>Target Brand</label><select id="manage-promo-target" class="form-control"><option value="all">Semua Produk</option></select></div>
+            <div class="form-group"><label>Target Pengguna</label><select id="manage-promo-user" class="form-control bg-primary-light border-primary"><option value="all">Semua Pengguna</option><option value="new">Khusus Transaksi Pertama</option></select></div>
+            <div class="form-group"><label>Batas Kuota</label><input type="number" id="manage-promo-max" class="form-control" placeholder="50"></div>
             
             <div class="toggle-box info-box bg-primary-light border-primary mt-3">
-                <label for="manage-promo-active" class="fw-bold mb-0 text-dark pointer">Status Promo Aktif / Live</label>
+                <label for="manage-promo-active" class="fw-bold mb-0 text-dark pointer flex-1">Status Promo Aktif</label>
                 <input type="checkbox" id="manage-promo-active" class="large-checkbox" checked>
             </div>
-            <button id="btn-save-promo" class="btn btn-primary btn-block mt-4" onclick="window.savePromo()">
-                <i class="fa-solid fa-floppy-disk"></i> <span>Simpan Promo</span>
-            </button>
+            <button id="btn-save-promo" class="btn btn-primary btn-block mt-4" onclick="window.savePromo()"><i class="fa-solid fa-floppy-disk"></i> <span>Simpan Promo</span></button>
         </div>
     </div>
 
@@ -635,44 +558,47 @@
             <div class="dashboard-panel bg-surface-hover mb-3">
                 <div class="grid-2col" style="grid-template-columns: 1fr 2fr;">
                     <div class="form-group mb-0">
-                        <label for="manage-prod-type">Kategori Utama</label>
+                        <label>Kategori Utama</label>
                         <select id="manage-prod-type" class="form-control" onchange="window.toggleInputTypeBox()">
                             <option value="game">Top Up Game</option><option value="app">Aplikasi Premium</option>
                         </select>
                     </div>
                     <div class="form-group mb-0">
-                        <label for="manage-prod-brand">Nama Brand / Game</label>
-                        <input type="text" id="manage-prod-brand" class="form-control" placeholder="Contoh: Mobile Legends">
+                        <label>Nama Brand / Game</label>
+                        <input type="text" id="manage-prod-brand" class="form-control" placeholder="Mobile Legends">
                     </div>
                 </div>
-                
                 <div class="form-group mt-3">
-                    <label>Logo Produk / Gambar (Auto WebP)</label>
+                    <label>Logo Produk / Gambar</label>
                     <div class="file-upload-box outline">
                          <button class="btn btn-primary btn-sm" onclick="document.getElementById('manage-prod-img-file').click()"><i class="fa-solid fa-upload"></i> Upload</button>
-                         <span id="manage-prod-file-name" class="text-muted flex-1 ms-2">Belum ada gambar</span>
+                         <span id="manage-prod-file-name" class="text-muted flex-1 ms-2 text-sm">Belum ada gambar</span>
                          <input type="file" id="manage-prod-img-file" accept="image/*" style="display: none;">
                          <input type="hidden" id="manage-prod-img-base64">
                     </div>
                 </div>
-                
                 <div class="form-group mt-3">
-                    <label>Deskripsi Tambahan / Cara Klaim (Opsional)</label>
-                    <textarea id="manage-prod-desc" class="form-control bg-darker" rows="3" placeholder="Contoh:&#10;1. Masukkan ID Anda&#10;2. Selesaikan Pembayaran"></textarea>
+                    <label>Deskripsi Tambahan / Cara Klaim</label>
+                    <textarea id="manage-prod-desc" class="form-control bg-darker" rows="3" placeholder="Contoh:&#10;1. Masukkan ID Anda"></textarea>
                 </div>
             </div>
             
-            <!-- Area 2: Input Tipe (Hanya utk Game) -->
+            <!-- Area 2: Input Tipe (Fitur ROBLOX DITAMBAHKAN DISINI) -->
             <div id="group-tipe-input" class="dashboard-panel bg-surface-hover mb-3">
-                <label class="fw-bold d-block mb-2"><i class="fa-solid fa-keyboard text-primary mr-1"></i> Format Input ID (Khusus Game)</label>
-                <div class="grid-3col">
+                <label class="fw-bold d-block mb-2"><i class="fa-solid fa-keyboard text-primary mr-1"></i> Format Input ID</label>
+                <div class="input-type-grid">
                     <label class="type-card active" onclick="window.selectInputType('id_only', this)">
                         <input type="radio" name="manage_input_type" value="id_only" checked style="display:none;">
                         <i class="fa-solid fa-id-card"></i><strong>ID Saja</strong>
                     </label>
                     <label class="type-card" onclick="window.selectInputType('id_zone', this)">
                         <input type="radio" name="manage_input_type" value="id_zone" style="display:none;">
-                        <i class="fa-solid fa-gamepad"></i><strong>ID + ZONE</strong>
+                        <i class="fa-solid fa-gamepad"></i><strong>ID+ZONE</strong>
+                    </label>
+                    <!-- FITUR ROBLOX BARU -->
+                    <label class="type-card" onclick="window.selectInputType('roblox', this)">
+                        <input type="radio" name="manage_input_type" value="roblox" style="display:none;">
+                        <i class="fa-solid fa-cube"></i><strong>Roblox User</strong>
                     </label>
                     <label class="type-card" onclick="window.selectInputType('custom', this)">
                         <input type="radio" name="manage_input_type" value="custom" style="display:none;">
@@ -681,10 +607,9 @@
                 </div>
             </div>
             
-            <!-- Area 3: Varian Item (SKU) -->
+            <!-- Area 3: Varian Item -->
             <div class="dashboard-panel bg-surface-hover mb-3">
-                <label class="fw-bold d-block mb-3"><i class="fa-solid fa-tags text-primary mr-1"></i> Daftar Varian Item & Harga</label>
-                
+                <label class="fw-bold d-block mb-3"><i class="fa-solid fa-tags text-primary mr-1"></i> Daftar Varian Item</label>
                 <div class="info-box bg-bg border-border mb-3">
                     <input type="hidden" id="temp-nom-index" value="-1">
                     <div class="flex-wrap-gap mb-2 align-end">
@@ -703,36 +628,31 @@
                                 <option value="manual">Manual</option>
                             </select>
                         </div>
-                        <button class="btn btn-outline btn-icon-only ml-auto" onclick="window.clearTempNominalInput()"><i class="fa-solid fa-eraser"></i></button>
+                        <button class="btn btn-outline btn-icon-only" onclick="window.clearTempNominalInput()"><i class="fa-solid fa-eraser"></i></button>
                     </div>
-                    
-                    <div class="flex-gap mt-2">
-                        <button id="btn-add-item" class="btn flex-1 border-dashed-primary text-primary bg-primary-light" onclick="window.addOrUpdateTempNominal()"><i class="fa-solid fa-plus"></i> Tambah ke Daftar</button>
+                    <div class="flex-gap mt-3 flex-wrap-gap">
+                        <button id="btn-add-item" class="btn flex-1 border-dashed-primary text-primary bg-primary-light" onclick="window.addOrUpdateTempNominal()"><i class="fa-solid fa-plus"></i> Tambah Item</button>
                         <button id="btn-cancel-edit-item" class="btn btn-outline flex-1 border-danger text-danger" style="display:none;" onclick="window.clearTempNominalInput()"><i class="fa-solid fa-xmark"></i> Batal Edit</button>
                     </div>
                 </div>
-                
-                <!-- List Varian Dinamis -->
                 <div id="manage-prod-nominals-list" class="variant-list-admin"></div>
             </div>
             
             <!-- Area 4: Status Global -->
             <div class="toggle-box info-box bg-danger-light border-danger mb-2 mt-3">
-                <label for="manage-prod-soldout" class="fw-bold mb-0 text-danger pointer">Tandai Semua Varian Kosong/Habis</label>
+                <label for="manage-prod-soldout" class="fw-bold mb-0 text-danger pointer flex-1">Semua Varian Kosong</label>
                 <input type="checkbox" id="manage-prod-soldout" class="large-checkbox" onchange="window.toggleAllSoldOut(this.checked)">
             </div>
             <div class="toggle-box info-box bg-warning-light border-warning mb-4">
-                <label for="manage-prod-gangguan" class="fw-bold mb-0 text-warning pointer">Tandai Produk Gangguan Server</label>
+                <label for="manage-prod-gangguan" class="fw-bold mb-0 text-warning pointer flex-1">Produk Gangguan Server</label>
                 <input type="checkbox" id="manage-prod-gangguan" class="large-checkbox">
             </div>
             
-            <button id="btn-save-group" class="btn btn-primary btn-block btn-lg shadow-lg" onclick="window.saveProductGroup()">
-                <i class="fa-solid fa-floppy-disk"></i> <span>Simpan Grup Produk Ini</span>
-            </button>
+            <button id="btn-save-group" class="btn btn-primary btn-block btn-lg shadow-lg" onclick="window.saveProductGroup()"><i class="fa-solid fa-floppy-disk"></i> <span>Simpan Grup Produk</span></button>
         </div>
     </div>
 
-    <!-- CERDAS ALERT / DIALOG CEPAT -->
+    <!-- ALERTS & KONFIRMASI -->
     <div class="msg-overlay" id="custom-alert">
         <div class="msg-box">
             <div id="ca-icon" class="msg-icon info"><i class="fa-solid fa-circle-info"></i></div>
@@ -742,8 +662,6 @@
             <button aria-label="Tutup" class="btn btn-outline btn-block mt-3" onclick="window.closeAlert()">Tutup</button>
         </div>
     </div>
-    
-    <!-- MODAL KONFIRMASI MATANG -->
     <div class="msg-overlay" id="modal-confirm">
         <div class="msg-box">
             <div class="msg-icon text-primary" id="mc-icon-container"><i id="mc-icon" class="fa-solid fa-circle-question"></i></div>
@@ -751,12 +669,11 @@
             <p id="mc-desc" class="msg-desc mb-4"></p>
             <div class="flex-gap" id="mc-btn-group">
                 <button aria-label="Batal" class="btn btn-outline flex-1" onclick="window.resolveConfirm(false)">Tidak</button>
-                <button aria-label="Konfirmasi" class="btn btn-primary flex-1" id="mc-confirm-btn" onclick="window.resolveConfirm(true)">Ya, Yakin</button>
+                <button aria-label="Konfirmasi" class="btn btn-primary flex-1" id="mc-confirm-btn" onclick="window.resolveConfirm(true)">Ya</button>
             </div>
         </div>
     </div>
 
-    <!-- Script Utama Admin -->
     <script type="module" src="js/admin.js" defer></script>
 </body>
 </html>
