@@ -30,7 +30,7 @@ let promos = [];
 let reviewsList = [];
 let allLiveChats = [];
 
-// ✅ TAMBAHKAN BARIS INI UNTUK MEMPERBAIKI BUG CHAT
+// ✅ FIX: Deklarasi Unsubscribe Live Chat agar tidak Error (ReferenceError)
 let adminChatUnsubscribe = null; 
 
 let siteSettings = { 
@@ -49,7 +49,7 @@ let isInitialOrderLoad = true;
 let isInitialChatLoad = true;
 let previousOrdersData = {};
 let previousChatMsgCount = {};
-window.tempProcessStocks = [];
+window.tempProcessStocks = []; 
 
 // ==========================================
 // MESIN TELEGRAM BOT (UTAMA & MATANG)
@@ -419,7 +419,7 @@ function listenAdminData() {
         window.renderReviews();
     });
 
-    // 5. ORDERS (DENGAN NOTIFIKASI TELEGRAM)
+    // 5. ORDERS (DENGAN NOTIFIKASI TELEGRAM MATANG)
     onSnapshot(collection(db, pathOrders), (snapshot) => {
         let newOrders = [];
         
@@ -428,12 +428,16 @@ function listenAdminData() {
             newOrders.push(data);
             
             if(!isInitialOrderLoad) {
-                let oldStatus = previousOrdersData[data.id];
+                // Ambil data status dari memori (agar bisa deteksi perubahan transisi)
+                let oldData = previousOrdersData[data.id] || {};
+                let oldStatus = oldData.status;
+                let oldReply = oldData.adminReply;
+                
                 let namaItemStr = data.items.map(i => `${i.name} (x${i.qty || 1})`).join(', ');
                 let waktuTrx = window.getWaktuWIT();
                 let nominalRp = data.finalTotal ? data.finalTotal.toLocaleString('id-ID') : 0;
                 
-                // KONDISI 1: Ada pesanan baru masuk (walau belum dibayar)
+                // KONDISI 1: Pesanan Baru Masuk
                 if (!oldStatus && (data.status === 'PENDING' || data.status === 'UNPAID')) {
                     const msgBaru = 
                         `🛒 <b>PESANAN BARU MASUK!</b>\n\n` +
@@ -448,41 +452,42 @@ function listenAdminData() {
                     window.sendTelegramMessage(msgBaru);
                 }
                 
-                // KONDISI 2: Pembayaran sukses tapi butuh DIPROSES MANUAL (Stok dll)
-// [PERBAIKAN]: Tambahkan oldStatus === 'UNPAID' agar mendeteksi lompatan status QRIS otomatis
-else if ((oldStatus === 'PENDING' || oldStatus === 'UNPAID') && data.status === 'SUCCESS' && !data.adminReply) {
-    const msgLunas =
-        `✅ <b>PEMBAYARAN DITERIMA (BUTUH PROSES)</b>\n\n` +
-        `<pre>\n` +
-        `- ID Trx : ${window.bersihTeleHTML(data.id)}\n` +
-        `- Waktu  : ${waktuTrx}\n` +
-        `- Produk : ${window.bersihTeleHTML(namaItemStr)}\n` +
-        `- Harga  : Rp ${nominalRp}\n` +
-        `- Status : LUNAS (BELUM DIPROSES)\n` +
-        `</pre>\n\n` +
-        `⚠️ <b>PERHATIAN:</b> Pesanan ini tervalidasi tapi butuh di-<b>PROSES MANUAL</b> oleh Anda. Silakan buka Dashboard Web.`;
-    window.sendTelegramMessage(msgLunas);
-}
+                // KONDISI 2: Pembayaran Sukses (Butuh Proses Manual)
+                // ✅ FIX: Membaca transisi dari UNPAID atau PENDING langsung ke SUCCESS
+                else if ((oldStatus === 'PENDING' || oldStatus === 'UNPAID' || !oldStatus) && data.status === 'SUCCESS' && !data.adminReply) {
+                    const msgLunas = 
+                        `✅ <b>PEMBAYARAN DITERIMA (BUTUH PROSES)</b>\n\n` +
+                        `<pre>\n` +
+                        `- ID Trx : ${window.bersihTeleHTML(data.id)}\n` +
+                        `- Waktu  : ${waktuTrx}\n` +
+                        `- Produk : ${window.bersihTeleHTML(namaItemStr)}\n` +
+                        `- Harga  : Rp ${nominalRp}\n` +
+                        `- Status : LUNAS (BELUM DIPROSES)\n` +
+                        `</pre>\n\n` +
+                        `⚠️ <b>PERHATIAN:</b> Pesanan ini tervalidasi tapi butuh di-<b>PROSES MANUAL</b> oleh Anda. Silakan buka Dashboard Web.`;
+                    window.sendTelegramMessage(msgLunas);
+                }
 
-// KONDISI 3: [BARU] Pesanan Selesai & Berhasil Dikirim (Otomatis/Manual)
-// Akan terpicu jika pesanan statusnya SUCCESS dan sudah ada adminReply (sudah dikirim/diberi serial number)
-else if (oldStatus !== 'SUCCESS' && data.status === 'SUCCESS' && data.adminReply) {
-    const msgSelesai =
-        `🎉 <b>PESANAN SELESAI & TERKIRIM</b>\n\n` +
-        `<pre>\n` +
-        `- ID Trx : ${window.bersihTeleHTML(data.id)}\n` +
-        `- Waktu  : ${waktuTrx}\n` +
-        `- Produk : ${window.bersihTeleHTML(namaItemStr)}\n` +
-        `- Harga  : Rp ${nominalRp}\n` +
-        `- Status : SELESAI\n` +
-        `</pre>\n\n` +
-        `Pesanan pelanggan telah berhasil dikirim!`;
-    window.sendTelegramMessage(msgSelesai);
-}
+                // KONDISI 3: Pesanan Sukses TERKIRIM (Admin Reply Terisi)
+                // ✅ FIX: Deteksi saat admin (atau sistem) selesai memasukkan serial number/jawaban resi
+                else if (data.status === 'SUCCESS' && data.adminReply && !oldReply) {
+                    const msgSelesai = 
+                        `🎉 <b>PESANAN SELESAI & TERKIRIM</b>\n\n` +
+                        `<pre>\n` +
+                        `- ID Trx : ${window.bersihTeleHTML(data.id)}\n` +
+                        `- Waktu  : ${waktuTrx}\n` +
+                        `- Produk : ${window.bersihTeleHTML(namaItemStr)}\n` +
+                        `- Harga  : Rp ${nominalRp}\n` +
+                        `- Status : BERHASIL TERKIRIM\n` +
+                        `</pre>\n\n` +
+                        `<b>Detail Pengiriman (Balasan):</b>\n<i>${window.bersihTeleHTML(data.adminReply)}</i>\n\n` +
+                        `✅ Transaksi berhasil diselesaikan sepenuhnya.`;
+                    window.sendTelegramMessage(msgSelesai);
                 }
             }
             
-            previousOrdersData[data.id] = data.status;
+            // Simpan status transaksi saat ini ke memori dalam bentuk objek utuh
+            previousOrdersData[data.id] = { status: data.status, adminReply: data.adminReply };
         });
         
         isInitialOrderLoad = false;
@@ -491,7 +496,8 @@ else if (oldStatus !== 'SUCCESS' && data.status === 'SUCCESS' && data.adminReply
         window.renderAdminOrders();
         window.generateAdminReports();
         
-        const hasPending = orders.some(o => o.status === 'PENDING' || o.status === 'UNPAID');
+        // ✅ FIX: Badge pesanan nyala tidak hanya pas PENDING, tapi juga jika ada SUCCESS yang BELUM DIPROSES
+        const hasPending = orders.some(o => o.status === 'PENDING' || (o.status === 'SUCCESS' && !o.adminReply));
         const adminOrderTabBadge = document.getElementById('admin-tab-order-badge');
         if(adminOrderTabBadge) adminOrderTabBadge.style.display = hasPending ? 'inline-block' : 'none';
     });
