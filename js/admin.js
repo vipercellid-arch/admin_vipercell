@@ -30,6 +30,9 @@ let promos = [];
 let reviewsList = [];
 let allLiveChats = [];
 
+// ✅ TAMBAHKAN BARIS INI UNTUK MEMPERBAIKI BUG CHAT
+let adminChatUnsubscribe = null; 
+
 let siteSettings = { 
     logoText: 'VIPER', logoAccent: 'CELL', logoImgBase64: '', marquee: '',
     qrisStringData: '', adminWa: '', igLink: '', ttLink: '',
@@ -46,7 +49,7 @@ let isInitialOrderLoad = true;
 let isInitialChatLoad = true;
 let previousOrdersData = {};
 let previousChatMsgCount = {};
-window.tempProcessStocks = []; 
+window.tempProcessStocks = [];
 
 // ==========================================
 // MESIN TELEGRAM BOT (UTAMA & MATANG)
