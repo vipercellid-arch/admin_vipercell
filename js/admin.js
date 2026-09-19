@@ -449,18 +449,36 @@ function listenAdminData() {
                 }
                 
                 // KONDISI 2: Pembayaran sukses tapi butuh DIPROSES MANUAL (Stok dll)
-                else if (oldStatus === 'PENDING' && data.status === 'SUCCESS' && !data.adminReply) {
-                    const msgLunas = 
-                        `✅ <b>PEMBAYARAN DITERIMA (BUTUH PROSES)</b>\n\n` +
-                        `<pre>\n` +
-                        `- ID Trx : ${window.bersihTeleHTML(data.id)}\n` +
-                        `- Waktu  : ${waktuTrx}\n` +
-                        `- Produk : ${window.bersihTeleHTML(namaItemStr)}\n` +
-                        `- Harga  : Rp ${nominalRp}\n` +
-                        `- Status : LUNAS (BELUM DIPROSES)\n` +
-                        `</pre>\n\n` +
-                        `⚠️ <b>PERHATIAN:</b> Pesanan ini tervalidasi tapi butuh di-<b>PROSES MANUAL</b> oleh Anda. Silakan buka Dashboard Web.`;
-                    window.sendTelegramMessage(msgLunas);
+// [PERBAIKAN]: Tambahkan oldStatus === 'UNPAID' agar mendeteksi lompatan status QRIS otomatis
+else if ((oldStatus === 'PENDING' || oldStatus === 'UNPAID') && data.status === 'SUCCESS' && !data.adminReply) {
+    const msgLunas =
+        `✅ <b>PEMBAYARAN DITERIMA (BUTUH PROSES)</b>\n\n` +
+        `<pre>\n` +
+        `- ID Trx : ${window.bersihTeleHTML(data.id)}\n` +
+        `- Waktu  : ${waktuTrx}\n` +
+        `- Produk : ${window.bersihTeleHTML(namaItemStr)}\n` +
+        `- Harga  : Rp ${nominalRp}\n` +
+        `- Status : LUNAS (BELUM DIPROSES)\n` +
+        `</pre>\n\n` +
+        `⚠️ <b>PERHATIAN:</b> Pesanan ini tervalidasi tapi butuh di-<b>PROSES MANUAL</b> oleh Anda. Silakan buka Dashboard Web.`;
+    window.sendTelegramMessage(msgLunas);
+}
+
+// KONDISI 3: [BARU] Pesanan Selesai & Berhasil Dikirim (Otomatis/Manual)
+// Akan terpicu jika pesanan statusnya SUCCESS dan sudah ada adminReply (sudah dikirim/diberi serial number)
+else if (oldStatus !== 'SUCCESS' && data.status === 'SUCCESS' && data.adminReply) {
+    const msgSelesai =
+        `🎉 <b>PESANAN SELESAI & TERKIRIM</b>\n\n` +
+        `<pre>\n` +
+        `- ID Trx : ${window.bersihTeleHTML(data.id)}\n` +
+        `- Waktu  : ${waktuTrx}\n` +
+        `- Produk : ${window.bersihTeleHTML(namaItemStr)}\n` +
+        `- Harga  : Rp ${nominalRp}\n` +
+        `- Status : SELESAI\n` +
+        `</pre>\n\n` +
+        `Pesanan pelanggan telah berhasil dikirim!`;
+    window.sendTelegramMessage(msgSelesai);
+}
                 }
             }
             
