@@ -30,9 +30,6 @@ let promos = [];
 let reviewsList = [];
 let allLiveChats = [];
 
-// ✅ FIX: Deklarasi Unsubscribe Live Chat agar tidak Error (ReferenceError)
-let adminChatUnsubscribe = null; 
-
 let siteSettings = { 
     logoText: 'VIPER', logoAccent: 'CELL', logoImgBase64: '', marquee: '',
     qrisStringData: '', adminWa: '', igLink: '', ttLink: '',
@@ -44,12 +41,24 @@ let currentAdminUser = null;
 let isSettingsLoaded = false;
 let currentGroupNominals = [];
 
-// Variabel Pencegah Spam Notifikasi saat pertama web dimuat
+// Variabel Pencegah Spam & Double Notifikasi Telegram
 let isInitialOrderLoad = true;
 let isInitialChatLoad = true;
-let previousOrdersData = {};
-let previousChatMsgCount = {};
+
+// Memori Rekam Jejak (Untuk mencegah trigger ganda dari Cache Firebase)
+let previousOrdersData = {}; 
+let notifiedOrderState = {}; // Menyimpan state order terakhir yg dikirim ke tele
+let lastNotifiedMsgTime = {}; // Menyimpan timestamp pesan chat terakhir yg dikirim ke tele
+
 window.tempProcessStocks = []; 
+
+// Pembersih Listener Firebase (Mencegah Zombie Listener)
+let unsubSettings = null;
+let unsubProducts = null;
+let unsubPromos = null;
+let unsubReviews = null;
+let unsubOrders = null;
+let unsubChats = null;
 
 // ==========================================
 // MESIN TELEGRAM BOT (UTAMA & MATANG)
@@ -118,7 +127,7 @@ window.testTelegramConnection = async function() {
         if(data.ok) {
             window.showToast('Sukses', 'Pesan tes berhasil mendarat di Telegram Anda!', 'success');
             document.getElementById('set-tele-active').checked = true;
-            window.saveSettingsManual(); // Simpan otomatis jika sukses
+            window.saveSettingsManual();
         } else {
             window.customAlert('Gagal', 'Telegram menolak request: ' + data.description, 'error');
         }
@@ -353,8 +362,15 @@ async function initAdminApp() {
 // DATA LISTENERS
 // ==========================================
 function listenAdminData() {
+    // Bersihkan listener lama untuk mencegah duplikasi Firebase
+    if(unsubSettings) unsubSettings();
+    if(unsubProducts) unsubProducts();
+    if(unsubPromos) unsubPromos();
+    if(unsubReviews) unsubReviews();
+    if(unsubOrders) unsubOrders();
+    
     // 1. SETTINGS
-    onSnapshot(doc(db, pathSettings, 'mainConfig'), (docSnap) => {
+    unsubSettings = onSnapshot(doc(db, pathSettings, 'mainConfig'), (docSnap) => {
         if (docSnap.exists()) {
             siteSettings = { ...siteSettings, ...docSnap.data() };
         } else {
@@ -367,7 +383,7 @@ function listenAdminData() {
     });
 
     // 2. PRODUCTS & STOCKS
-    onSnapshot(collection(db, pathProducts), (snapshot) => {
+    unsubProducts = onSnapshot(collection(db, pathProducts), (snapshot) => {
         products = [];
         snapshot.forEach((docSnap) => { products.push({ dbId: docSnap.id, ...docSnap.data() }); });
         groupedBrands = [];
@@ -405,22 +421,22 @@ function listenAdminData() {
     });
 
     // 3. PROMOS
-    onSnapshot(collection(db, pathPromos), (snapshot) => {
+    unsubPromos = onSnapshot(collection(db, pathPromos), (snapshot) => {
         promos = [];
         snapshot.forEach((docSnap) => { promos.push({ dbId: docSnap.id, ...docSnap.data() }); });
         window.renderAdminPromos();
     });
     
     // 4. REVIEWS
-    onSnapshot(collection(db, pathReviews), (snapshot) => {
+    unsubReviews = onSnapshot(collection(db, pathReviews), (snapshot) => {
         reviewsList = [];
         snapshot.forEach(docSnap => reviewsList.push({dbId: docSnap.id, ...docSnap.data()}));
         reviewsList.sort((a,b) => b.timestamp - a.timestamp);
         window.renderReviews();
     });
 
-    // 5. ORDERS (DENGAN NOTIFIKASI TELEGRAM MATANG)
-    onSnapshot(collection(db, pathOrders), (snapshot) => {
+    // 5. ORDERS (Notifikasi Anti-Dabel)
+    unsubOrders = onSnapshot(collection(db, pathOrders), (snapshot) => {
         let newOrders = [];
         
         snapshot.forEach((docSnap) => {
@@ -428,75 +444,53 @@ function listenAdminData() {
             newOrders.push(data);
             
             if(!isInitialOrderLoad) {
-                // Ambil data status dari memori (agar bisa deteksi perubahan transisi)
-                let oldData = previousOrdersData[data.id] || {};
-                let oldStatus = oldData.status;
-                let oldReply = oldData.adminReply;
+                // Logika Pelacakan Status Kuat
+                let oldState = notifiedOrderState[data.id] || {};
                 
+                let isNewOrder = (!oldState.status) && (data.status === 'PENDING' || data.status === 'UNPAID');
+                let isJustPaid = (oldState.status === 'PENDING' || oldState.status === 'UNPAID' || !oldState.status) && (data.status === 'SUCCESS' && !data.adminReply);
+                let isJustCompleted = (data.status === 'SUCCESS' && data.adminReply && !oldState.adminReply);
+
                 let namaItemStr = data.items.map(i => `${i.name} (x${i.qty || 1})`).join(', ');
                 let waktuTrx = window.getWaktuWIT();
                 let nominalRp = data.finalTotal ? data.finalTotal.toLocaleString('id-ID') : 0;
                 
-                // KONDISI 1: Pesanan Baru Masuk
-                if (!oldStatus && (data.status === 'PENDING' || data.status === 'UNPAID')) {
+                if (isNewOrder) {
                     const msgBaru = 
                         `🛒 <b>PESANAN BARU MASUK!</b>\n\n` +
-                        `<pre>\n` +
-                        `- ID Trx : ${window.bersihTeleHTML(data.id)}\n` +
-                        `- Waktu  : ${waktuTrx}\n` +
-                        `- Produk : ${window.bersihTeleHTML(namaItemStr)}\n` +
-                        `- Harga  : Rp ${nominalRp}\n` +
-                        `- Status : MENUNGGU PEMBAYARAN\n` +
-                        `</pre>\n\n` +
+                        `<pre>\n- ID Trx : ${window.bersihTeleHTML(data.id)}\n- Waktu  : ${waktuTrx}\n- Produk : ${window.bersihTeleHTML(namaItemStr)}\n- Harga  : Rp ${nominalRp}\n- Status : MENUNGGU PEMBAYARAN\n</pre>\n\n` +
                         `<i>Sistem sedang menunggu pembayaran...</i>`;
                     window.sendTelegramMessage(msgBaru);
+                    notifiedOrderState[data.id] = { status: data.status, adminReply: data.adminReply };
                 }
-                
-                // KONDISI 2: Pembayaran Sukses (Butuh Proses Manual)
-                // ✅ FIX: Membaca transisi dari UNPAID atau PENDING langsung ke SUCCESS
-                else if ((oldStatus === 'PENDING' || oldStatus === 'UNPAID' || !oldStatus) && data.status === 'SUCCESS' && !data.adminReply) {
+                else if (isJustPaid) {
                     const msgLunas = 
                         `✅ <b>PEMBAYARAN DITERIMA (BUTUH PROSES)</b>\n\n` +
-                        `<pre>\n` +
-                        `- ID Trx : ${window.bersihTeleHTML(data.id)}\n` +
-                        `- Waktu  : ${waktuTrx}\n` +
-                        `- Produk : ${window.bersihTeleHTML(namaItemStr)}\n` +
-                        `- Harga  : Rp ${nominalRp}\n` +
-                        `- Status : LUNAS (BELUM DIPROSES)\n` +
-                        `</pre>\n\n` +
-                        `⚠️ <b>PERHATIAN:</b> Pesanan ini tervalidasi tapi butuh di-<b>PROSES MANUAL</b> oleh Anda. Silakan buka Dashboard Web.`;
+                        `<pre>\n- ID Trx : ${window.bersihTeleHTML(data.id)}\n- Waktu  : ${waktuTrx}\n- Produk : ${window.bersihTeleHTML(namaItemStr)}\n- Harga  : Rp ${nominalRp}\n- Status : LUNAS (BELUM DIPROSES)\n</pre>\n\n` +
+                        `⚠️ <b>PERHATIAN:</b> Pesanan ini butuh di-<b>PROSES MANUAL</b> oleh Anda.`;
                     window.sendTelegramMessage(msgLunas);
+                    notifiedOrderState[data.id] = { status: data.status, adminReply: data.adminReply };
                 }
-
-                // KONDISI 3: Pesanan Sukses TERKIRIM (Admin Reply Terisi)
-                // ✅ FIX: Deteksi saat admin (atau sistem) selesai memasukkan serial number/jawaban resi
-                else if (data.status === 'SUCCESS' && data.adminReply && !oldReply) {
+                else if (isJustCompleted) {
                     const msgSelesai = 
                         `🎉 <b>PESANAN SELESAI & TERKIRIM</b>\n\n` +
-                        `<pre>\n` +
-                        `- ID Trx : ${window.bersihTeleHTML(data.id)}\n` +
-                        `- Waktu  : ${waktuTrx}\n` +
-                        `- Produk : ${window.bersihTeleHTML(namaItemStr)}\n` +
-                        `- Harga  : Rp ${nominalRp}\n` +
-                        `- Status : BERHASIL TERKIRIM\n` +
-                        `</pre>\n\n` +
-                        `<b>Detail Pengiriman (Balasan):</b>\n<i>${window.bersihTeleHTML(data.adminReply)}</i>\n\n` +
-                        `✅ Transaksi berhasil diselesaikan sepenuhnya.`;
+                        `<pre>\n- ID Trx : ${window.bersihTeleHTML(data.id)}\n- Waktu  : ${waktuTrx}\n- Produk : ${window.bersihTeleHTML(namaItemStr)}\n- Harga  : Rp ${nominalRp}\n- Status : BERHASIL TERKIRIM\n</pre>\n\n` +
+                        `<b>Detail Pengiriman:</b>\n<i>${window.bersihTeleHTML(data.adminReply)}</i>\n\n` +
+                        `✅ Transaksi berhasil diselesaikan.`;
                     window.sendTelegramMessage(msgSelesai);
+                    notifiedOrderState[data.id] = { status: data.status, adminReply: data.adminReply };
                 }
             }
             
-            // Simpan status transaksi saat ini ke memori dalam bentuk objek utuh
+            // Simpan status agar render UI tetap update
             previousOrdersData[data.id] = { status: data.status, adminReply: data.adminReply };
         });
         
         isInitialOrderLoad = false;
-        
         orders = newOrders.sort((a,b) => new Date(b.date) - new Date(a.date));
         window.renderAdminOrders();
         window.generateAdminReports();
         
-        // ✅ FIX: Badge pesanan nyala tidak hanya pas PENDING, tapi juga jika ada SUCCESS yang BELUM DIPROSES
         const hasPending = orders.some(o => o.status === 'PENDING' || (o.status === 'SUCCESS' && !o.adminReply));
         const adminOrderTabBadge = document.getElementById('admin-tab-order-badge');
         if(adminOrderTabBadge) adminOrderTabBadge.style.display = hasPending ? 'inline-block' : 'none';
@@ -1442,11 +1436,11 @@ window.deleteBanner = async function(idx) {
 }
 
 // ==========================================
-// LIVE CHAT & TELEGRAM NOTIFIKASI
+// LIVE CHAT & TELEGRAM NOTIFIKASI (ANTI-DABEL)
 // ==========================================
 function listenAdminLiveChat() {
-    if(adminChatUnsubscribe) adminChatUnsubscribe();
-    adminChatUnsubscribe = onSnapshot(collection(db, pathChats), (snapshot) => {
+    if(unsubChats) unsubChats();
+    unsubChats = onSnapshot(collection(db, pathChats), (snapshot) => {
         let newChats = [];
         
         snapshot.forEach(docSnap => { 
@@ -1454,19 +1448,29 @@ function listenAdminLiveChat() {
             newChats.push(cData);
             
             if(!isInitialChatLoad) {
-                let oldMsgCount = previousChatMsgCount[cData.id] || 0;
-                let newMsgCount = cData.messages ? cData.messages.length : 0;
-                
-                if(newMsgCount > oldMsgCount) {
-                    let lastMsg = cData.messages[newMsgCount - 1];
-                    // Hanya beritahu jika yang mengirim pesan adalah USER
-                    if(lastMsg.sender === 'user') {
-                        const teleMsg = `💬 <b>PESAN BANTUAN MASUK</b>\n\n<b>Dari:</b> ${window.bersihTeleHTML(cData.userInfo || 'Pelanggan')}\n<b>Pesan:</b> <i>"${window.bersihTeleHTML(lastMsg.text)}"</i>\n\nBuka Dashboard Web Admin untuk membalas.`;
-                        window.sendTelegramMessage(teleMsg);
+                let msgs = cData.messages || [];
+                if (msgs.length > 0) {
+                    let lastMsg = msgs[msgs.length - 1];
+                    let lastRecordedTime = lastNotifiedMsgTime[cData.id] || 0;
+                    
+                    // SYARAT 1: Pesan Terakhir dari Pelanggan (User)
+                    // SYARAT 2: Timestamp pesan lebih baru (MENCEGAH DABEL!)
+                    if (lastMsg.sender === 'user' && lastMsg.timestamp > lastRecordedTime) {
+                        
+                        // SYARAT ANTI-SPAM KHUSUS: Cek apakah Admin sudah pernah balas sesi ini
+                        let hasAdminReplied = msgs.some(m => m.sender === 'admin');
+                        
+                        if (!hasAdminReplied) {
+                            // Hanya notifikasi jika admin belum in-charge / belum balas sama sekali di sesi ini
+                            const teleMsg = `💬 <b>PESAN BANTUAN MASUK</b>\n\n<b>Dari:</b> ${window.bersihTeleHTML(cData.userInfo || 'Pelanggan')}\n<b>Pesan:</b> <i>"${window.bersihTeleHTML(lastMsg.text)}"</i>\n\nBuka Dashboard Web Admin untuk membalas.`;
+                            window.sendTelegramMessage(teleMsg);
+                        }
+                        
+                        // Rekam waktu pesan terakhir agar Firebase Cache tidak membunyikan notif ulang
+                        lastNotifiedMsgTime[cData.id] = lastMsg.timestamp;
                     }
                 }
             }
-            previousChatMsgCount[cData.id] = cData.messages ? cData.messages.length : 0;
         });
         
         isInitialChatLoad = false;
