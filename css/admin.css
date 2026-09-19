@@ -1,7 +1,7 @@
 /* ========================================================
-   VIPERCELL V19.2 - ADMIN COMMAND CENTER CSS
+   VIPERCELL V19.1 - ADMIN COMMAND CENTER CSS
    * Updated: Telegram Bot Panel, Clean UI
-   * Fixed: Chat Panel Collapse Bug (Height Issue Resolved)
+   * Fixed: Chat Panel Collapse Bug (Blank Screen)
    * Fixed: Mobile Chat Slide Transition
    ======================================================== */
 
@@ -370,7 +370,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .chat-dashboard-wrapper { 
     display: flex; 
     flex-direction: column; 
-    /* Diberikan tinggi tetap dan min-height agar tidak collapse (blank) */
+    /* Diberikan tinggi pasti agar tidak collapse (blank) */
     height: calc(100vh - 160px); 
     min-height: 550px; 
     border: 1px solid var(--border); 
@@ -386,13 +386,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     .chat-main-panel { flex: 1; display: flex; flex-direction: column; background: var(--bg); height: 100%; }
 }
 
-.chat-sidebar-header { padding: 1.2rem 1.5rem; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
+.chat-sidebar-header { padding: 1.2rem 1.5rem; border-bottom: 1px solid var(--border); background: var(--surface); }
 .chat-sidebar-header h3 { font-size: 1.1rem; font-weight: 700; margin: 0; }
 
 .chat-user-list { 
     overflow-y: auto; 
     flex: 1; 
-    /* Pastikan daftar obrolan dapat di-scroll */
+    /* Pastikan daftar chat bisa digulir */
     max-height: 100%;
 }
 
@@ -400,13 +400,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .chat-user-item:hover { background: var(--surface-hover); }
 .chat-user-item.active { background: rgba(37,99,235,0.05); border-left: 4px solid var(--primary-light); }
 .chat-user-info { flex: 1; overflow: hidden; }
-.chat-user-name { font-size: 0.95rem; display: block; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.chat-user-name { font-size: 0.95rem; display: block; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chat-user-msg { font-size: 0.8rem; color: var(--text-muted); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.chat-empty-state { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100%; width: 100%; color: var(--text-muted); background: var(--bg); }
+.chat-empty-state { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100%; width: 100%; color: var(--text-muted); }
 .chat-empty-state i { font-size: 4rem; opacity: 0.2; margin-bottom: 1rem; }
 
-/* Memastikan wrapper flexbox ini proporsional */
+/* Memastikan wrapper flexbox ini tidak tumpang tindih */
 .chat-active-state { display: flex; flex-direction: column; height: 100%; width: 100%; background: var(--bg); }
 
 .chat-active-header { padding: 1rem 1.5rem; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; z-index: 5; flex-shrink: 0;}
@@ -418,6 +418,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     display: flex; 
     flex-direction: column; 
     gap: 10px; 
+    /* Area chat dibiarkan meluas */
 }
 
 .chat-quick-replies { padding: 10px 1.5rem; background: var(--surface); border-top: 1px solid var(--border); display: flex; gap: 8px; overflow-x: auto; flex-wrap: nowrap; flex-shrink: 0; }
@@ -472,7 +473,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
        ==================================================== 
     */
     .chat-dashboard-wrapper { 
-        height: calc(100vh - 130px); 
+        height: calc(100vh - 120px); 
         min-height: 500px;
         border: none; 
         border-radius: 0; 
