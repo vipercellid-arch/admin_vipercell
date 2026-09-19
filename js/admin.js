@@ -33,7 +33,8 @@ let allLiveChats = [];
 let siteSettings = { 
     logoText: 'VIPER', logoAccent: 'CELL', logoImgBase64: '', marquee: '',
     qrisStringData: '', adminWa: '', igLink: '', ttLink: '',
-    newsList: [], banners: [], isStoreOpen: true, waChannelLink: '', vpsEndpoint: ''
+    newsList: [], banners: [], isStoreOpen: true, waChannelLink: '', vpsEndpoint: '',
+    teleToken: '', teleChatId: '', teleActive: false // Konfigurasi Telegram
 };
 
 let currentAdminUser = null;
@@ -43,6 +44,28 @@ let adminChatUnsubscribe = null;
 let previousChatCount = 0;
 let previousOrdersData = {};
 window.tempProcessStocks = []; 
+
+// ==========================================
+// TELEGRAM NOTIFICATION SENDER (BARU)
+// ==========================================
+window.sendTelegramMessage = async function(messageText) {
+    if (!siteSettings.teleActive || !siteSettings.teleToken || !siteSettings.teleChatId) return;
+    
+    const url = `https://api.telegram.org/bot${siteSettings.teleToken}/sendMessage`;
+    try {
+        await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                chat_id: siteSettings.teleChatId,
+                text: messageText,
+                parse_mode: 'HTML'
+            })
+        });
+    } catch (e) {
+        console.error("Gagal mengirim notifikasi Telegram:", e);
+    }
+};
 
 // ==========================================
 // UTILITAS & UI MODALS
@@ -211,7 +234,6 @@ window.fireNativeNotificationAdmin = function(title, msg, type = 'info') {
 // ==========================================
 async function verifyAdminAccess(user) {
     let role = 'user';
-    // Gunakan email verifikasi statis & dinamis dari database Users
     const allowedEmails = ['vipercell.id@gmail.com', 'viperdev4@gmail.com']; 
     
     if (allowedEmails.includes(user.email)) {
@@ -331,7 +353,6 @@ function listenAdminData() {
         });
         window.renderAdminProducts();
         
-        // Update Filter Dropdowns untuk Stok Lokal
         const appBrands = groupedBrands.filter(b => b.type === 'app');
         
         const filterSel = document.getElementById('view-stock-category');
@@ -358,7 +379,6 @@ function listenAdminData() {
         window.renderAdminPromos();
     });
     
-    // LISTENER ULASAN PEMBELI
     onSnapshot(collection(db, pathReviews), (snapshot) => {
         reviewsList = [];
         snapshot.forEach(docSnap => reviewsList.push({dbId: docSnap.id, ...docSnap.data()}));
@@ -613,7 +633,6 @@ window.markOrderComplete = async function(statusType) {
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Memproses...</span>';
     btn.disabled = true;
     
-    // Integrasi Murni Google Apps Script / MacroDroid. (Tanpa API Digiflazz)
     try {
         if(statusType === 'SUCCESS') {
             if(order.items.some(i => i.type === 'app')) {
@@ -622,9 +641,15 @@ window.markOrderComplete = async function(statusType) {
                     await updateDoc(doc(db, pathStocks, stockSel.value), { status: 'Used', usedAt: Date.now(), orderId: order.id });
                 }
             }
+            
+            // 👉 TRIGGER NOTIFIKASI TELEGRAM OTOMATIS SAAT PESANAN SELESAI
+            const teleMsg = `✅ <b>PESANAN SELESAI DIPROSES</b>\n\n<b>Invoice:</b> ${order.id}\n<b>User Email:</b> ${order.userEmail || '-'}\n<b>Total:</b> Rp${order.finalTotal.toLocaleString('id-ID')}\n<b>Status:</b> SUCCESS\n\n<b>Pesan Admin:</b>\n<i>${reply}</i>`;
+            window.sendTelegramMessage(teleMsg);
         }
+        
         await updateDoc(doc(db, pathOrders, dbId), { status: statusType, adminReply: reply });
         window.closeModal('modal-process-order');
+        
         if(statusType === 'SUCCESS') window.customAlert('Sukses', 'Pesanan berhasil diselesaikan.', 'success');
         else window.customAlert('Dibatalkan', 'Pesanan digagalkan.', 'info');
     } catch(e) {
@@ -942,7 +967,6 @@ window.saveProductGroup = async function() {
     const gangguanEl = document.getElementById('manage-prod-gangguan');
     const isGangguan = gangguanEl ? gangguanEl.checked : false;
     
-    // PEMBACAAN INPUT TIPE ROBLOX DI SINI
     let inputType = 'id_zone';
     const checkedType = document.querySelector('input[name="manage_input_type"]:checked');
     if(checkedType) inputType = checkedType.value;
@@ -1217,7 +1241,11 @@ window.saveSettingsManual = async function() {
         qrisStringData: document.getElementById('set-qris-string').value.trim(),
         vpsEndpoint: document.getElementById('set-vps-endpoint') ? document.getElementById('set-vps-endpoint').value.trim() : '',
         waChannelLink: document.getElementById('set-wa-channel') ? document.getElementById('set-wa-channel').value.trim() : '',
-        isStoreOpen: document.getElementById('set-store-status') ? document.getElementById('set-store-status').checked : true
+        isStoreOpen: document.getElementById('set-store-status') ? document.getElementById('set-store-status').checked : true,
+        // Konfigurasi Telegram Bot
+        teleToken: document.getElementById('set-tele-token') ? document.getElementById('set-tele-token').value.trim() : '',
+        teleChatId: document.getElementById('set-tele-chatid') ? document.getElementById('set-tele-chatid').value.trim() : '',
+        teleActive: document.getElementById('set-tele-active') ? document.getElementById('set-tele-active').checked : false
     };
     await updateDoc(doc(db, pathSettings, 'mainConfig'), newSettings);
 }
@@ -1238,6 +1266,11 @@ window.populateAdminSettings = function() {
     if(document.getElementById('set-wa-channel')) document.getElementById('set-wa-channel').value = siteSettings.waChannelLink || '';
     const storeStatusEl = document.getElementById('set-store-status');
     if(storeStatusEl) storeStatusEl.checked = siteSettings.isStoreOpen !== false;
+    
+    // Setel nilai input Telegram
+    if(document.getElementById('set-tele-token')) document.getElementById('set-tele-token').value = siteSettings.teleToken || '';
+    if(document.getElementById('set-tele-chatid')) document.getElementById('set-tele-chatid').value = siteSettings.teleChatId || '';
+    if(document.getElementById('set-tele-active')) document.getElementById('set-tele-active').checked = siteSettings.teleActive || false;
     
     if(siteSettings.logoImgBase64) {
         const p = document.getElementById('set-logo-preview');
@@ -1334,6 +1367,10 @@ function listenAdminLiveChat() {
             const latestMsg = allLiveChats[0].messages[allLiveChats[0].messages.length-1];
             if (latestMsg.sender === 'user' && previousChatCount !== 0 && allLiveChats.length >= previousChatCount) {
                 window.fireNativeNotificationAdmin('Pesan Masuk', `Pesan baru dari ${allLiveChats[0].userInfo}`, 'info');
+                
+                // 👉 TRIGGER NOTIFIKASI TELEGRAM OTOMATIS SAAT ADA CHAT BARU
+                const teleMsg = `💬 <b>PESAN BANTUAN MASUK</b>\n\n<b>Dari:</b> ${allLiveChats[0].userInfo || 'Pelanggan'}\n<b>Pesan:</b> <i>"${latestMsg.text}"</i>\n\nSilakan cek Dashboard Admin untuk membalas.`;
+                window.sendTelegramMessage(teleMsg);
             }
         }
         previousChatCount = allLiveChats.length;
@@ -1381,7 +1418,6 @@ window.renderAdminChatList = function() {
 }
 
 window.backToChatListMobile = function() {
-    // Transisi mulus untuk mobile saat kembali ke daftar chat
     const mainPanel = document.getElementById('admin-chat-main-panel');
     const sidePanel = document.getElementById('admin-chat-sidebar-panel');
     
@@ -1410,7 +1446,6 @@ window.openAdminChatDetailDesk = function(chatId) {
     if(window.innerWidth <= 768) {
         sidePanel.style.display = 'none';
         mainPanel.style.display = 'flex';
-        // Animasi geser (slide)
         mainPanel.style.transform = 'translateX(100%)';
         setTimeout(() => { mainPanel.style.transform = 'translateX(0)'; }, 10);
         document.getElementById('btn-back-chat').style.display = 'inline-flex';

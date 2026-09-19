@@ -325,7 +325,6 @@
                 </div>
                 
                 <!-- TAB: LIVE CHAT ADMIN -->
-                <!-- UI Chat Dirombak Total Agar Rapi di Desktop maupun HP -->
                 <div id="tab-livechat" class="admin-tab-content" style="display: none; padding: 0;">
                     <div class="chat-dashboard-wrapper">
                         <!-- Sidebar Chat -->
@@ -355,7 +354,6 @@
                                 
                                 <div class="chat-active-body" id="admin-chat-body-desktop"></div>
                                 
-                                <!-- Quick Replies Dirombak agar fleksibel -->
                                 <div class="chat-quick-replies">
                                     <button class="btn btn-outline btn-sm round flex-shrink-0" onclick="window.insertQuickReplyDesk('Halo kak, ada yang bisa kami bantu?')">Halo</button>
                                     <button class="btn btn-outline btn-sm round flex-shrink-0" onclick="window.insertQuickReplyDesk('Baik kak, pesanan sedang diproses ya.')">Proses</button>
@@ -375,7 +373,8 @@
                 
                 <!-- TAB: PENGATURAN WEB (SETTINGS) -->
                 <div id="tab-settings" class="admin-tab-content" style="display: none;">
-                    <div class="settings-grid">
+                    <div class="grid-2col">
+                        <!-- Tampilan & Info -->
                         <div class="dashboard-panel">
                             <div class="panel-header">
                                 <h3><i class="fa-solid fa-palette text-primary"></i> Tampilan & Info</h3>
@@ -405,6 +404,7 @@
                             </div>
                         </div>
                         
+                        <!-- Panel Pembayaran & Kontak -->
                         <div class="dashboard-panel">
                             <div class="panel-header">
                                 <h3><i class="fa-solid fa-address-card text-primary"></i> Pembayaran & Kontak</h3>
@@ -428,7 +428,37 @@
                                 <div class="input-with-icon"><i class="fa-brands fa-tiktok"></i><input type="text" id="set-tt" class="form-control" onchange="window.saveSettingsManual()"></div>
                             </div>
                         </div>
+
+                        <!-- PANEL BARU: Integrasi Telegram -->
+                        <div class="dashboard-panel">
+                            <div class="panel-header">
+                                <h3><i class="fa-brands fa-telegram text-primary" style="color: #0088cc !important;"></i> Integrasi Telegram Bot</h3>
+                            </div>
+                            <p class="text-muted text-sm mb-3">Sistem akan mengirim notifikasi otomatis saat pesanan sukses dan saat ada pengguna yang mengirim pesan (Live Chat) ke sini.</p>
+                            
+                            <div class="form-group">
+                                <label for="set-tele-token">Bot Token (Dari BotFather)</label>
+                                <div class="input-with-icon">
+                                    <i class="fa-solid fa-robot text-primary"></i>
+                                    <input type="text" id="set-tele-token" class="form-control code-input" placeholder="Misal: 123456789:ABCdefGHI..." onchange="window.saveSettingsManual()">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="set-tele-chatid">Chat ID Penerima</label>
+                                <div class="input-with-icon">
+                                    <i class="fa-solid fa-hashtag text-primary"></i>
+                                    <input type="text" id="set-tele-chatid" class="form-control code-input" placeholder="Misal: 8761776489" onchange="window.saveSettingsManual()">
+                                </div>
+                            </div>
+                            <div class="toggle-box mt-3 info-box bg-primary-light border-primary">
+                                <label class="fw-bold text-primary mb-0 flex-1">Aktifkan Notifikasi Telegram</label>
+                                <div class="toggle-switch">
+                                    <input type="checkbox" id="set-tele-active" class="large-checkbox" onchange="window.saveSettingsManual()">
+                                </div>
+                            </div>
+                        </div>
                         
+                        <!-- Panel Banner Utama -->
                         <div class="dashboard-panel">
                             <div class="panel-header">
                                 <h3><i class="fa-solid fa-images text-primary"></i> Banner Utama</h3>
@@ -439,6 +469,7 @@
                         </div>
                     </div>
                 </div>
+                
             </div>
         </main>
     </div>
@@ -563,7 +594,7 @@
         </div>
     </div>
 
-    <!-- MODAL MANAJEMEN PRODUK (DENGAN TIPE ROBLOX & TANPA DIGIFLAZZ) -->
+    <!-- MODAL MANAJEMEN PRODUK -->
     <div class="modal-overlay" id="modal-manage-product">
         <div class="modal-content large" style="border-top: 5px solid var(--primary-light);">
             <div class="modal-header border-none mb-3">
@@ -572,7 +603,6 @@
             </div>
             <input type="hidden" id="manage-prod-old-brand">
             
-            <!-- Area 1: Brand Info -->
             <div class="dashboard-panel bg-surface-hover mb-3">
                 <div class="grid-2col" style="grid-template-columns: 1fr 2fr;">
                     <div class="form-group mb-0">
@@ -603,7 +633,6 @@
                 </div>
             </div>
             
-            <!-- Area 2: Input Tipe (Fitur ROBLOX DITAMBAHKAN DISINI) -->
             <div id="group-tipe-input" class="dashboard-panel bg-surface-hover mb-3">
                 <label class="fw-bold d-block mb-2"><i class="fa-solid fa-keyboard text-primary mr-1"></i> Format Input ID (Khusus Game)</label>
                 <div class="input-type-grid">
@@ -626,7 +655,6 @@
                 </div>
             </div>
             
-            <!-- Area 3: Varian Item (Bebas Digiflazz) -->
             <div class="dashboard-panel bg-surface-hover mb-3">
                 <label class="fw-bold d-block mb-3"><i class="fa-solid fa-tags text-primary mr-1"></i> Daftar Varian Item & Harga</label>
                 
@@ -657,11 +685,9 @@
                     </div>
                 </div>
                 
-                <!-- List Varian Dinamis -->
                 <div id="manage-prod-nominals-list" class="variant-list-admin"></div>
             </div>
             
-            <!-- Area 4: Status Global -->
             <div class="toggle-box info-box bg-danger-light border-danger mb-2 mt-3">
                 <label for="manage-prod-soldout" class="fw-bold mb-0 text-danger pointer flex-1">Tandai Semua Varian Kosong/Habis</label>
                 <input type="checkbox" id="manage-prod-soldout" class="large-checkbox" onchange="window.toggleAllSoldOut(this.checked)">
