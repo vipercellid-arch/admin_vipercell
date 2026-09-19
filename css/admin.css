@@ -1,8 +1,7 @@
 /* ========================================================
-   VIPERCELL V19.1 - ADMIN COMMAND CENTER CSS
-   * Updated: Telegram Bot Panel, Clean UI
-   * Fixed: Chat Panel Collapse Bug (Blank Screen)
-   * Fixed: Mobile Chat Slide Transition
+   VIPERCELL V19.2 - ADMIN COMMAND CENTER CSS
+   * Updated: Review Reply Modal, Telegram Bot Panel
+   * Fixed: Chat Panel Collapse Bug
    ======================================================== */
 
 /* ========================================================
@@ -370,7 +369,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .chat-dashboard-wrapper { 
     display: flex; 
     flex-direction: column; 
-    /* Diberikan tinggi pasti agar tidak collapse (blank) */
     height: calc(100vh - 160px); 
     min-height: 550px; 
     border: 1px solid var(--border); 
@@ -392,7 +390,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .chat-user-list { 
     overflow-y: auto; 
     flex: 1; 
-    /* Pastikan daftar chat bisa digulir */
     max-height: 100%;
 }
 
@@ -406,9 +403,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .chat-empty-state { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100%; width: 100%; color: var(--text-muted); }
 .chat-empty-state i { font-size: 4rem; opacity: 0.2; margin-bottom: 1rem; }
 
-/* Memastikan wrapper flexbox ini tidak tumpang tindih */
 .chat-active-state { display: flex; flex-direction: column; height: 100%; width: 100%; background: var(--bg); }
-
 .chat-active-header { padding: 1rem 1.5rem; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; z-index: 5; flex-shrink: 0;}
 
 .chat-active-body { 
@@ -418,7 +413,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     display: flex; 
     flex-direction: column; 
     gap: 10px; 
-    /* Area chat dibiarkan meluas */
 }
 
 .chat-quick-replies { padding: 10px 1.5rem; background: var(--surface); border-top: 1px solid var(--border); display: flex; gap: 8px; overflow-x: auto; flex-wrap: nowrap; flex-shrink: 0; }

@@ -413,7 +413,7 @@ function listenAdminData() {
     });
 
     // ==========================================
-    // 5. LISTENER PESANAN MASUK (FIX ANTI SPAM)
+    // 5. LISTENER PESANAN MASUK (AUTO-KIRIM STOK)
     // ==========================================
     onSnapshot(collection(db, pathOrders), (snapshot) => {
         let newOrders = [];
@@ -423,19 +423,15 @@ function listenAdminData() {
             newOrders.push({ dbId: docSnap.id, ...docSnap.data() });
         });
 
-        // JIKA INI ADALAH LOAD PERTAMA WEB DIBUKA
         if(isInitialOrderLoad) {
             snapshot.forEach((docSnap) => {
                 let data = docSnap.data();
-                // Simpan memori dengan key docSnap.id (PASTI UNIK, BUKAN DATA.ID INVOICE)
                 previousOrdersData[docSnap.id] = { status: data.status, adminReply: data.adminReply };
             });
             isInitialOrderLoad = false;
         } 
-        // JIKA BUKAN LOAD PERTAMA, HANYA BACA DATA YANG BERUBAH/BARU SAJA
         else {
             snapshot.docChanges().forEach((change) => {
-                // Tipe Modified (Perubahan Status) atau Added (Pesanan Baru)
                 if (change.type === "added" || change.type === "modified") {
                     let data = change.doc.data();
                     let dbId = change.doc.id; 
@@ -462,21 +458,33 @@ function listenAdminData() {
                             `<i>Sistem menunggu pembayaran user...</i>`;
                         window.sendTelegramMessage(msgBaru);
                     }
-                    // KONDISI 2: Transisi ke LUNAS (SUCCESS) namun butuh diproses manual (adminReply masih kosong)
+                    
+                    // KONDISI 2: PEMBAYARAN LUNAS -> CEK AUTO-KIRIM / PROSES MANUAL
                     else if ((oldStatus === 'PENDING' || oldStatus === 'UNPAID' || !oldStatus) && data.status === 'SUCCESS' && !data.adminReply) {
-                        const msgLunas = 
-                            `✅ <b>PEMBAYARAN DITERIMA (BUTUH PROSES)</b>\n\n` +
-                            `<pre>\n` +
-                            `- ID Trx : ${window.bersihTeleHTML(data.id)}\n` +
-                            `- Waktu  : ${waktuTrx}\n` +
-                            `- Produk : ${window.bersihTeleHTML(namaItemStr)}\n` +
-                            `- Harga  : Rp ${nominalRp}\n` +
-                            `- Status : LUNAS (BELUM DIPROSES)\n` +
-                            `</pre>\n\n` +
-                            `⚠️ <b>PERHATIAN:</b> Pesanan ini butuh di-<b>PROSES MANUAL</b> oleh Anda. Buka Dashboard Web.`;
-                        window.sendTelegramMessage(msgLunas);
+                        
+                        let hasAppItem = data.items && data.items.some(i => i.type === 'app');
+                        let isManualProcess = data.items && data.items.some(i => i.processType === 'manual');
+                        
+                        // JIKA BISA DI-AUTO PROSES (Berupa Aplikasi & Bukan Manual)
+                        if (hasAppItem && !isManualProcess) {
+                            window.autoProcessOrder(data, dbId);
+                        } 
+                        // JIKA BUTUH PROSES MANUAL (Topup Game UID, dsb)
+                        else {
+                            const msgLunas = 
+                                `✅ <b>PEMBAYARAN DITERIMA (BUTUH PROSES MANUAL)</b>\n\n` +
+                                `<pre>\n` +
+                                `- ID Trx : ${window.bersihTeleHTML(data.id)}\n` +
+                                `- Waktu  : ${waktuTrx}\n` +
+                                `- Produk : ${window.bersihTeleHTML(namaItemStr)}\n` +
+                                `- Harga  : Rp ${nominalRp}\n` +
+                                `</pre>\n\n` +
+                                `⚠️ <b>PERHATIAN:</b> Pesanan ini tipe Manual / Topup Game. Buka Dashboard Web untuk memprosesnya.`;
+                            window.sendTelegramMessage(msgLunas);
+                        }
                     }
-                    // KONDISI 3: Transisi adminReply baru diisi (Berarti Pesanan Dikirim)
+                    
+                    // KONDISI 3: Pesanan Selesai / Terkirim (Baik oleh Admin atau Oleh AUTO-PROSES)
                     else if (data.status === 'SUCCESS' && data.adminReply && !oldReply) {
                         const msgSelesai = 
                             `🎉 <b>PESANAN SELESAI & TERKIRIM</b>\n\n` +
@@ -487,16 +495,15 @@ function listenAdminData() {
                             `- Harga  : Rp ${nominalRp}\n` +
                             `- Status : BERHASIL TERKIRIM\n` +
                             `</pre>\n\n` +
-                            `<b>Balasan/Detail:</b>\n<i>${window.bersihTeleHTML(data.adminReply)}</i>\n\n` +
+                            `<b>Balasan/Detail Akun:</b>\n<i>${window.bersihTeleHTML(data.adminReply)}</i>\n\n` +
                             `✅ Transaksi berhasil diselesaikan.`;
                         window.sendTelegramMessage(msgSelesai);
                     }
                     
-                    // Simpan status dan reply terbaru ke memori untuk validasi di event selanjutnya
+                    // Simpan status
                     previousOrdersData[dbId] = { status: data.status, adminReply: data.adminReply };
                 }
                 
-                // Hapus data dari memori jika pesanan dihapus
                 if (change.type === "removed") {
                     delete previousOrdersData[change.doc.id];
                 }
@@ -518,7 +525,55 @@ function listenAdminData() {
 }
 
 // ==========================================
-// ULASAN PEMBELI
+// FUNGSI AUTO-KIRIM STOK (NEW & MATANG)
+// ==========================================
+window.autoProcessOrder = async function(orderData, orderDbId) {
+    const appItem = orderData.items.find(i => i.type === 'app');
+    if(!appItem) return;
+    
+    const targetBrand = appItem.brandName || appItem.name.split(' - ')[0];
+    const exactItemName = appItem.exactItemName || appItem.name.replace(`(x${appItem.qty})`, '').trim();
+    
+    try {
+        const q = query(collection(db, pathStocks), where("brand", "==", targetBrand), where("itemName", "==", exactItemName), where("status", "==", "Ready"));
+        const snap = await getDocs(q);
+        
+        if (!snap.empty) {
+            // ADA STOK! Ambil baris pertama dari database stok
+            const stockDoc = snap.docs[0];
+            const stockData = stockDoc.data();
+            const parts = stockData.data.split('|');
+            
+            // Format Balasan Otomatis
+            const replyText = `Terima kasih! Pembayaran berhasil.\n\nDetail Akun Premium Kamu:\nEmail/NoHP: ${parts[0] || '-'}\nPassword: ${parts[1] || '-'}\nDetail Tambahan: ${parts[2] || '-'}\n\nSilakan diamankan dan segera hubungi Live Chat jika ada kendala.`;
+            
+            // 1. Tandai stok di DB sebagai 'Used'
+            await updateDoc(doc(db, pathStocks, stockDoc.id), { status: 'Used', usedAt: Date.now(), orderId: orderData.id });
+            
+            // 2. Tandai Order sebagai Selesai (Mengisi adminReply)
+            await updateDoc(doc(db, pathOrders, orderDbId), { adminReply: replyText });
+            
+            // CATATAN: Update ini otomatis akan memicu KONDISI 3 (Pesanan Selesai) di Listener onSnapshot,
+            // Sehingga notif Telegram "Pesanan Terkirim" otomatis terkirim tanpa harus ditulis ulang di sini!
+        } else {
+            // STOK KOSONG DARURAT
+            let namaItemStr = orderData.items.map(i => `${i.name}`).join(', ');
+            const msgKosong = 
+                `⚠️ <b>AUTO-PROSES GAGAL (STOK KOSONG)</b>\n\n` +
+                `<pre>\n` +
+                `- ID Trx : ${window.bersihTeleHTML(orderData.id)}\n` +
+                `- Produk : ${window.bersihTeleHTML(namaItemStr)}\n` +
+                `</pre>\n\n` +
+                `Pembayaran telah diterima, namun <b>Stok untuk varian ini habis</b>. Sistem tidak bisa mengirim otomatis. Harap segera amankan orderan secara MANUAL di Dashboard Web!`;
+            window.sendTelegramMessage(msgKosong);
+        }
+    } catch(e) {
+        console.error("Auto Process Gagal: ", e);
+    }
+}
+
+// ==========================================
+// ULASAN PEMBELI (FITUR BALAS DITAMBAHKAN)
 // ==========================================
 window.renderReviews = function() {
     const list = document.getElementById('admin-reviews-list');
@@ -535,6 +590,15 @@ window.renderReviews = function() {
         for(let i=0; i<5; i++) {
             stars += `<i class="fa-${i < r.rating ? 'solid' : 'regular'} fa-star text-warning text-xs"></i>`;
         }
+        
+        // Cek jika sudah dibalas Admin
+        const adminReplyHtml = r.adminReply 
+            ? `<div class="mt-2 text-sm bg-primary-light border-primary" style="padding:10px; border-radius:8px;">
+                 <strong class="text-primary"><i class="fa-solid fa-reply"></i> Balasan Anda:</strong><br>
+                 <span class="text-dark">${r.adminReply}</span>
+               </div>` 
+            : '';
+
         html += `
         <div class="dashboard-panel panel-flex flex-row flex-between align-center mb-2" style="padding: 1.2rem;">
             <div style="flex:1;">
@@ -544,14 +608,53 @@ window.renderReviews = function() {
                 </div>
                 <div class="mb-1">${stars} <span class="text-primary fw-bold text-sm ms-2">${r.brandName}</span></div>
                 <p class="bg-bg border-border text-dark" style="padding:10px; border-radius:8px; margin:0; font-size:0.95rem;">"${r.text}"</p>
+                
+                ${adminReplyHtml}
+                
                 <small class="text-muted text-xs d-block mt-2"><i class="fa-regular fa-clock"></i> ${new Date(r.timestamp).toLocaleString('id-ID')}</small>
             </div>
-            <button class="btn btn-outline border-danger text-danger ml-auto mt-mobile-3" style="white-space:nowrap; height: fit-content;" onclick="window.deleteReview('${r.dbId}')">
-                <i class="fa-solid fa-trash"></i> Hapus
-            </button>
+            
+            <div class="flex-wrap-gap align-center ml-auto mt-mobile-3" style="width: fit-content; flex-direction:column; align-items:flex-end;">
+                <button class="btn btn-outline btn-sm text-primary border-primary w-100" style="justify-content:center;" onclick="window.promptReplyReview('${r.dbId}', '${window.bersihTeleHTML(r.text)}')">
+                    <i class="fa-solid fa-reply"></i> Balas
+                </button>
+                <button class="btn btn-outline btn-sm text-danger border-danger w-100" style="justify-content:center;" onclick="window.deleteReview('${r.dbId}')">
+                    <i class="fa-solid fa-trash"></i> Hapus
+                </button>
+            </div>
         </div>`;
     });
     list.innerHTML = html;
+}
+
+window.promptReplyReview = function(dbId, text) {
+    document.getElementById('reply-review-id').value = dbId;
+    document.getElementById('reply-review-text').innerHTML = `"${text}"`;
+    
+    // Jika sebelumnya sudah dibalas, tampilkan balasan lama
+    const rev = reviewsList.find(r => r.dbId === dbId);
+    document.getElementById('reply-review-input').value = rev && rev.adminReply ? rev.adminReply : '';
+    
+    window.openModal('modal-reply-review');
+}
+
+window.submitReviewReply = async function() {
+    const dbId = document.getElementById('reply-review-id').value;
+    const replyTxt = document.getElementById('reply-review-input').value.trim();
+    if(!replyTxt) return window.customAlert('Eror', 'Kolom balasan tidak boleh kosong', 'error');
+    
+    const btn = document.getElementById('btn-save-review-reply');
+    const og = btn.innerHTML;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'; btn.disabled = true;
+    try {
+        await updateDoc(doc(db, pathReviews, dbId), { adminReply: replyTxt });
+        window.closeModal('modal-reply-review');
+        window.showToast('Sukses', 'Balasan ulasan berhasil dipublikasikan.', 'success');
+    } catch(e) {
+        window.customAlert('Eror', 'Gagal menyimpan balasan ulasan', 'error');
+    } finally {
+        btn.innerHTML = og; btn.disabled = false;
+    }
 }
 
 window.deleteReview = async function(dbId) {
@@ -1459,7 +1562,6 @@ function listenAdminLiveChat() {
     adminChatUnsubscribe = onSnapshot(collection(db, pathChats), (snapshot) => {
         let newChats = [];
         
-        // Simpan semua data full untuk render UI
         snapshot.forEach(docSnap => { 
             newChats.push({ id: docSnap.id, ...docSnap.data() });
         });
@@ -1471,7 +1573,6 @@ function listenAdminLiveChat() {
             });
             isInitialChatLoad = false;
         } else {
-            // HANYA CEK DOKUMEN YANG ADA PERUBAHAN
             snapshot.docChanges().forEach(change => {
                 if(change.type === "added" || change.type === "modified") {
                     let cData = change.doc.data();
@@ -1481,18 +1582,14 @@ function listenAdminLiveChat() {
                     let newMsgCount = cData.messages ? cData.messages.length : 0;
                     
                     if(newMsgCount > oldMsgCount) {
-                        // Ambil hanya list pesan yang baru saja ditambahkan
                         let newMessages = cData.messages.slice(oldMsgCount);
-                        let lastMsg = newMessages[newMessages.length - 1]; // Pesan ter-akhir
+                        let lastMsg = newMessages[newMessages.length - 1];
                         
-                        // SYARAT MUTLAK: PESAN HARUS DATANG DARI USER
-                        // (Mencegah bot mengirim notif saat Admin yang membalas)
                         if(lastMsg && lastMsg.sender === 'user') {
                             const teleMsg = `💬 <b>PESAN BANTUAN MASUK</b>\n\n<b>Dari:</b> ${window.bersihTeleHTML(cData.userInfo || 'Pelanggan')}\n<b>Pesan:</b> <i>"${window.bersihTeleHTML(lastMsg.text)}"</i>\n\nBuka Dashboard Web Admin untuk membalas.`;
                             window.sendTelegramMessage(teleMsg);
                         }
                     }
-                    // Update memori panjang array chat
                     previousChatMsgCount[docId] = newMsgCount;
                 }
                 if (change.type === "removed") {

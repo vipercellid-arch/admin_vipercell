@@ -180,7 +180,7 @@
                     <div class="panel-toolbar">
                         <div class="toolbar-title">
                             <h3>Manajemen Pesanan Masuk</h3>
-                            <p>Proses atau pantau invoice secara manual</p>
+                            <p>Sistem akan otomatis mengirim stok untuk Produk App</p>
                         </div>
                         <div class="toolbar-action w-mobile-100">
                             <div class="search-box">
@@ -283,12 +283,12 @@
                     </div>
                 </div>
                 
-                <!-- TAB: REVIEWS -->
+                <!-- TAB: REVIEWS (MATANG) -->
                 <div id="tab-reviews" class="admin-tab-content" style="display: none;">
                     <div class="panel-toolbar">
                         <div class="toolbar-title">
                             <h3><i class="fa-solid fa-star text-warning"></i> Ulasan Pembeli</h3>
-                            <p>Pantau dan kelola ulasan yang dikirimkan oleh pengguna setelah transaksi sukses.</p>
+                            <p>Balas dan kelola ulasan yang dikirimkan oleh pengguna setelah transaksi sukses.</p>
                         </div>
                     </div>
                     <div id="admin-reviews-list" class="reviews-grid-admin">
@@ -321,11 +321,8 @@
                     </div>
                 </div>
                 
-                <!-- ====================================================== -->
-                <!-- TAB: LIVE CHAT ADMIN (DIPERBAIKI AGAR TIDAK KOSONG) -->
-                <!-- ====================================================== -->
+                <!-- TAB: LIVE CHAT ADMIN -->
                 <div id="tab-livechat" class="admin-tab-content" style="display: none; padding: 0;">
-                    <!-- Tambahkan style manual tinggi agar terhindar dari bug CSS collapse -->
                     <div class="chat-dashboard-wrapper" style="height: 80vh; min-height: 550px;">
                         
                         <!-- Sidebar Chat -->
@@ -333,7 +330,6 @@
                             <div class="chat-sidebar-header flex-between align-center">
                                 <h3 style="margin: 0; font-size: 1.1rem;">Sesi Bantuan Aktif</h3>
                             </div>
-                            <!-- Beri overflow auto agar scrollbar muncul -->
                             <div id="admin-chat-list" class="chat-user-list" style="overflow-y: auto; flex: 1;">
                                 <div class="text-center p-3 text-muted"><i class="fa-solid fa-spinner fa-spin"></i> Menghubungkan ke server chat...</div>
                             </div>
@@ -514,6 +510,31 @@
                 <button id="btn-proc-fail" class="btn btn-danger flex-1" onclick="window.markOrderComplete('FAILED')"><i class="fa-solid fa-ban"></i> <span>Gagalkan</span></button>
                 <button id="btn-proc-success" class="btn btn-success flex-1" onclick="window.markOrderComplete('SUCCESS')"><i class="fa-solid fa-paper-plane"></i> <span>Kirim & Selesaikan</span></button>
             </div>
+        </div>
+    </div>
+
+    <!-- MODAL BALAS ULASAN (FITUR BARU) -->
+    <div class="modal-overlay" id="modal-reply-review">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Balas Ulasan</h2>
+                <button class="close-btn" aria-label="Tutup" onclick="window.closeModal('modal-reply-review')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <input type="hidden" id="reply-review-id">
+            
+            <div class="form-group">
+                <label>Komentar Pelanggan:</label>
+                <div id="reply-review-text" class="info-box bg-surface-hover mb-3 text-dark" style="font-style: italic; border-left: 3px solid var(--border);"></div>
+            </div>
+            
+            <div class="form-group">
+                <label for="reply-review-input">Balasan Anda (Ditampilkan di Publik)</label>
+                <textarea id="reply-review-input" class="form-control" rows="4" placeholder="Contoh: Terima kasih atas pesanan dan kepercayaannya kak! Ditunggu orderan selanjutnya."></textarea>
+            </div>
+            
+            <button id="btn-save-review-reply" class="btn btn-primary btn-block mt-4" onclick="window.submitReviewReply()">
+                <i class="fa-solid fa-paper-plane"></i> <span>Publikasikan Balasan</span>
+            </button>
         </div>
     </div>
 
