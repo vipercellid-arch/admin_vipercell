@@ -41,7 +41,7 @@ let currentAdminUser = null;
 let isSettingsLoaded = false;
 let currentGroupNominals = [];
 
-// Variabel Pencegah Spam Notifikasi saat web pertama kali dimuat
+// Variabel Pencegah Spam Notifikasi saat pertama web dimuat
 let isInitialOrderLoad = true;
 let isInitialChatLoad = true;
 let previousOrdersData = {};
@@ -53,14 +53,19 @@ window.tempProcessStocks = [];
 // ==========================================
 
 // Fungsi Waktu Indonesia Timur (WIT)
-function getWaktuWIT() {
+window.getWaktuWIT = function() {
     const d = new Date();
     return d.toLocaleString('id-ID', { timeZone: 'Asia/Jayapura', hour12: false }) + ' WIT';
-}
+};
 
-// Fungsi Mengirim Pesan Telegram
+// Fungsi Anti-Error untuk karakter aneh di Telegram
+window.bersihTeleHTML = function(text) {
+    if (!text) return '-';
+    return text.toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+};
+
+// Fungsi Pengirim Pesan Otomatis
 window.sendTelegramMessage = async function(messageText) {
-    // Cek apakah Telegram diaktifkan di pengaturan dan token diisi
     if (!siteSettings.teleActive || !siteSettings.teleToken || !siteSettings.teleChatId) return;
     
     const url = `https://api.telegram.org/bot${siteSettings.teleToken}/sendMessage`;
@@ -79,7 +84,7 @@ window.sendTelegramMessage = async function(messageText) {
     }
 };
 
-// Fungsi Tombol Tes Koneksi Telegram di Pengaturan
+// Fungsi Tes Koneksi Telegram dari Tombol
 window.testTelegramConnection = async function() {
     const btn = document.querySelector('button[onclick="window.testTelegramConnection()"]');
     if(btn) {
@@ -96,7 +101,7 @@ window.testTelegramConnection = async function() {
         return;
     }
     
-    const waktu = getWaktuWIT();
+    const waktu = window.getWaktuWIT();
     const msg = `🟢 <b>KONEKSI SISTEM BERHASIL</b>\n\nSistem notifikasi Vipercell Admin Command Center siap digunakan.\n\n<pre>\n- Status : Terhubung\n- Waktu  : ${waktu}\n</pre>`;
     
     try {
@@ -108,16 +113,18 @@ window.testTelegramConnection = async function() {
         const data = await res.json();
         
         if(data.ok) {
-            window.showToast('Sukses', 'Pesan tes terkirim ke Telegram Anda!', 'success');
+            window.showToast('Sukses', 'Pesan tes berhasil mendarat di Telegram Anda!', 'success');
+            document.getElementById('set-tele-active').checked = true;
+            window.saveSettingsManual(); // Simpan otomatis jika sukses
         } else {
             window.customAlert('Gagal', 'Telegram menolak request: ' + data.description, 'error');
         }
     } catch(e) {
-        window.customAlert('Error', 'Gagal menghubungi server Telegram. Cek koneksi Anda.', 'error');
+        window.customAlert('Error', 'Gagal menghubungi server Telegram. Cek koneksi internet Anda.', 'error');
     }
     
     if(btn) { btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Tes Koneksi'; btn.disabled = false; }
-}
+};
 
 // ==========================================
 // UTILITAS UMUM
@@ -340,9 +347,10 @@ async function initAdminApp() {
 }
 
 // ==========================================
-// DATA LISTENERS (ORDERS, PRODUCTS, dll)
+// DATA LISTENERS
 // ==========================================
 function listenAdminData() {
+    // 1. SETTINGS
     onSnapshot(doc(db, pathSettings, 'mainConfig'), (docSnap) => {
         if (docSnap.exists()) {
             siteSettings = { ...siteSettings, ...docSnap.data() };
@@ -355,6 +363,7 @@ function listenAdminData() {
         window.renderAdminNews();
     });
 
+    // 2. PRODUCTS & STOCKS
     onSnapshot(collection(db, pathProducts), (snapshot) => {
         products = [];
         snapshot.forEach((docSnap) => { products.push({ dbId: docSnap.id, ...docSnap.data() }); });
@@ -392,12 +401,14 @@ function listenAdminData() {
         }
     });
 
+    // 3. PROMOS
     onSnapshot(collection(db, pathPromos), (snapshot) => {
         promos = [];
         snapshot.forEach((docSnap) => { promos.push({ dbId: docSnap.id, ...docSnap.data() }); });
         window.renderAdminPromos();
     });
     
+    // 4. REVIEWS
     onSnapshot(collection(db, pathReviews), (snapshot) => {
         reviewsList = [];
         snapshot.forEach(docSnap => reviewsList.push({dbId: docSnap.id, ...docSnap.data()}));
@@ -405,7 +416,7 @@ function listenAdminData() {
         window.renderReviews();
     });
 
-    // LISTENER PESANAN & NOTIFIKASI TELEGRAM
+    // 5. ORDERS (DENGAN NOTIFIKASI TELEGRAM)
     onSnapshot(collection(db, pathOrders), (snapshot) => {
         let newOrders = [];
         
@@ -413,42 +424,39 @@ function listenAdminData() {
             let data = { dbId: docSnap.id, ...docSnap.data() };
             newOrders.push(data);
             
-            // Logika Notifikasi Telegram (Hanya jalan setelah load pertama)
             if(!isInitialOrderLoad) {
                 let oldStatus = previousOrdersData[data.id];
-                let newStatus = data.status;
+                let namaItemStr = data.items.map(i => `${i.name} (x${i.qty || 1})`).join(', ');
+                let waktuTrx = window.getWaktuWIT();
+                let nominalRp = data.finalTotal ? data.finalTotal.toLocaleString('id-ID') : 0;
                 
-                let namaItemStr = (data.items || []).map(i => `${i.name} (x${i.qty || 1})`).join(', ');
-                let waktuTrx = getWaktuWIT();
-                
-                // 1. Pesanan Baru Masuk (Belum Bayar)
-                if (!oldStatus && (newStatus === 'PENDING' || newStatus === 'UNPAID')) {
+                // KONDISI 1: Ada pesanan baru masuk (walau belum dibayar)
+                if (!oldStatus && (data.status === 'PENDING' || data.status === 'UNPAID')) {
                     const msgBaru = 
                         `🛒 <b>PESANAN BARU MASUK!</b>\n\n` +
                         `<pre>\n` +
-                        `- Produk : ${namaItemStr}\n` +
-                        `- Harga  : Rp ${data.finalTotal.toLocaleString('id-ID')}\n` +
-                        `- Status : MENUNGGU PEMBAYARAN\n` +
-                        `- ID Trx : ${data.id}\n` +
+                        `- ID Trx : ${window.bersihTeleHTML(data.id)}\n` +
                         `- Waktu  : ${waktuTrx}\n` +
+                        `- Produk : ${window.bersihTeleHTML(namaItemStr)}\n` +
+                        `- Harga  : Rp ${nominalRp}\n` +
+                        `- Status : MENUNGGU PEMBAYARAN\n` +
                         `</pre>\n\n` +
-                        `<i>Menunggu pembayaran dari pembeli...</i>`;
+                        `<i>Sistem sedang menunggu pembayaran...</i>`;
                     window.sendTelegramMessage(msgBaru);
                 }
                 
-                // 2. Pembayaran Berhasil (Tapi butuh diproses admin secara manual)
-                // Deteksi perubahan dari selain SUCCESS menjadi SUCCESS (biasanya diubah oleh Apps Script Mutasi)
-                else if (oldStatus !== 'SUCCESS' && newStatus === 'SUCCESS' && !data.adminReply) {
+                // KONDISI 2: Pembayaran sukses tapi butuh DIPROSES MANUAL (Stok dll)
+                else if (oldStatus === 'PENDING' && data.status === 'SUCCESS' && !data.adminReply) {
                     const msgLunas = 
-                        `✅ <b>PEMBAYARAN DITERIMA</b>\n\n` +
+                        `✅ <b>PEMBAYARAN DITERIMA (BUTUH PROSES)</b>\n\n` +
                         `<pre>\n` +
-                        `- Produk : ${namaItemStr}\n` +
-                        `- Harga  : Rp ${data.finalTotal.toLocaleString('id-ID')}\n` +
-                        `- Status : LUNAS (BUTUH DIPROSES)\n` +
-                        `- ID Trx : ${data.id}\n` +
+                        `- ID Trx : ${window.bersihTeleHTML(data.id)}\n` +
                         `- Waktu  : ${waktuTrx}\n` +
+                        `- Produk : ${window.bersihTeleHTML(namaItemStr)}\n` +
+                        `- Harga  : Rp ${nominalRp}\n` +
+                        `- Status : LUNAS (BELUM DIPROSES)\n` +
                         `</pre>\n\n` +
-                        `⚠️ <b>PERHATIAN:</b> Pesanan tervalidasi tapi butuh di-<b>PROSES MANUAL</b>. Buka Dashboard Admin sekarang untuk mengirimkan detail akun/stok.`;
+                        `⚠️ <b>PERHATIAN:</b> Pesanan ini tervalidasi tapi butuh di-<b>PROSES MANUAL</b> oleh Anda. Silakan buka Dashboard Web.`;
                     window.sendTelegramMessage(msgLunas);
                 }
             }
@@ -467,6 +475,7 @@ function listenAdminData() {
         if(adminOrderTabBadge) adminOrderTabBadge.style.display = hasPending ? 'inline-block' : 'none';
     });
     
+    // 6. JALANKAN LISTENER LIVE CHAT
     listenAdminLiveChat();
 }
 
@@ -700,23 +709,6 @@ window.markOrderComplete = async function(statusType) {
                     await updateDoc(doc(db, pathStocks, stockSel.value), { status: 'Used', usedAt: Date.now(), orderId: order.id });
                 }
             }
-            
-            // 3. TRIGGER NOTIFIKASI TELEGRAM: PESANAN SELESAI (Dikirim & Diproses)
-            let namaItemStr = (order.items || []).map(i => `${i.name} (x${i.qty || 1})`).join(', ');
-            let waktuTrx = getWaktuWIT();
-            
-            const teleMsg = 
-                `🎉 <b>PESANAN SELESAI & DIKIRIM</b>\n\n` +
-                `<pre>\n` +
-                `- Produk : ${namaItemStr}\n` +
-                `- Harga  : Rp ${order.finalTotal.toLocaleString('id-ID')}\n` +
-                `- Status : SUCCESS\n` +
-                `- ID Trx : ${order.id}\n` +
-                `- Waktu  : ${waktuTrx}\n` +
-                `</pre>\n\n` +
-                `<i>Pesanan telah berhasil diproses oleh Admin dan dikirim ke pembeli.</i>`;
-            
-            window.sendTelegramMessage(teleMsg);
         }
         
         await updateDoc(doc(db, pathOrders, dbId), { status: statusType, adminReply: reply });
@@ -1314,7 +1306,6 @@ window.saveSettingsManual = async function() {
         vpsEndpoint: document.getElementById('set-vps-endpoint') ? document.getElementById('set-vps-endpoint').value.trim() : '',
         waChannelLink: document.getElementById('set-wa-channel') ? document.getElementById('set-wa-channel').value.trim() : '',
         isStoreOpen: document.getElementById('set-store-status') ? document.getElementById('set-store-status').checked : true,
-        // Konfigurasi Telegram Bot
         teleToken: document.getElementById('set-tele-token') ? document.getElementById('set-tele-token').value.trim() : '',
         teleChatId: document.getElementById('set-tele-chatid') ? document.getElementById('set-tele-chatid').value.trim() : '',
         teleActive: document.getElementById('set-tele-active') ? document.getElementById('set-tele-active').checked : false
@@ -1339,7 +1330,6 @@ window.populateAdminSettings = function() {
     const storeStatusEl = document.getElementById('set-store-status');
     if(storeStatusEl) storeStatusEl.checked = siteSettings.isStoreOpen !== false;
     
-    // Setel nilai input Telegram
     if(document.getElementById('set-tele-token')) document.getElementById('set-tele-token').value = siteSettings.teleToken || '';
     if(document.getElementById('set-tele-chatid')) document.getElementById('set-tele-chatid').value = siteSettings.teleChatId || '';
     if(document.getElementById('set-tele-active')) document.getElementById('set-tele-active').checked = siteSettings.teleActive || false;
@@ -1436,24 +1426,15 @@ function listenAdminLiveChat() {
             let cData = { id: docSnap.id, ...docSnap.data() };
             newChats.push(cData);
             
-            // Logika Deteksi Pesan Baru untuk Telegram
             if(!isInitialChatLoad) {
                 let oldMsgCount = previousChatMsgCount[cData.id] || 0;
                 let newMsgCount = cData.messages ? cData.messages.length : 0;
                 
                 if(newMsgCount > oldMsgCount) {
                     let lastMsg = cData.messages[newMsgCount - 1];
-                    // 4. PESAN BANTUAN MASUK -> TRIGGER TELEGRAM
+                    // Hanya beritahu jika yang mengirim pesan adalah USER
                     if(lastMsg.sender === 'user') {
-                        let waktuChat = getWaktuWIT();
-                        const teleMsg = 
-                            `💬 <b>PESAN BANTUAN MASUK</b>\n\n` +
-                            `<pre>\n` +
-                            `- Dari   : ${cData.userInfo || 'Pelanggan'}\n` +
-                            `- Waktu  : ${waktuChat}\n` +
-                            `</pre>\n\n` +
-                            `<b>Pesan:</b>\n<i>"${lastMsg.text}"</i>\n\n` +
-                            `Silakan buka Web Admin untuk membalas pesannya.`;
+                        const teleMsg = `💬 <b>PESAN BANTUAN MASUK</b>\n\n<b>Dari:</b> ${window.bersihTeleHTML(cData.userInfo || 'Pelanggan')}\n<b>Pesan:</b> <i>"${window.bersihTeleHTML(lastMsg.text)}"</i>\n\nBuka Dashboard Web Admin untuk membalas.`;
                         window.sendTelegramMessage(teleMsg);
                     }
                 }
@@ -1462,9 +1443,7 @@ function listenAdminLiveChat() {
         });
         
         isInitialChatLoad = false;
-        
-        // Sorting aman (jika updatedAt kosong, pakai 0)
-        allLiveChats = newChats.sort((a,b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+        allLiveChats = newChats.sort((a,b) => b.updatedAt - a.updatedAt);
         window.renderAdminChatList();
         
         const badge = document.getElementById('admin-chat-tab-badge');
@@ -1481,13 +1460,8 @@ function listenAdminLiveChat() {
 window.renderAdminChatList = function() {
     const list = document.getElementById('admin-chat-list');
     if(!list) return;
-    
     if(allLiveChats.length === 0) {
-        list.innerHTML = `
-            <div class="chat-empty-state" style="padding: 2rem; text-align: center; color: var(--text-muted);">
-                <i class="fa-solid fa-inbox" style="font-size: 3rem; margin-bottom: 10px; opacity: 0.5;"></i>
-                <p>Tidak ada pesan aktif saat ini.</p>
-            </div>`;
+        list.innerHTML = '<div class="chat-empty-state" style="padding: 2rem; text-align: center;"><i class="fa-brands fa-whatsapp text-muted" style="font-size: 3rem; margin-bottom: 10px; opacity: 0.3;"></i><p class="text-muted">Tidak ada pesan aktif.</p></div>';
         document.getElementById('admin-chat-empty').style.display = 'flex';
         document.getElementById('admin-chat-active').style.display = 'none';
         return;
@@ -1498,15 +1472,15 @@ window.renderAdminChatList = function() {
     
     allLiveChats.forEach(chat => {
         const msgs = chat.messages || [];
-        const lastMsg = msgs.length > 0 ? msgs[msgs.length-1] : { text: "Belum ada pesan...", sender: "" };
+        const lastMsg = msgs.length > 0 ? msgs[msgs.length-1] : null;
         const hasUnread = lastMsg && lastMsg.sender === 'user';
         const isActive = chat.id === activeId ? 'active' : '';
         
         html += `
             <div id="chat-card-${chat.id}" class="chat-user-item ${isActive}" onclick="window.openAdminChatDetailDesk('${chat.id}')">
                 <div class="chat-user-info">
-                    <strong class="chat-user-name">${chat.userInfo || 'User Anonim'}</strong>
-                    <span class="chat-user-msg">${lastMsg.text}</span>
+                    <strong class="chat-user-name">${window.bersihTeleHTML(chat.userInfo || 'User')}</strong>
+                    <span class="chat-user-msg">${lastMsg ? window.bersihTeleHTML(lastMsg.text) : '...'}</span>
                 </div>
                 ${hasUnread ? '<span class="notif-dot badge-static" style="display:inline-block;"></span>' : ''}
             </div>
@@ -1536,7 +1510,7 @@ window.openAdminChatDetailDesk = function(chatId) {
     emptyState.style.display = 'none';
     activeState.style.display = 'flex';
     document.getElementById('admin-active-chat-id-desk').value = chatId;
-    document.getElementById('admin-chat-title-desk').innerText = chat.userInfo || 'User Anonim';
+    document.getElementById('admin-chat-title-desk').innerText = chat.userInfo || 'User';
     
     const mainPanel = document.getElementById('admin-chat-main-panel');
     const sidePanel = document.getElementById('admin-chat-sidebar-panel');
@@ -1554,11 +1528,10 @@ window.openAdminChatDetailDesk = function(chatId) {
     
     (chat.messages || []).forEach(msg => {
         const isAdmin = msg.sender === 'admin';
-        const timeStr = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'}) : '';
         html += `
             <div class="chat-msg ${isAdmin ? 'admin' : 'user'}">
-                ${msg.text}
-                <span class="chat-time">${timeStr}</span>
+                ${window.bersihTeleHTML(msg.text)}
+                <span class="chat-time">${new Date(msg.timestamp).toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'})}</span>
             </div>
         `;
     });
@@ -1614,7 +1587,7 @@ window.resolveChatDesktop = async function() {
             }, 300);
         }
         
-        window.showToast('Diselesaikan', 'Sesi chat telah ditutup dan dihapus.', 'success');
+        window.showToast('Diselesaikan', 'Sesi chat telah dihapus.', 'success');
     } catch(e) {
         window.customAlert('Gagal', 'Tidak dapat menghapus sesi.', 'error');
     } finally {

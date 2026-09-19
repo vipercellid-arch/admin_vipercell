@@ -129,6 +129,7 @@
                 </div>
                 
                 <div class="header-right">
+                    <!-- Tema Gelap/Terang -->
                     <button class="btn-icon-only" aria-label="Tema Admin" onclick="window.toggleTheme()"><i class="fa-solid fa-moon" id="admin-theme-icon"></i></button>
                 </div>
             </header>
@@ -320,21 +321,21 @@
                     </div>
                 </div>
                 
-                <!-- TAB: LIVE CHAT ADMIN (STRUKTUR DIPERKUAT) -->
+                <!-- ====================================================== -->
+                <!-- TAB: LIVE CHAT ADMIN (DIPERBAIKI AGAR TIDAK KOSONG) -->
+                <!-- ====================================================== -->
                 <div id="tab-livechat" class="admin-tab-content" style="display: none; padding: 0;">
-                    <div class="chat-dashboard-wrapper">
+                    <!-- Tambahkan style manual tinggi agar terhindar dari bug CSS collapse -->
+                    <div class="chat-dashboard-wrapper" style="height: 80vh; min-height: 550px;">
                         
                         <!-- Sidebar Chat -->
                         <div class="chat-sidebar-panel" id="admin-chat-sidebar-panel">
-                            <div class="chat-sidebar-header">
-                                <h3>Sesi Obrolan Aktif</h3>
+                            <div class="chat-sidebar-header flex-between align-center">
+                                <h3 style="margin: 0; font-size: 1.1rem;">Sesi Bantuan Aktif</h3>
                             </div>
-                            <!-- Penampung Daftar User Chat -->
-                            <div id="admin-chat-list" class="chat-user-list" style="flex-grow: 1; overflow-y: auto;">
-                                <div class="chat-empty-state">
-                                    <i class="fa-solid fa-spinner fa-spin text-primary" style="font-size:2rem; margin-bottom:10px;"></i>
-                                    <p>Memuat sesi chat...</p>
-                                </div>
+                            <!-- Beri overflow auto agar scrollbar muncul -->
+                            <div id="admin-chat-list" class="chat-user-list" style="overflow-y: auto; flex: 1;">
+                                <div class="text-center p-3 text-muted"><i class="fa-solid fa-spinner fa-spin"></i> Menghubungkan ke server chat...</div>
                             </div>
                         </div>
                         
@@ -342,10 +343,9 @@
                         <div class="chat-main-panel" id="admin-chat-main-panel">
                             <div id="admin-chat-empty" class="chat-empty-state">
                                 <i class="fa-brands fa-whatsapp"></i>
-                                <p>Pilih pesan pelanggan dari sebelah kiri untuk membalas.</p>
+                                <p>Pilih nama pengguna di samping untuk membalas pesan.</p>
                             </div>
                             
-                            <!-- Ruang Obrolan Aktif -->
                             <div id="admin-chat-active" class="chat-active-state" style="display:none;">
                                 <div class="chat-active-header">
                                     <div style="display:flex; align-items:center; gap:10px;">
@@ -353,22 +353,21 @@
                                         <h3 id="admin-chat-title-desk" class="text-primary" style="margin:0; font-size:1.1rem;">Nama User</h3>
                                     </div>
                                     <button id="btn-resolve-chat" class="btn btn-success btn-sm" onclick="window.resolveChatDesktop()">
-                                        <i class="fa-solid fa-check-double"></i> <span class="hide-mobile">Selesai / Tutup Obrolan</span>
+                                        <i class="fa-solid fa-check-double"></i> <span class="hide-mobile">Selesaikan Chat</span>
                                     </button>
                                 </div>
                                 
                                 <div class="chat-active-body" id="admin-chat-body-desktop"></div>
                                 
                                 <div class="chat-quick-replies">
-                                    <button class="btn btn-outline btn-sm round flex-shrink-0" onclick="window.insertQuickReplyDesk('Halo kak, ada yang bisa kami bantu?')">Halo</button>
-                                    <button class="btn btn-outline btn-sm round flex-shrink-0" onclick="window.insertQuickReplyDesk('Baik kak, pesanan sedang diproses ya. Mohon ditunggu sebentar.')">Proses</button>
-                                    <button class="btn btn-outline btn-sm round flex-shrink-0" onclick="window.insertQuickReplyDesk('Pesanan kamu sudah sukses!')">Selesai</button>
-                                    <button class="btn btn-outline btn-sm round flex-shrink-0" onclick="window.insertQuickReplyDesk('Silakan cek detail akun di menu Lacak Pesanan.')">Cek Akun</button>
+                                    <button class="btn btn-outline btn-sm round flex-shrink-0" onclick="window.insertQuickReplyDesk('Halo kak, ada yang bisa kami bantu hari ini?')">Halo</button>
+                                    <button class="btn btn-outline btn-sm round flex-shrink-0" onclick="window.insertQuickReplyDesk('Baik kak, pesanan kamu sedang kami proses ya, mohon ditunggu.')">Sedang Diproses</button>
+                                    <button class="btn btn-outline btn-sm round flex-shrink-0" onclick="window.insertQuickReplyDesk('Pesanan kamu sudah berhasil kami kirim. Terima kasih telah berbelanja!')">Selesai</button>
                                 </div>
                                 
                                 <div class="chat-active-footer">
                                     <input type="hidden" id="admin-active-chat-id-desk">
-                                    <input type="text" id="admin-chat-input-desk" class="form-control" placeholder="Ketik balasan untuk pelanggan..." onkeypress="if(event.key === 'Enter') window.sendAdminChatDesk()">
+                                    <input type="text" id="admin-chat-input-desk" class="form-control" placeholder="Ketik balasan untuk pengguna..." onkeypress="if(event.key === 'Enter') window.sendAdminChatDesk()">
                                     <button class="btn btn-primary btn-icon-only" style="flex-shrink:0;" onclick="window.sendAdminChatDesk()"><i class="fa-solid fa-paper-plane"></i></button>
                                 </div>
                             </div>
@@ -434,12 +433,12 @@
                             </div>
                         </div>
 
-                        <!-- PANEL: Integrasi Telegram -->
+                        <!-- PANEL BARU: Integrasi Telegram -->
                         <div class="dashboard-panel">
                             <div class="panel-header">
                                 <h3><i class="fa-brands fa-telegram text-primary" style="color: #0088cc !important;"></i> Integrasi Telegram Bot</h3>
                             </div>
-                            <p class="text-muted text-sm mb-3">Sistem akan mengirim notifikasi otomatis ke Telegram untuk Pesanan Masuk, Pesanan Lunas, dan Chat User.</p>
+                            <p class="text-muted text-sm mb-3">Sistem akan mengirim notifikasi otomatis ke Telegram untuk Pesanan Masuk (Meski belum dibayar), Pesanan Butuh Proses, dan Chat Bantuan User.</p>
                             
                             <div class="form-group">
                                 <label for="set-tele-token">Bot Token (Dari BotFather)</label>
