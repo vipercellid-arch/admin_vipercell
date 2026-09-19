@@ -19,7 +19,8 @@
 </head>
 <body>
     <div id="toast-container" class="toast-container"></div>
-    <audio id="notif-sound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="none"></audio>
+    
+    <!-- FITUR AUDIO NOTIFIKASI WEB DIHAPUS SESUAI PERMINTAAN -->
 
     <!-- LAYAR LOGIN ADMIN -->
     <div id="admin-login-screen" class="login-wrapper">
@@ -130,9 +131,7 @@
                 </div>
                 
                 <div class="header-right">
-                    <button id="btn-admin-notif" class="btn-icon-only" aria-label="Aktifkan Notifikasi" onclick="window.requestSystemNotificationAdmin()" style="color: var(--warning); border-color: var(--warning);" title="Aktifkan Notifikasi Suara">
-                        <i class="fa-solid fa-bell"></i>
-                    </button>
+                    <!-- TOMBOL LONCENG NOTIFIKASI WEB DIHAPUS (FOKUS KE TELEGRAM) -->
                     <button class="btn-icon-only" aria-label="Tema Admin" onclick="window.toggleTheme()"><i class="fa-solid fa-moon" id="admin-theme-icon"></i></button>
                 </div>
             </header>
@@ -434,7 +433,7 @@
                             <div class="panel-header">
                                 <h3><i class="fa-brands fa-telegram text-primary" style="color: #0088cc !important;"></i> Integrasi Telegram Bot</h3>
                             </div>
-                            <p class="text-muted text-sm mb-3">Sistem akan mengirim notifikasi otomatis saat pesanan sukses dan saat ada pengguna yang mengirim pesan (Live Chat) ke sini.</p>
+                            <p class="text-muted text-sm mb-3">Sistem akan mengirim notifikasi otomatis ke Telegram untuk Pesanan Masuk, Pesanan Lunas, dan Chat User.</p>
                             
                             <div class="form-group">
                                 <label for="set-tele-token">Bot Token (Dari BotFather)</label>
@@ -450,11 +449,17 @@
                                     <input type="text" id="set-tele-chatid" class="form-control code-input" placeholder="Misal: 8761776489" onchange="window.saveSettingsManual()">
                                 </div>
                             </div>
-                            <div class="toggle-box mt-3 info-box bg-primary-light border-primary">
-                                <label class="fw-bold text-primary mb-0 flex-1">Aktifkan Notifikasi Telegram</label>
-                                <div class="toggle-switch">
-                                    <input type="checkbox" id="set-tele-active" class="large-checkbox" onchange="window.saveSettingsManual()">
+                            
+                            <div class="flex-wrap-gap mt-3">
+                                <div class="toggle-box info-box bg-primary-light border-primary flex-grow">
+                                    <label class="fw-bold text-primary mb-0 flex-1">Aktifkan Notifikasi Telegram</label>
+                                    <div class="toggle-switch">
+                                        <input type="checkbox" id="set-tele-active" class="large-checkbox" onchange="window.saveSettingsManual()">
+                                    </div>
                                 </div>
+                                <button class="btn btn-outline border-primary text-primary" onclick="window.testTelegramConnection()">
+                                    <i class="fa-solid fa-paper-plane"></i> Tes Koneksi
+                                </button>
                             </div>
                         </div>
                         
