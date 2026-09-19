@@ -34,20 +34,32 @@ let siteSettings = {
     logoText: 'VIPER', logoAccent: 'CELL', logoImgBase64: '', marquee: '',
     qrisStringData: '', adminWa: '', igLink: '', ttLink: '',
     newsList: [], banners: [], isStoreOpen: true, waChannelLink: '', vpsEndpoint: '',
-    teleToken: '', teleChatId: '', teleActive: false // Konfigurasi Telegram
+    teleToken: '', teleChatId: '', teleActive: false 
 };
 
 let currentAdminUser = null;
 let isSettingsLoaded = false;
 let currentGroupNominals = [];
-let adminChatUnsubscribe = null;
-let previousChatCount = 0;
+
+// Variabel Pencegah Spam Notifikasi saat pertama dimuat
+let isInitialOrderLoad = true;
+let isInitialChatLoad = true;
 let previousOrdersData = {};
+let previousChatMsgCount = {};
 window.tempProcessStocks = []; 
 
 // ==========================================
-// TELEGRAM NOTIFICATION SENDER (BARU)
+// MESIN TELEGRAM BOT (UTAMA)
 // ==========================================
+
+// Fungsi Waktu Indonesia Timur (WIT)
+function getWaktuWIT() {
+    const d = new Date();
+    // Format spesifik zona waktu Asia/Jayapura (WIT)
+    return d.toLocaleString('id-ID', { timeZone: 'Asia/Jayapura', hour12: false }) + ' WIT';
+}
+
+// Fungsi Mengirim Pesan Telegram
 window.sendTelegramMessage = async function(messageText) {
     if (!siteSettings.teleActive || !siteSettings.teleToken || !siteSettings.teleChatId) return;
     
@@ -63,12 +75,53 @@ window.sendTelegramMessage = async function(messageText) {
             })
         });
     } catch (e) {
-        console.error("Gagal mengirim notifikasi Telegram:", e);
+        console.error("Gagal kirim notifikasi Telegram:", e);
     }
 };
 
+// Tombol Tes Koneksi Telegram
+window.testTelegramConnection = async function() {
+    const btn = document.querySelector('button[onclick="window.testTelegramConnection()"]');
+    if(btn) {
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Mengirim...';
+        btn.disabled = true;
+    }
+    
+    const token = document.getElementById('set-tele-token').value.trim() || siteSettings.teleToken;
+    const chatId = document.getElementById('set-tele-chatid').value.trim() || siteSettings.teleChatId;
+    
+    if(!token || !chatId) {
+        window.customAlert('Error', 'Bot Token dan Chat ID wajib diisi terlebih dahulu!', 'error');
+        if(btn) { btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Tes Koneksi'; btn.disabled = false; }
+        return;
+    }
+    
+    const waktu = getWaktuWIT();
+    const msg = `🟢 <b>KONEKSI SISTEM BERHASIL</b>\n\nSistem notifikasi Vipercell Admin Command Center siap digunakan.\n\n<pre>\n- Status : Terhubung\n- Waktu  : ${waktu}\n</pre>`;
+    
+    try {
+        const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: chatId, text: msg, parse_mode: 'HTML' })
+        });
+        const data = await res.json();
+        
+        if(data.ok) {
+            window.showToast('Sukses', 'Pesan tes terkirim ke Telegram Anda!', 'success');
+        } else {
+            window.customAlert('Gagal', 'Telegram menolak request: ' + data.description, 'error');
+        }
+    } catch(e) {
+        window.customAlert('Error', 'Gagal menghubungi server Telegram. Cek koneksi Anda.', 'error');
+    }
+    
+    if(btn) { btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Tes Koneksi'; btn.disabled = false; }
+}
+
+
 // ==========================================
-// UTILITAS & UI MODALS
+// UTILITAS UMUM
 // ==========================================
 window.resizeImageBase64 = function(file, callback, maxWidth, maxHeight) {
     const reader = new FileReader();
@@ -193,39 +246,6 @@ window.switchAdminTab = function(tabId, btnEl) {
     if(window.innerWidth <= 768) {
         const sidebar = document.getElementById('admin-sidebar');
         if(sidebar) sidebar.classList.remove('active');
-    }
-}
-
-// ==========================================
-// SISTEM NOTIFIKASI NATIVE ADMIN
-// ==========================================
-window.requestSystemNotificationAdmin = async function() {
-    const btn = document.getElementById('btn-admin-notif');
-    if (!('Notification' in window)) {
-        window.customAlert('Tidak Didukung', 'Browser tidak mendukung notifikasi native.', 'warning');
-        return;
-    }
-    
-    const audio = document.getElementById('notif-sound');
-    if(audio) { audio.volume = 0; audio.play().catch(()=>{}); setTimeout(()=>{ audio.volume = 1; }, 500); }
-    try {
-        const permission = await Notification.requestPermission();
-        if (permission === 'granted') {
-            window.customAlert('Berhasil', 'Sistem notifikasi HP aktif. Alarm akan berbunyi saat ada pesanan atau obrolan masuk.', 'success');
-            if(btn) { btn.classList.add('text-success'); btn.classList.add('border-success'); }
-        } else {
-            window.customAlert('Ditolak', 'Izin ditolak. Silakan izinkan melalui pengaturan browser.', 'warning');
-        }
-    } catch(e) {}
-}
-
-window.fireNativeNotificationAdmin = function(title, msg, type = 'info') {
-    window.showToast(title, msg, type);
-    
-    const audio = document.getElementById('notif-sound');
-    if (audio) audio.play().catch(()=>{});
-    if ('Notification' in window && Notification.permission === 'granted') {
-        try { new Notification(title, { body: msg, icon: '/favicon.ico' }); } catch(e) {}
     }
 }
 
@@ -386,18 +406,56 @@ function listenAdminData() {
         window.renderReviews();
     });
 
+    // LISTENER PESANAN & NOTIFIKASI TELEGRAM
     onSnapshot(collection(db, pathOrders), (snapshot) => {
         let newOrders = [];
+        
         snapshot.forEach((docSnap) => {
             let data = { dbId: docSnap.id, ...docSnap.data() };
             newOrders.push(data);
             
-            let oldStatus = previousOrdersData[data.id];
-            if (data.status === 'PENDING' && oldStatus !== 'PENDING') {
-                window.fireNativeNotificationAdmin('Pesanan Baru', `Menunggu ACC untuk Invoice ${data.id}`, 'info');
+            // Logika Notifikasi Telegram (Mencegah spam saat web di-refresh)
+            if(!isInitialOrderLoad) {
+                let oldStatus = previousOrdersData[data.id];
+                
+                let namaItemStr = data.items.map(i => `${i.name} (x${i.qty || 1})`).join(', ');
+                let waktuTrx = getWaktuWIT();
+                
+                // Kondisi 1: Pesanan Baru Masuk (Pending/Unpaid)
+                if (!oldStatus && (data.status === 'PENDING' || data.status === 'UNPAID')) {
+                    const msgBaru = 
+                        `🛒 <b>PESANAN BARU MASUK!</b>\n\n` +
+                        `<pre>\n` +
+                        `- ID Trx : ${data.id}\n` +
+                        `- Waktu  : ${waktuTrx}\n` +
+                        `- Produk : ${namaItemStr}\n` +
+                        `- Harga  : Rp ${data.finalTotal.toLocaleString('id-ID')}\n` +
+                        `- Status : MENUNGGU PEMBAYARAN\n` +
+                        `</pre>\n\n` +
+                        `<i>Sistem sedang menunggu pembayaran dari pembeli...</i>`;
+                    window.sendTelegramMessage(msgBaru);
+                }
+                
+                // Kondisi 2: Pembayaran Berhasil Tapi Belum Diproses (Butuh ACC Manual)
+                else if (oldStatus === 'PENDING' && data.status === 'SUCCESS' && !data.adminReply) {
+                    const msgLunas = 
+                        `✅ <b>PEMBAYARAN DITERIMA (BUTUH PROSES)</b>\n\n` +
+                        `<pre>\n` +
+                        `- ID Trx : ${data.id}\n` +
+                        `- Waktu  : ${waktuTrx}\n` +
+                        `- Produk : ${namaItemStr}\n` +
+                        `- Harga  : Rp ${data.finalTotal.toLocaleString('id-ID')}\n` +
+                        `- Status : LUNAS (BELUM DIPROSES)\n` +
+                        `</pre>\n\n` +
+                        `⚠️ <b>PERHATIAN:</b> Pesanan ini tervalidasi tapi butuh di-<b>PROSES MANUAL</b> oleh admin karena butuh pengambilan akun / stok. Silakan buka Dashboard Web.`;
+                    window.sendTelegramMessage(msgLunas);
+                }
             }
+            
             previousOrdersData[data.id] = data.status;
         });
+        
+        isInitialOrderLoad = false;
         
         orders = newOrders.sort((a,b) => new Date(b.date) - new Date(a.date));
         window.renderAdminOrders();
@@ -642,8 +700,21 @@ window.markOrderComplete = async function(statusType) {
                 }
             }
             
-            // 👉 TRIGGER NOTIFIKASI TELEGRAM OTOMATIS SAAT PESANAN SELESAI
-            const teleMsg = `✅ <b>PESANAN SELESAI DIPROSES</b>\n\n<b>Invoice:</b> ${order.id}\n<b>User Email:</b> ${order.userEmail || '-'}\n<b>Total:</b> Rp${order.finalTotal.toLocaleString('id-ID')}\n<b>Status:</b> SUCCESS\n\n<b>Pesan Admin:</b>\n<i>${reply}</i>`;
+            // 👉 TRIGGER NOTIFIKASI TELEGRAM: PESANAN SELESAI
+            let namaItemStr = order.items.map(i => `${i.name} (x${i.qty || 1})`).join(', ');
+            let waktuTrx = getWaktuWIT();
+            
+            const teleMsg = 
+                `🎉 <b>PESANAN SELESAI (MANUAL)</b>\n\n` +
+                `<pre>\n` +
+                `- ID Trx : ${order.id}\n` +
+                `- Waktu  : ${waktuTrx}\n` +
+                `- Produk : ${namaItemStr}\n` +
+                `- Harga  : Rp ${order.finalTotal.toLocaleString('id-ID')}\n` +
+                `- Status : SUCCESS\n` +
+                `</pre>\n\n` +
+                `<i>Pesanan telah diproses secara manual dan dikirim ke akun pembeli.</i>`;
+            
             window.sendTelegramMessage(teleMsg);
         }
         
@@ -1353,27 +1424,38 @@ window.deleteBanner = async function(idx) {
 }
 
 // ==========================================
-// LIVE CHAT (TRANSISI MULUS UNTUK MOBILE)
+// LIVE CHAT & TELEGRAM NOTIFIKASI
 // ==========================================
 function listenAdminLiveChat() {
     if(adminChatUnsubscribe) adminChatUnsubscribe();
     adminChatUnsubscribe = onSnapshot(collection(db, pathChats), (snapshot) => {
-        allLiveChats = [];
-        snapshot.forEach(docSnap => { allLiveChats.push({ id: docSnap.id, ...docSnap.data() }); });
-        allLiveChats.sort((a,b) => b.updatedAt - a.updatedAt);
+        let newChats = [];
+        
+        snapshot.forEach(docSnap => { 
+            let cData = { id: docSnap.id, ...docSnap.data() };
+            newChats.push(cData);
+            
+            // Logika Deteksi Pesan Baru untuk Telegram
+            if(!isInitialChatLoad) {
+                let oldMsgCount = previousChatMsgCount[cData.id] || 0;
+                let newMsgCount = cData.messages ? cData.messages.length : 0;
+                
+                if(newMsgCount > oldMsgCount) {
+                    let lastMsg = cData.messages[newMsgCount - 1];
+                    // Hanya beritahu ke telegram jika yang mengirim adalah USER
+                    if(lastMsg.sender === 'user') {
+                        const teleMsg = `💬 <b>PESAN BANTUAN MASUK</b>\n\n<b>Dari:</b> ${cData.userInfo || 'Pelanggan'}\n<b>Pesan:</b> <i>"${lastMsg.text}"</i>\n\nBuka Dashboard Web Admin untuk membalas pesannya.`;
+                        window.sendTelegramMessage(teleMsg);
+                    }
+                }
+            }
+            previousChatMsgCount[cData.id] = cData.messages ? cData.messages.length : 0;
+        });
+        
+        isInitialChatLoad = false;
+        allLiveChats = newChats.sort((a,b) => b.updatedAt - a.updatedAt);
         window.renderAdminChatList();
         
-        if (allLiveChats.length > 0 && allLiveChats[0].messages.length > 0) {
-            const latestMsg = allLiveChats[0].messages[allLiveChats[0].messages.length-1];
-            if (latestMsg.sender === 'user' && previousChatCount !== 0 && allLiveChats.length >= previousChatCount) {
-                window.fireNativeNotificationAdmin('Pesan Masuk', `Pesan baru dari ${allLiveChats[0].userInfo}`, 'info');
-                
-                // 👉 TRIGGER NOTIFIKASI TELEGRAM OTOMATIS SAAT ADA CHAT BARU
-                const teleMsg = `💬 <b>PESAN BANTUAN MASUK</b>\n\n<b>Dari:</b> ${allLiveChats[0].userInfo || 'Pelanggan'}\n<b>Pesan:</b> <i>"${latestMsg.text}"</i>\n\nSilakan cek Dashboard Admin untuk membalas.`;
-                window.sendTelegramMessage(teleMsg);
-            }
-        }
-        previousChatCount = allLiveChats.length;
         const badge = document.getElementById('admin-chat-tab-badge');
         if(badge) badge.style.display = allLiveChats.length > 0 ? 'inline-block' : 'none';
         
@@ -1459,7 +1541,7 @@ window.openAdminChatDetailDesk = function(chatId) {
         html += `
             <div class="chat-msg ${isAdmin ? 'admin' : 'user'}">
                 ${msg.text}
-                <span class="chat-time">${new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                <span class="chat-time">${new Date(msg.timestamp).toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'})}</span>
             </div>
         `;
     });
