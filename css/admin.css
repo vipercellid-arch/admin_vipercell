@@ -1,8 +1,7 @@
 /* ========================================================
-   VIPERCELL V22.0 - ULTIMATE CLEAN ADMIN CSS
-   * Default Theme: Clean White / Slate-50
-   * Dark Theme: Deep Matte Dark (No Neon Glare)
-   * Responsive Mobile Stock Cards & Top-Left Toast
+   VIPERCELL V23.0 - NEO-BRUTALISM ADMIN COMMAND CENTER CSS
+   * Center-Top Swipeable Toast, Barcode Cashier Scanner,
+   * Member Directory Cards, Promo Coupon Cards, E-Receipt Modal
    ======================================================== */
 
 /* ========================================================
@@ -37,7 +36,6 @@
     --brutal-shadow-lg: 6px 6px 0px #0f172a;
 }
 
-/* TEMA GELAP PEKAT & ELEGAN (TANPA NEON MENYALA) */
 :root[data-theme="dark"] {
     --primary: #3b82f6;
     --primary-light: #60a5fa;
@@ -155,7 +153,7 @@ button { cursor: pointer; border: none; font-family: inherit; outline: none; bac
 .pointer { cursor: pointer; }
 
 /* ========================================================
-   4. KOMPONEN GLOBAL & TOAST POJOK KIRI ATAS
+   4. KOMPONEN GLOBAL & TOAST TENGAH ATAS (SWIPEABLE)
    ======================================================== */
 .btn {
     padding: 0.65rem 1.2rem; border-radius: 10px; font-weight: 800; font-size: 0.84rem;
@@ -208,35 +206,41 @@ button { cursor: pointer; border: none; font-family: inherit; outline: none; bac
 .status-failed { background: rgba(239, 68, 68, 0.15); color: #ef4444; border-color: rgba(239, 68, 68, 0.4); }
 .status-tools { background: rgba(139, 92, 246, 0.15); color: #a78bfa; border-color: rgba(139, 92, 246, 0.4); }
 
-/* TOAST POJOK KIRI ATAS */
+/* TOAST TENGAH ATAS + SWIPE GESTURE */
 .toast-container {
     position: fixed;
-    top: 18px;
-    left: 18px;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
     z-index: 999999;
     display: flex;
     flex-direction: column;
     gap: 10px;
     pointer-events: none;
-    width: calc(100% - 36px);
-    max-width: 360px;
+    width: 92%;
+    max-width: 410px;
 }
 .toast-item {
-    background: var(--surface); border: var(--brutal-border); border-radius: 12px;
-    padding: 12px 15px; display: flex; align-items: center; gap: 12px;
-    box-shadow: var(--brutal-shadow); pointer-events: auto;
-    transform: translateX(-30px); opacity: 0; transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    background: var(--surface); border: var(--brutal-border); border-radius: 14px;
+    padding: 12px 16px; display: flex; align-items: center; gap: 12px;
+    box-shadow: var(--brutal-shadow-lg); pointer-events: auto;
+    transform: translateY(-25px); opacity: 0;
+    transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.25s ease;
+    touch-action: pan-y;
+    user-select: none;
 }
-.toast-item.show { transform: translateX(0); opacity: 1; }
+.toast-item.show { transform: translateY(0); opacity: 1; }
 .toast-icon {
-    width: 36px; height: 36px; border-radius: 8px; border: 1.5px solid var(--border);
-    display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0;
+    width: 38px; height: 38px; border-radius: 10px; border: 1.5px solid var(--border);
+    display: flex; align-items: center; justify-content: center; font-size: 1.15rem; flex-shrink: 0;
     background: rgba(37, 99, 235, 0.15); color: var(--primary-light);
 }
 .toast-success .toast-icon { background: rgba(16, 185, 129, 0.15); color: #10b981; }
 .toast-error .toast-icon { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+.toast-content { flex: 1; min-width: 0; }
 .toast-content h4 { margin:0; font-size: 0.88rem; font-weight: 800; color: var(--text); }
 .toast-content p { margin:0; font-size: 0.76rem; font-weight: 600; color: var(--text-muted); line-height: 1.35; }
+.toast-swipe-hint { font-size: 0.62rem; color: var(--text-muted); opacity: 0.7; font-weight: 700; margin-top: 2px; display: block; }
 
 .pwa-brutal-prompt {
     position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
@@ -353,10 +357,10 @@ button { cursor: pointer; border: none; font-family: inherit; outline: none; bac
 .admin-body { padding: 1.5rem 1.6rem; flex-grow: 1; max-width: 1440px; margin: 0 auto; width: 100%; }
 
 /* ========================================================
-   7. KARTU STATISTIK, GUDANG STOK MOBILE & KATALOG MODERN
+   7. KARTU MEMBER, KARTU VOUCHER PROMO, & GUDANG STOK
    ======================================================== */
 .grid-2col { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.3rem; }
-.stock-layout-grid { display: grid; grid-template-columns: 380px 1fr; gap: 1.4rem; align-items: start; }
+.stock-layout-grid { display: grid; grid-template-columns: 390px 1fr; gap: 1.4rem; align-items: start; }
 .input-type-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); gap: 10px; }
 
 .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.1rem; }
@@ -387,7 +391,58 @@ button { cursor: pointer; border: none; font-family: inherit; outline: none; bac
     border: var(--brutal-border); box-shadow: var(--brutal-shadow-sm);
 }
 
-/* Kartu Stok Mobile (Sangat Rapi di Layar HP) */
+/* TAB MEMBER BARU (DIREKTORI PELANGGAN) */
+.members-grid-admin {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 15px;
+}
+.member-card {
+    background: var(--surface); border: var(--brutal-border); border-radius: 16px;
+    padding: 1.2rem; box-shadow: var(--brutal-shadow-sm);
+    display: flex; flex-direction: column; justify-content: space-between; gap: 12px;
+}
+.member-card-head { display: flex; align-items: center; gap: 12px; }
+.member-avatar {
+    width: 48px; height: 48px; border-radius: 12px; background: var(--primary); color: #ffffff;
+    font-family: 'Space Grotesk', sans-serif; font-weight: 900; font-size: 1.3rem;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0; border: 1.5px solid var(--border);
+}
+.member-meta-box {
+    background: var(--bg); border: 1.5px solid var(--border-subtle); border-radius: 10px;
+    padding: 10px 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.76rem;
+}
+.member-meta-item span { display: block; color: var(--text-muted); font-size: 0.68rem; font-weight: 700; }
+.member-meta-item strong { color: var(--text); font-weight: 800; }
+.member-actions-row { display: flex; gap: 8px; }
+
+/* STUDIO KARTU VOUCHER PROMO BARU */
+.promo-cards-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;
+}
+.promo-coupon-card {
+    background: var(--surface); border: var(--brutal-border); border-radius: 16px;
+    box-shadow: var(--brutal-shadow-sm); overflow: hidden; display: flex; flex-direction: column; justify-content: space-between;
+}
+.promo-coupon-top {
+    padding: 1.1rem 1.25rem; background: var(--bg); border-bottom: 2px dashed var(--border-subtle);
+    display: flex; justify-content: space-between; align-items: center;
+}
+.promo-code-pill {
+    font-family: monospace; font-size: 1.1rem; font-weight: 900; color: var(--primary-light);
+    background: var(--surface); padding: 4px 12px; border-radius: 8px; border: 1.5px solid var(--border);
+}
+.promo-coupon-body { padding: 1.15rem 1.25rem; }
+.promo-discount-val { font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; font-weight: 900; color: var(--text); margin-bottom: 6px; }
+.promo-quota-bar {
+    width: 100%; height: 8px; background: var(--bg); border-radius: 10px; overflow: hidden;
+    border: 1px solid var(--border-subtle); margin: 8px 0 4px;
+}
+.promo-quota-fill { height: 100%; background: var(--primary); border-radius: 10px; }
+.promo-coupon-foot {
+    padding: 10px 1.25rem; border-top: 1.5px solid var(--border-subtle);
+    display: flex; justify-content: space-between; align-items: center; background: var(--surface-hover);
+}
+
+/* Kartu Stok Mobile */
 .stock-mobile-list { display: flex; flex-direction: column; gap: 10px; }
 .stock-mob-card {
     background: var(--bg); border: var(--brutal-border); border-radius: 12px;
@@ -430,6 +485,16 @@ button { cursor: pointer; border: none; font-family: inherit; outline: none; bac
 }
 .uploader-placeholder { display: flex; flex-direction: column; align-items: center; gap: 5px; color: var(--primary-light); font-size: 0.74rem; font-weight: 800; }
 .uploader-placeholder i { font-size: 1.5rem; }
+
+/* Modal Proses Order E-Receipt Admin & Scanner Barcode */
+.admin-ereceipt-box {
+    background: var(--bg); border: var(--brutal-border); border-radius: 12px;
+    padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;
+}
+.scanner-viewport-box {
+    width: 100%; min-height: 220px; background: #000000; border: var(--brutal-border);
+    border-radius: 14px; overflow: hidden; display: flex; align-items: center; justify-content: center; color: #ffffff;
+}
 
 /* Grid Kartu Berita Admin */
 .admin-news-cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
@@ -510,8 +575,8 @@ button { cursor: pointer; border: none; font-family: inherit; outline: none; bac
     box-shadow: var(--brutal-shadow-lg); position: relative;
 }
 .modal-overlay.active .modal-content, .msg-overlay.active .msg-box { transform: translateY(0) scale(1); }
-.modal-content.large { max-width: 780px; }
-.modal-content.wide { max-width: 620px; }
+.modal-content.large { max-width: 820px; }
+.modal-content.wide { max-width: 640px; }
 
 .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: var(--brutal-border); }
 .modal-header h2 { font-size: 1.12rem; font-weight: 900; margin: 0; }
@@ -565,12 +630,11 @@ button { cursor: pointer; border: none; font-family: inherit; outline: none; bac
     line-height: 1.45; word-wrap: break-word; border: 1.5px solid var(--border);
 }
 .chat-msg.admin { background: var(--primary); color: #ffffff; align-self: flex-end; border-color: var(--primary-dark); }
-.chat-msg.ai { background: var(--surface); color: var(--text); align-self: flex-end; border-right: 3.5px solid #8b5cf6; }
 .chat-msg.user { background: var(--surface); color: var(--text); align-self: flex-start; }
 .chat-time { font-size: 0.62rem; font-weight: 700; opacity: 0.8; display: block; text-align: right; margin-top: 4px; }
 
 /* ========================================================
-   10. RESPONSIVE MOBILE (STOCK CARDS & SIDEBAR)
+   10. RESPONSIVE MOBILE
    ======================================================== */
 @media (max-width: 992px) {
     .stock-layout-grid { grid-template-columns: 1fr; }

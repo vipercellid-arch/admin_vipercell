@@ -2,7 +2,7 @@ import {
     db, auth,
     signInWithEmailAndPassword, signOut, onAuthStateChanged,
     setPersistence, browserLocalPersistence,
-    doc, setDoc, getDoc, updateDoc, deleteDoc, onSnapshot, collection, addDoc, query, where, getDocs, arrayUnion 
+    doc, setDoc, getDoc, updateDoc, deleteDoc, onSnapshot, collection, addDoc, query, where, getDocs, arrayUnion, increment 
 } from './firebase.js';
 
 // ==========================================
@@ -23,7 +23,7 @@ const pathReviews = isWorkspace ? `artifacts/${appId}/public/data/reviews` : 're
 const fallbackSettingsPath = isWorkspace ? 'settings' : `artifacts/${appId}/public/data/settings`;
 
 // ==========================================
-// STATE & VARIABEL GLOBAL (ADMIN V22)
+// STATE & VARIABEL GLOBAL (ADMIN V23)
 // ==========================================
 let products = [];
 let groupedBrands = []; 
@@ -31,9 +31,11 @@ let orders = [];
 let promos = [];
 let reviewsList = [];
 let allLiveChats = [];
+let membersList = [];
 
 let adminChatUnsubscribe = null; 
 let isAdminListening = false;
+let html5BarcodeScanner = null;
 
 let siteSettings = { 
     logoText: 'VIPER',
@@ -48,11 +50,7 @@ let siteSettings = {
     newsList: [],
     banners: [],
     isStoreOpen: true,
-    waChannelLink: '',
-    aiEnabled: false,
-    geminiApiKey: '',
-    aiDelaySeconds: 20,
-    aiCustomPrompt: ''
+    waChannelLink: ''
 };
 
 let currentAdminUser = null;
@@ -68,6 +66,7 @@ let isInitialChatLoad = true;
 let previousOrdersData = {};
 let previousChatMsgCount = {};
 let processingAutoOrderIds = new Set();
+let deductedStockOrderIds = new Set();
 window.tempProcessStocks = []; 
 
 // ==========================================
@@ -142,7 +141,6 @@ function updateSoundIconUI() {
     }
 }
 
-// Sakelar Toggle Notifikasi Lonceng Admin (Bisa ON / OFF dari Pengaturan Web)
 function updateAdminNotifToggleUI() {
     const statusText = document.getElementById('set-admin-notif-status');
     const btn = document.getElementById('btn-set-admin-notif');
@@ -240,7 +238,7 @@ function applyAdminCustomPwaIcon() {
             id: "/",
             name: `${siteSettings.logoText || 'Viper'}${siteSettings.logoAccent || 'cell'} Admin Center`,
             short_name: `ViperAdmin`,
-            description: "Admin Command Center Vipercell V22",
+            description: "Admin Command Center Vipercell V23",
             start_url: window.location.origin + window.location.pathname,
             scope: window.location.origin + "/",
             display: "standalone",
@@ -278,7 +276,90 @@ window.copyTextToClipboard = function(text, label = 'Data') {
 };
 
 // ==========================================
-// UTILITAS UMUM & TEMA (DEFAULT AWAL: PUTIH / LIGHT)
+// POP-UP NOTIFIKASI TENGAH + SWIPE LEFT/RIGHT TO DISMISS + TAP TO NAVIGATE
+// ==========================================
+window.showToast = function(title, msg, type = 'info', actionCallback = null) {
+    const container = document.getElementById('toast-container');
+    if(!container) return;
+    const toast = document.createElement('div');
+    toast.className = `toast-item toast-${type}`;
+    let icon = type === 'success' ? '<i class="fa-solid fa-circle-check"></i>' : (type === 'error' ? '<i class="fa-solid fa-circle-xmark"></i>' : '<i class="fa-solid fa-bolt"></i>');
+    const hintText = actionCallback ? 'Ketuk untuk buka &bull; Geser untuk tutup' : 'Geser ke kiri/kanan untuk tutup';
+
+    toast.innerHTML = `
+        <div class="toast-icon">${icon}</div>
+        <div class="toast-content">
+            <h4>${window.escapeHtml(title)}</h4>
+            <p>${window.escapeHtml(msg)}</p>
+            <span class="toast-swipe-hint">${hintText}</span>
+        </div>
+    `;
+
+    let startX = 0;
+    let currentX = 0;
+    let isDragging = false;
+    let autoRemoveTimer = null;
+
+    const dismissToast = (dir = 1) => {
+        if (autoRemoveTimer) clearTimeout(autoRemoveTimer);
+        toast.style.transition = 'transform 0.22s ease, opacity 0.22s ease';
+        toast.style.transform = `translateX(${dir * 120}%)`;
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 220);
+    };
+
+    const onDragStart = (clientX) => {
+        startX = clientX;
+        currentX = 0;
+        isDragging = true;
+        toast.style.transition = 'none';
+    };
+
+    const onDragMove = (clientX) => {
+        if (!isDragging) return;
+        currentX = clientX - startX;
+        toast.style.transform = `translateX(${currentX}px)`;
+        toast.style.opacity = String(Math.max(0.2, 1 - Math.abs(currentX) / 180));
+    };
+
+    const onDragEnd = () => {
+        if (!isDragging) return;
+        isDragging = false;
+        if (Math.abs(currentX) > 65) {
+            dismissToast(currentX > 0 ? 1 : -1);
+        } else {
+            toast.style.transition = 'transform 0.2s ease, opacity 0.2s ease';
+            toast.style.transform = 'translateY(0) translateX(0)';
+            toast.style.opacity = '1';
+            if (Math.abs(currentX) < 10 && actionCallback) {
+                actionCallback();
+                dismissToast(1);
+            }
+        }
+    };
+
+    toast.addEventListener('touchstart', (e) => onDragStart(e.touches[0].clientX), { passive: true });
+    toast.addEventListener('touchmove', (e) => onDragMove(e.touches[0].clientX), { passive: true });
+    toast.addEventListener('touchend', onDragEnd);
+
+    toast.addEventListener('mousedown', (e) => onDragStart(e.clientX));
+    window.addEventListener('mousemove', (e) => { if (isDragging) onDragMove(e.clientX); });
+    window.addEventListener('mouseup', () => { if (isDragging) onDragEnd(); });
+
+    toast.style.cursor = actionCallback ? 'pointer' : 'grab';
+    container.appendChild(toast);
+    
+    setTimeout(() => toast.classList.add('show'), 15);
+    autoRemoveTimer = setTimeout(() => {
+        if (document.body.contains(toast)) {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 250);
+        }
+    }, 4800);
+};
+
+// ==========================================
+// UTILITAS UMUM & TEMA
 // ==========================================
 window.resizeImageBase64 = function(file, callback, maxWidth, maxHeight) {
     const reader = new FileReader();
@@ -349,19 +430,6 @@ window.closeAlert = () => {
     document.body.classList.remove('no-scroll');
 };
 
-window.showToast = function(title, msg, type = 'info') {
-    const container = document.getElementById('toast-container');
-    if(!container) return;
-    const toast = document.createElement('div');
-    toast.className = `toast-item toast-${type}`;
-    let icon = type === 'success' ? '<i class="fa-solid fa-circle-check"></i>' : (type === 'error' ? '<i class="fa-solid fa-circle-xmark"></i>' : '<i class="fa-solid fa-bolt"></i>');
-    toast.innerHTML = `<div class="toast-icon">${icon}</div><div class="toast-content"><h4>${window.escapeHtml(title)}</h4><p>${window.escapeHtml(msg)}</p></div>`;
-    container.appendChild(toast);
-    
-    setTimeout(() => toast.classList.add('show'), 15);
-    setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 4500);
-};
-
 let promptCallback = null;
 window.openConfirm = function(title, message, callback, actionType = 'warning') {
     const titleEl = document.getElementById('mc-title');
@@ -416,9 +484,13 @@ window.switchAdminTab = function(tabId, btnEl) {
     }
 };
 
+window.switchAdminTabByName = function(tabId) {
+    const btn = document.querySelector(`.admin-tab[data-tab="${tabId}"]`);
+    window.switchAdminTab(tabId, btn);
+};
+
 window.jumpToPendingOrders = function() {
-    const orderTabBtn = document.querySelectorAll('.admin-tab')[1];
-    window.switchAdminTab('tab-orders', orderTabBtn);
+    window.switchAdminTabByName('tab-orders');
     const pillNeedAction = document.querySelectorAll('#tab-orders .filter-pill')[1];
     window.setAdminOrderFilter('NEED_ACTION', pillNeedAction);
 };
@@ -551,6 +623,7 @@ function listenAdminData() {
         try { siteSettings = mergeValidSettings(siteSettings, JSON.parse(cachedSettings)); } catch (e) {}
     }
 
+    // 1. SETTINGS
     onSnapshot(doc(db, pathSettings, 'mainConfig'), async (docSnap) => {
         if (docSnap.exists()) {
             const dbData = docSnap.data();
@@ -646,7 +719,20 @@ function listenAdminData() {
         window.renderReviews();
     });
 
-    // 5. ORDERS
+    // 5. MEMBERS (USERS COLLECTION)
+    onSnapshot(collection(db, pathUsers), (snapshot) => {
+        membersList = [];
+        snapshot.forEach(docSnap => {
+            const uData = docSnap.data();
+            if (!uData.isGuest) {
+                membersList.push({ uid: docSnap.id, ...uData });
+            }
+        });
+        membersList.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+        window.renderAdminMembers();
+    });
+
+    // 6. ORDERS (AUTO-KIRIM STOK REUSABLE & ONCE + PENGURANGAN KUOTA STOK)
     onSnapshot(collection(db, pathOrders), (snapshot) => {
         let newOrders = [];
         snapshot.forEach((docSnap) => {
@@ -657,6 +743,7 @@ function listenAdminData() {
             snapshot.forEach((docSnap) => {
                 let data = docSnap.data();
                 previousOrdersData[docSnap.id] = { status: data.status, adminReply: data.adminReply };
+                if (data.status === 'SUCCESS') deductedStockOrderIds.add(docSnap.id);
             });
             isInitialOrderLoad = false;
         } else {
@@ -671,18 +758,28 @@ function listenAdminData() {
                     if (!oldStatus && (data.status === 'PENDING' || data.status === 'UNPAID')) {
                         playNotificationSound('order');
                         sendAdminNativeNotification('Pesanan Baru Masuk! 🛒', `Invoice ${data.id} sebesar Rp${(data.finalTotal || 0).toLocaleString('id-ID')}`);
-                        window.showToast('Pesanan Baru!', `Invoice ${data.id} baru saja dibuat.`, 'info');
+                        window.showToast('Pesanan Baru Masuk!', `Invoice ${data.id} (${data.paymentMethod === 'cash' ? 'Tunai Barcode' : 'QRIS'})`, 'info', () => {
+                            window.switchAdminTabByName('tab-orders');
+                        });
                     }
-                    else if ((oldStatus === 'PENDING' || oldStatus === 'UNPAID' || !oldStatus) && data.status === 'SUCCESS' && !data.adminReply) {
+                    else if ((oldStatus === 'PENDING' || oldStatus === 'UNPAID' || !oldStatus) && data.status === 'SUCCESS') {
                         playNotificationSound('order');
-                        let hasAutoStockItem = data.items && data.items.some(i => i.type === 'app' || i.type === 'tools');
-                        let isManualProcess = data.items && data.items.some(i => i.processType === 'manual');
-                        
-                        if (hasAutoStockItem && !isManualProcess) {
-                            window.autoProcessOrder(data, dbId);
-                        } else {
-                            sendAdminNativeNotification('Pembayaran Lunas (Butuh Proses) ⚡', `Invoice ${data.id} menunggu pengiriman manual Anda.`);
-                            window.showToast('Pembayaran Lunas!', `Invoice ${data.id} menunggu proses manual Anda.`, 'success');
+                        // Kurangi kuota stockCount produk jika belum dikurangi
+                        deductProductQuotaOnSuccess(data, dbId);
+
+                        if (!data.adminReply) {
+                            let hasAutoStockItem = data.items && data.items.some(i => i.type === 'app' || i.type === 'tools');
+                            let isManualProcess = data.items && data.items.some(i => i.processType === 'manual');
+                            
+                            if (hasAutoStockItem && !isManualProcess) {
+                                window.autoProcessOrder(data, dbId);
+                            } else {
+                                sendAdminNativeNotification('Pembayaran Lunas (Butuh Proses) ⚡', `Invoice ${data.id} menunggu pengiriman manual Anda.`);
+                                window.showToast('Pembayaran Lunas!', `Invoice ${data.id} menunggu proses manual Anda.`, 'success', () => {
+                                    window.switchAdminTabByName('tab-orders');
+                                    window.promptProcessOrder(dbId);
+                                });
+                            }
                         }
                     }
                     
@@ -697,18 +794,47 @@ function listenAdminData() {
         orders = newOrders.sort((a,b) => new Date(b.date) - new Date(a.date));
         window.renderAdminOrders();
         window.generateAdminReports();
+        window.renderAdminMembers();
         
         const hasPending = orders.some(o => o.status === 'PENDING' || (o.status === 'SUCCESS' && !o.adminReply));
         const adminOrderTabBadge = document.getElementById('admin-tab-order-badge');
         if(adminOrderTabBadge) adminOrderTabBadge.style.display = hasPending ? 'inline-block' : 'none';
     });
     
-    // 6. LIVE CHAT
+    // 7. LIVE CHAT
     listenAdminLiveChat();
 }
 
 // ==========================================
-// AUTO-KIRIM STOK MULTI-QTY (APP & TOOLS)
+// PENGURANGAN KUOTA STOK VARIAN (`stockCount`) OTOMATIS SAAT TRANSAKSI SUKSES
+// ==========================================
+async function deductProductQuotaOnSuccess(orderData, orderDbId) {
+    if (deductedStockOrderIds.has(orderDbId) || orderData.stockQuotaDeducted) return;
+    deductedStockOrderIds.add(orderDbId);
+
+    const item = orderData.items && orderData.items[0];
+    if (!item || !item.productDbId) return;
+
+    const prodObj = products.find(p => p.dbId === item.productDbId);
+    if (!prodObj || typeof prodObj.stockCount !== 'number') return;
+
+    const boughtQty = parseInt(item.qty) || 1;
+    const newStockCount = Math.max(0, prodObj.stockCount - boughtQty);
+    const shouldMarkSoldOut = newStockCount === 0 ? true : prodObj.soldOut;
+
+    try {
+        await updateDoc(doc(db, pathProducts, prodObj.dbId), {
+            stockCount: newStockCount,
+            soldOut: shouldMarkSoldOut
+        });
+        await updateDoc(doc(db, pathOrders, orderDbId), { stockQuotaDeducted: true });
+    } catch (e) {
+        console.error("Gagal mengurangi kuota stok varian:", e);
+    }
+}
+
+// ==========================================
+// AUTO-KIRIM STOK (MENDUKUNG MODE LINK BERULANG / REUSABLE TOOLS & MULTI-QTY)
 // ==========================================
 window.autoProcessOrder = async function(orderData, orderDbId) {
     if (processingAutoOrderIds.has(orderDbId)) return;
@@ -732,7 +858,26 @@ window.autoProcessOrder = async function(orderData, orderDbId) {
             where("status", "==", "Ready")
         );
         const snap = await getDocs(q);
+
+        // 1. Cek apakah ada Stok Mode Kirim Berulang-ulang (Reusable Link/Tools)
+        const reusableDoc = snap.docs.find(d => d.data().isReusable === true);
+        if (reusableDoc) {
+            const rData = reusableDoc.data();
+            const parts = (rData.data || '').split('|');
+            const replyText = `Terima kasih! Pembayaran Anda telah diverifikasi otomatis.\n\n[AKSES LAYANAN / TOOLS DIGITAL (x${neededQty})]\nLink / Akun : ${parts[0] || '-'}\nKode / Pin  : ${parts[1] || '-'}\nPanduan     : ${parts[2] || '-'}\n\nSilakan langsung diakses dan hubungi Live Chat jika ada kendala.`;
+
+            // Jangan ubah status menjadi 'Used' karena Reusable, cukup tambah penghitung sentCount!
+            await updateDoc(doc(db, pathStocks, reusableDoc.id), {
+                sentCount: increment(neededQty),
+                lastSentAt: Date.now(),
+                lastOrderId: orderData.id
+            });
+            await updateDoc(doc(db, pathOrders, orderDbId), { adminReply: replyText });
+            window.showToast('Auto-Delivery (Reusable) Sukses', `Link/Stok berulang terkirim otomatis untuk ${orderData.id}`, 'success');
+            return;
+        }
         
+        // 2. Jika stok biasa (Sekali Pakai), ambil sejumlah neededQty
         if (snap.docs.length >= neededQty) {
             const selectedDocs = snap.docs.slice(0, neededQty);
             let accountDetailsList = [];
@@ -762,12 +907,255 @@ window.autoProcessOrder = async function(orderData, orderDbId) {
             if (curView === targetBrand) window.renderAdminStocksByCategory();
         } else {
             sendAdminNativeNotification('Stok Gudang Kurang! ⚠️', `Invoice ${orderData.id} butuh ${neededQty} stok ${exactItemName}. Segera proses manual!`);
-            window.showToast('Stok Kurang / Habis!', `Invoice ${orderData.id} butuh ${neededQty} stok ${exactItemName}, tersedia ${snap.docs.length}.`, 'error');
+            window.showToast('Stok Kurang / Habis!', `Invoice ${orderData.id} butuh ${neededQty} stok ${exactItemName}, tersedia ${snap.docs.length}.`, 'error', () => {
+                window.promptProcessOrder(orderDbId);
+            });
         }
     } catch(e) {
         console.error("Auto Process Gagal: ", e);
     } finally {
         setTimeout(() => processingAutoOrderIds.delete(orderDbId), 3000);
+    }
+};
+
+// ==========================================
+// KASIR SCANNER BARCODE TUNAI (ALA INDOMARET / ALFAMIDI)
+// ==========================================
+window.openBarcodeScannerModal = function() {
+    document.getElementById('manual-barcode-input').value = '';
+    const resBox = document.getElementById('scanned-order-result');
+    if (resBox) {
+        resBox.style.display = 'none';
+        resBox.innerHTML = '';
+    }
+    window.openModal('modal-barcode-scanner');
+
+    const readerBox = document.getElementById('barcode-reader-box');
+    if (!readerBox || typeof Html5Qrcode === 'undefined') return;
+
+    if (html5BarcodeScanner) {
+        try { html5BarcodeScanner.stop().catch(() => {}); } catch (e) {}
+    }
+
+    html5BarcodeScanner = new Html5Qrcode("barcode-reader-box");
+    html5BarcodeScanner.start(
+        { facingMode: "environment" },
+        { fps: 12, qrbox: { width: 260, height: 120 } },
+        (decodedText) => {
+            playNotificationSound('order');
+            const cleanCode = decodedText.trim().toUpperCase();
+            document.getElementById('manual-barcode-input').value = cleanCode;
+            window.lookupOrderByBarcodeInput(cleanCode);
+            if (html5BarcodeScanner) {
+                html5BarcodeScanner.stop().catch(() => {});
+            }
+        },
+        () => {}
+    ).catch(() => {
+        readerBox.innerHTML = `<div class="p-3 text-center text-xs" style="color:#94a3b8;"><i class="fa-solid fa-camera-slash" style="font-size:1.8rem; display:block; margin-bottom:6px;"></i>Kamera tidak diizinkan atau tidak tersedia. Gunakan kolom input kode di bawah.</div>`;
+    });
+};
+
+window.closeBarcodeScannerModal = function() {
+    if (html5BarcodeScanner) {
+        try { html5BarcodeScanner.stop().catch(() => {}); } catch (e) {}
+        html5BarcodeScanner = null;
+    }
+    window.closeModal('modal-barcode-scanner');
+};
+
+window.lookupOrderByBarcodeInput = function(forcedCode = null) {
+    const rawCode = forcedCode || document.getElementById('manual-barcode-input')?.value || '';
+    const invCode = rawCode.trim().toUpperCase();
+    const resBox = document.getElementById('scanned-order-result');
+    if (!invCode || !resBox) return;
+
+    const order = orders.find(o => o.id.toUpperCase() === invCode);
+    resBox.style.display = 'block';
+
+    if (!order) {
+        resBox.innerHTML = `<div class="info-box bg-danger-light border-danger text-danger fw-bold text-xs"><i class="fa-solid fa-circle-xmark"></i> Invoice <b>${window.escapeHtml(invCode)}</b> tidak ditemukan di database!</div>`;
+        return;
+    }
+
+    const item = order.items && order.items[0] ? order.items[0] : {};
+    const sBadge = order.status === 'SUCCESS' ? 'status-success' : (order.status === 'PENDING' ? 'status-pending' : 'status-unpaid');
+
+    let actionBtnHtml = '';
+    if (order.status !== 'SUCCESS') {
+        actionBtnHtml = `
+            <div class="flex-wrap-gap mt-3">
+                <button class="btn btn-success flex-2" onclick="window.approveCashBarcodeDirectly('${order.dbId}')">
+                    <i class="fa-solid fa-cash-register"></i> Terima Tunai & Selesaikan Otomatis
+                </button>
+                <button class="btn btn-outline flex-1" onclick="window.closeBarcodeScannerModal(); window.promptProcessOrder('${order.dbId}')">
+                    <i class="fa-solid fa-sliders"></i> Proses Manual
+                </button>
+            </div>`;
+    } else {
+        actionBtnHtml = `<div class="info-box bg-success-light border-success text-success fw-bold text-center text-xs mt-2"><i class="fa-solid fa-circle-check"></i> Transaksi ini sudah LUNAS & SELESAI.</div>`;
+    }
+
+    resBox.innerHTML = `
+        <div class="dashboard-panel mb-0" style="padding: 1rem; background: var(--bg);">
+            <div class="flex-between align-center mb-2">
+                <strong class="text-primary" style="font-size:1.05rem;">#${window.escapeHtml(order.id)}</strong>
+                <span class="status-badge ${sBadge}">${order.status} (${(order.paymentMethod || 'cash').toUpperCase()})</span>
+            </div>
+            <div class="text-sm fw-bold text-dark">${window.escapeHtml(item.name || '-')}</div>
+            <div class="text-xs text-muted mb-2">${window.escapeHtml(item.playerInfo || '')} &bull; Pembeli: ${window.escapeHtml(order.userEmail || '-')}</div>
+            <div class="flex-between align-center" style="padding-top:8px; border-top:1.5px dashed var(--border-subtle);">
+                <span class="text-xs fw-bold text-muted">TAGIHAN TUNAI KASIR:</span>
+                <strong class="text-success" style="font-size:1.3rem; font-family:'Space Grotesk',sans-serif;">Rp${(order.finalTotal || 0).toLocaleString('id-ID')}</strong>
+            </div>
+            ${actionBtnHtml}
+        </div>
+    `;
+};
+
+window.approveCashBarcodeDirectly = async function(dbId) {
+    const order = orders.find(o => o.dbId === dbId);
+    if (!order) return;
+
+    try {
+        window.closeBarcodeScannerModal();
+        // Ubah status menjadi SUCCESS -> Listener otomatis memicu autoProcessOrder (untuk App/Tools Auto) & pengurangan kuota stok!
+        const isGameOrManual = order.items && order.items.some(i => i.type === 'game' || i.processType === 'manual');
+        if (isGameOrManual) {
+            await updateDoc(doc(db, pathOrders, dbId), { status: 'SUCCESS' });
+            window.promptProcessOrder(dbId);
+            window.showToast('Tunai Diterima!', `Silakan kirim pesanan manual untuk ${order.id}.`, 'success');
+        } else {
+            await updateDoc(doc(db, pathOrders, dbId), { status: 'SUCCESS' });
+            window.showToast('Kasir Tunai Berhasil!', `Pembayaran ${order.id} diterima & stok otomatis sedang dikirim.`, 'success');
+        }
+    } catch (e) {
+        window.customAlert('Gagal', 'Gagal memverifikasi pembayaran kasir.', 'error');
+    }
+};
+
+// ==========================================
+// TAB DIREKTORI MEMBER TERDAFTAR (#tab-members)
+// ==========================================
+window.renderAdminMembers = function() {
+    const grid = document.getElementById('admin-members-grid');
+    if (!grid) return;
+
+    const searchQ = (document.getElementById('admin-search-member')?.value || '').trim().toLowerCase();
+
+    // Hitung statistik belanja setiap member berdasarkan UID atau Email
+    const enrichedMembers = membersList.map(m => {
+        const mEmail = (m.email || '').toLowerCase();
+        const memberOrders = orders.filter(o => o.userId === m.uid || (mEmail && o.userEmail?.toLowerCase() === mEmail));
+        const successOrders = memberOrders.filter(o => o.status === 'SUCCESS');
+        const totalSpent = successOrders.reduce((sum, o) => sum + (o.finalTotal || 0), 0);
+        return {
+            ...m,
+            totalTrx: memberOrders.length,
+            successTrx: successOrders.length,
+            totalSpent
+        };
+    });
+
+    const totalEl = document.getElementById('member-stat-total');
+    const phoneEl = document.getElementById('member-stat-phone');
+    const buyerEl = document.getElementById('member-stat-buyers');
+    if (totalEl) totalEl.innerText = enrichedMembers.length;
+    if (phoneEl) phoneEl.innerText = enrichedMembers.filter(m => m.phone && m.phone.trim() !== '').length;
+    if (buyerEl) buyerEl.innerText = enrichedMembers.filter(m => m.successTrx > 0).length;
+
+    let filtered = enrichedMembers;
+    if (searchQ) {
+        filtered = enrichedMembers.filter(m =>
+            (m.name || '').toLowerCase().includes(searchQ) ||
+            (m.email || '').toLowerCase().includes(searchQ) ||
+            (m.phone || '').toLowerCase().includes(searchQ)
+        );
+    }
+
+    if (filtered.length === 0) {
+        grid.innerHTML = `<div class="dashboard-panel text-center text-muted" style="grid-column: 1/-1; padding: 2.5rem;">Belum ada data member yang cocok dengan pencarian.</div>`;
+        return;
+    }
+
+    let html = '';
+    filtered.forEach(m => {
+        const displayName = m.name || (m.email ? m.email.split('@')[0] : 'Member');
+        const initial = displayName.charAt(0).toUpperCase();
+        const joinDate = m.createdAt ? new Date(m.createdAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
+        const phoneStr = m.phone && m.phone.trim() !== '' ? m.phone.trim() : '';
+
+        let cleanWa = phoneStr.replace(/[^0-9]/g, '');
+        if (cleanWa.startsWith('0')) cleanWa = '62' + cleanWa.substring(1);
+        const waBtnHtml = cleanWa
+            ? `<a href="https://wa.me/${cleanWa}?text=${encodeURIComponent(`Halo kak ${displayName}, Admin Vipercell menghubungi terkait layanan...`)}" target="_blank" class="btn btn-success btn-sm flex-1" title="Hubungi via WhatsApp"><i class="fa-brands fa-whatsapp"></i> WA</a>`
+            : `<button class="btn btn-outline btn-sm flex-1" disabled title="Member belum mengisi nomor WA"><i class="fa-brands fa-whatsapp"></i> No WA</button>`;
+
+        const emailBtnHtml = m.email
+            ? `<a href="mailto:${encodeURIComponent(m.email)}?subject=${encodeURIComponent('Informasi Akun Vipercell')}" class="btn btn-outline btn-sm" title="Kirim Email"><i class="fa-regular fa-envelope"></i></a>`
+            : '';
+
+        html += `
+        <div class="member-card">
+            <div>
+                <div class="member-card-head mb-2">
+                    <div class="member-avatar">${window.escapeHtml(initial)}</div>
+                    <div style="flex:1; min-width:0;">
+                        <strong class="text-dark d-block" style="font-size:1rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${window.escapeHtml(displayName)}</strong>
+                        <span class="text-xs text-muted d-block" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"><i class="fa-regular fa-envelope"></i> ${window.escapeHtml(m.email || '-')}</span>
+                        <span class="text-xs text-success fw-bold d-block"><i class="fa-brands fa-whatsapp"></i> ${window.escapeHtml(phoneStr || 'Belum ada nomor HP')}</span>
+                    </div>
+                </div>
+
+                <div class="member-meta-box">
+                    <div class="member-meta-item">
+                        <span>TRANSAKSI SUKSES</span>
+                        <strong>${m.successTrx}x (Total ${m.totalTrx}x)</strong>
+                    </div>
+                    <div class="member-meta-item">
+                        <span>TOTAL BELANJA</span>
+                        <strong class="text-primary">Rp${m.totalSpent.toLocaleString('id-ID')}</strong>
+                    </div>
+                    <div class="member-meta-item" style="grid-column: 1 / -1; border-top: 1px dashed var(--border-subtle); padding-top: 6px;">
+                        <span>BERGABUNG SEJAK: <b>${joinDate}</b></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="member-actions-row">
+                <button class="btn btn-primary btn-sm flex-2" onclick="window.startChatWithMember('${escapeJsStr(m.uid)}', '${escapeJsStr(displayName)}', '${escapeJsStr(m.email || '')}')">
+                    <i class="fa-solid fa-comments"></i> Chat di Web
+                </button>
+                ${waBtnHtml}
+                ${emailBtnHtml}
+            </div>
+        </div>`;
+    });
+
+    grid.innerHTML = html;
+};
+
+// Fitur Hubungi Cepat Member via Live Chat Web Admin
+window.startChatWithMember = async function(uid, memberName, memberEmail) {
+    if (!uid) return;
+    try {
+        const chatRef = doc(db, pathChats, uid);
+        const snap = await getDoc(chatRef);
+        if (!snap.exists()) {
+            await setDoc(chatRef, {
+                uid: uid,
+                userInfo: memberName || memberEmail || 'Member',
+                userEmail: memberEmail || '',
+                updatedAt: Date.now(),
+                messages: []
+            });
+        }
+        window.switchAdminTabByName('tab-livechat');
+        setTimeout(() => {
+            window.openAdminChatDetailDesk(uid);
+        }, 200);
+    } catch (e) {
+        window.customAlert('Gagal', 'Tidak dapat membuka ruang chat dengan member ini.', 'error');
     }
 };
 
@@ -837,7 +1225,7 @@ window.generateAdminReports = function() {
             recentList.forEach(o => {
                 const badgeClass = o.status === 'SUCCESS' ? 'status-success' : (o.status === 'PENDING' ? 'status-pending' : (o.status === 'UNPAID' ? 'status-unpaid' : 'status-failed'));
                 const itemName = o.items && o.items[0] ? o.items[0].name : '-';
-                rHtml += `<tr>
+                rHtml += `<tr class="pointer" onclick="window.promptProcessOrder('${o.dbId}')">
                     <td><strong>${window.escapeHtml(o.id)}</strong></td>
                     <td><span class="text-xs">${window.escapeHtml(itemName)}</span></td>
                     <td class="fw-bold">Rp${(o.finalTotal || 0).toLocaleString('id-ID')}</td>
@@ -850,7 +1238,7 @@ window.generateAdminReports = function() {
 };
 
 // ==========================================
-// MANAJEMEN PESANAN MASUK
+// MANAJEMEN PESANAN MASUK & MODAL E-RECEIPT ADMIN
 // ==========================================
 window.setAdminOrderFilter = function(filterType, btnEl) {
     currentOrderFilter = filterType;
@@ -870,6 +1258,7 @@ window.renderAdminOrders = function() {
         if (currentOrderFilter === 'NEED_ACTION') {
             return o.status === 'PENDING' || (o.status === 'SUCCESS' && !o.adminReply);
         }
+        if (currentOrderFilter === 'CASH_ONLY') return o.paymentMethod === 'cash';
         if (currentOrderFilter === 'UNPAID') return o.status === 'UNPAID';
         if (currentOrderFilter === 'SUCCESS') return o.status === 'SUCCESS' && !!o.adminReply;
         if (currentOrderFilter === 'FAILED') return o.status === 'FAILED' || o.status === 'EXPIRED';
@@ -909,13 +1298,13 @@ window.renderAdminOrders = function() {
         }).join('<br>');
 
         let promoDesc = o.promoCode ? `<br><small class="text-success text-xs fw-bold">Voucher: ${window.escapeHtml(o.promoCode)} (-Rp${o.promoDiscount})</small>` : '';
-        let paymentMethodStr = o.paymentMethod === 'cash' ? '<span class="status-badge status-pending">TUNAI</span>' : '<span class="status-badge status-unpaid">QRIS</span>';
+        let paymentMethodStr = o.paymentMethod === 'cash' ? '<span class="status-badge status-pending"><i class="fa-solid fa-barcode"></i> TUNAI</span>' : '<span class="status-badge status-unpaid"><i class="fa-solid fa-qrcode"></i> QRIS</span>';
         
         let actionBtn = '';
         if(o.status === 'PENDING' || o.status === 'UNPAID' || o.status === 'EXPIRED' || (o.status === 'SUCCESS' && !o.adminReply)) {
             actionBtn = `<button class="btn btn-primary btn-sm" onclick="window.promptProcessOrder('${o.dbId}')"><i class="fa-solid fa-bolt"></i> Proses</button>`;
         } else {
-            actionBtn = `<button class="btn btn-outline btn-sm" onclick="window.promptProcessOrder('${o.dbId}')" title="Lihat/Edit Balasan"><i class="fa-solid fa-eye"></i> Detail</button>`;
+            actionBtn = `<button class="btn btn-outline btn-sm" onclick="window.promptProcessOrder('${o.dbId}')" title="Lihat Rincian E-Receipt"><i class="fa-solid fa-file-invoice"></i> Struk</button>`;
         }
             
         let deleteBtn = `<button aria-label="Hapus Order" class="btn-icon-only text-danger" style="width:34px; height:34px;" title="Hapus Permanen" onclick="window.promptDeleteOrder('${o.dbId}', '${escapeJsStr(o.id)}')"><i class="fa-solid fa-trash"></i></button>`;
@@ -995,21 +1384,36 @@ window.promptProcessOrder = async function(dbId) {
     const order = orders.find(o => o.dbId === dbId);
     if(!order) return;
     
-    document.getElementById('proc-inv').innerText = order.id;
     document.getElementById('proc-order-id').value = dbId;
     
+    // Render Header Ringkasan E-Receipt Admin
+    const summaryEl = document.getElementById('proc-ereceipt-summary');
+    if (summaryEl) {
+        const badgeCls = order.status === 'SUCCESS' ? 'status-success' : (order.status === 'PENDING' ? 'status-pending' : 'status-unpaid');
+        summaryEl.innerHTML = `
+            <div>
+                <span class="text-xs text-muted fw-bold d-block">INVOICE #${window.escapeHtml(order.id)} &bull; ${new Date(order.date).toLocaleString('id-ID')}</span>
+                <strong class="text-dark" style="font-size:0.95rem;"><i class="fa-regular fa-envelope"></i> ${window.escapeHtml(order.userEmail || '-')}</strong>
+            </div>
+            <div style="text-align:right;">
+                <span class="status-badge ${badgeCls} mb-1">${order.status} (${(order.paymentMethod || 'qris').toUpperCase()})</span>
+                <div class="text-primary fw-bold" style="font-size:1.15rem; font-family:'Space Grotesk',sans-serif;">Rp${(order.finalTotal || 0).toLocaleString('id-ID')}</div>
+            </div>
+        `;
+    }
+
     let defaultReply = order.adminReply || `Pesanan Anda telah berhasil diproses! Silakan cek di dalam game/aplikasi. Terima kasih telah berbelanja di Vipercell!`;
     document.getElementById('proc-reply').value = defaultReply;
     
     const list = document.getElementById('proc-items-list');
-    list.innerHTML = '<strong class="text-dark mb-1 d-block">Rincian Item & Tujuan:</strong>' +
+    list.innerHTML = '<strong class="text-dark mb-1 d-block">Rincian Item & Data Tujuan:</strong>' +
         order.items.map(i => `<div class="text-sm fw-bold text-primary">${window.escapeHtml(i.name)} (${i.processType || 'auto'})</div><div class="text-xs text-muted">${window.escapeHtml(i.playerInfo)}</div>`).join('<hr style="margin:6px 0;">');
     
     const hasStockable = order.items.some(i => i.type === 'app' || i.type === 'tools');
     const stockSec = document.getElementById('proc-stock-section');
     const stockSel = document.getElementById('proc-stock-select');
     
-    if(hasStockable && !order.adminReply) {
+    if(hasStockable) {
         stockSec.style.display = 'block';
         stockSel.innerHTML = '<option value="">Memuat stok Ready dari Gudang...</option>';
         
@@ -1030,7 +1434,8 @@ window.promptProcessOrder = async function(dbId) {
                     const data = {dbId: s.id, ...s.data()};
                     window.tempProcessStocks.push(data);
                     const em = data.data.split('|')[0];
-                    selHtml += `<option value="${data.dbId}">${window.escapeHtml(em)} | [Ready]</option>`;
+                    const modeTag = data.isReusable ? '[Reusable ∞]' : '[Sekali Pakai]';
+                    selHtml += `<option value="${data.dbId}">${modeTag} ${window.escapeHtml(em)}</option>`;
                 });
                 stockSel.innerHTML = selHtml;
                 
@@ -1039,10 +1444,10 @@ window.promptProcessOrder = async function(dbId) {
                     const sData = window.tempProcessStocks.find(x => x.dbId === sId);
                     if(sData) {
                         const parts = sData.data.split('|');
-                        document.getElementById('proc-reply').value = `[DETAIL PESANAN ANDA]\nEmail/Kode : ${parts[0] || '-'}\nSandi/Pin  : ${parts[1] || '-'}\nKeterangan : ${parts[2] || '-'}`;
+                        document.getElementById('proc-reply').value = `[DETAIL PESANAN ANDA]\nLink/Email : ${parts[0] || '-'}\nSandi/Kode : ${parts[1] || '-'}\nKeterangan : ${parts[2] || '-'}`;
                     }
                 };
-                if (window.tempProcessStocks.length > 0) {
+                if (!order.adminReply && window.tempProcessStocks.length > 0) {
                     stockSel.value = window.tempProcessStocks[0].dbId;
                     stockSel.onchange();
                 }
@@ -1072,9 +1477,23 @@ window.markOrderComplete = async function(statusType) {
             if(order.items.some(i => i.type === 'app' || i.type === 'tools')) {
                 const stockSel = document.getElementById('proc-stock-select');
                 if(stockSel && stockSel.value) {
-                    await updateDoc(doc(db, pathStocks, stockSel.value), { status: 'Used', usedAt: Date.now(), orderId: order.id });
+                    const chosenStock = window.tempProcessStocks.find(x => x.dbId === stockSel.value);
+                    if (chosenStock && chosenStock.isReusable) {
+                        await updateDoc(doc(db, pathStocks, stockSel.value), {
+                            sentCount: increment(1),
+                            lastSentAt: Date.now(),
+                            lastOrderId: order.id
+                        });
+                    } else {
+                        await updateDoc(doc(db, pathStocks, stockSel.value), {
+                            status: 'Used',
+                            usedAt: Date.now(),
+                            orderId: order.id
+                        });
+                    }
                 }
             }
+            await deductProductQuotaOnSuccess(order, dbId);
         }
         
         processingAutoOrderIds.add(dbId);
@@ -1104,16 +1523,19 @@ window.promptDeleteOrder = function(dbId, invoiceId) {
 };
 
 // ==========================================
-// GUDANG STOK AKUN & LISENSI (TABEL DESKTOP + KARTU RAPI MOBILE)
+// GUDANG STOK AKUN & MODE REUSABLE LINK TOOLS
 // ==========================================
 window.updateAdminStockItemSelect = function() {
     const brandName = document.getElementById('stock-brand-select').value;
     const itemSel = document.getElementById('stock-item-select');
+    const reusableCheck = document.getElementById('stock-reusable-toggle');
     let html = '<option value="">-- Pilih Varian Item --</option>';
     if(!brandName) { itemSel.innerHTML = html; return; }
     
     const brand = groupedBrands.find(b => b.brandName === brandName);
     if(brand) {
+        // Jika produk kategori Tools, otomatis nyalakan sakelar Mode Kirim Berulang secara default agar memudahkan Admin
+        if (reusableCheck) reusableCheck.checked = (brand.type === 'tools');
         brand.items.forEach(i => {
             html += `<option value="${window.escapeHtml(i.name)}">${window.escapeHtml(i.name)}</option>`;
         });
@@ -1126,10 +1548,12 @@ window.renderAdminStocksByCategory = async function() {
     const tb = document.getElementById('admin-stock-list');
     const mobContainer = document.getElementById('admin-stock-mobile-cards');
     const readyCountEl = document.getElementById('stock-ready-count');
+    const reusableCountEl = document.getElementById('stock-reusable-count');
     const usedCountEl = document.getElementById('stock-used-count');
     
     if(!brand) {
         if (readyCountEl) readyCountEl.innerText = '0';
+        if (reusableCountEl) reusableCountEl.innerText = '0';
         if (usedCountEl) usedCountEl.innerText = '0';
         if (tb) tb.innerHTML = '<tr><td colspan="6" class="text-center text-muted" style="padding: 3rem;">Pilih kategori brand di atas untuk menampilkan daftar stok.</td></tr>';
         if (mobContainer) mobContainer.innerHTML = '<div class="text-center text-muted p-3">Pilih kategori brand di atas untuk menampilkan daftar stok.</div>';
@@ -1145,9 +1569,11 @@ window.renderAdminStocksByCategory = async function() {
         let localStocks = [];
         snap.forEach(d => localStocks.push({dbId: d.id, ...d.data()}));
         
-        const readyTotal = localStocks.filter(s => s.status === 'Ready').length;
+        const readyTotal = localStocks.filter(s => s.status === 'Ready' && !s.isReusable).length;
+        const reusableTotal = localStocks.filter(s => s.status === 'Ready' && s.isReusable).length;
         const usedTotal = localStocks.filter(s => s.status !== 'Ready').length;
         if (readyCountEl) readyCountEl.innerText = readyTotal;
+        if (reusableCountEl) reusableCountEl.innerText = reusableTotal;
         if (usedCountEl) usedCountEl.innerText = usedTotal;
 
         if(localStocks.length === 0) {
@@ -1167,47 +1593,58 @@ window.renderAdminStocksByCategory = async function() {
             const dur = parts[2] || '-';
             const safeCredCopy = escapeJsStr(`${em} | ${pw}`);
 
-            const badge = s.status === 'Ready'
-                ? '<span class="status-badge status-success">READY</span>'
-                : `<span class="status-badge status-failed">TERJUAL ${s.orderId ? `(${window.escapeHtml(s.orderId)})` : ''}</span>`;
+            let badge = '';
+            if (s.status === 'Ready' && s.isReusable) {
+                badge = `<span class="status-badge status-tools"><i class="fa-solid fa-infinity"></i> REUSABLE (${s.sentCount || 0}x Terkirim)</span>`;
+            } else if (s.status === 'Ready') {
+                badge = `<span class="status-badge status-success">READY (1x Pakai)</span>`;
+            } else {
+                badge = `<span class="status-badge status-failed">TERJUAL ${s.orderId ? `(${window.escapeHtml(s.orderId)})` : ''}</span>`;
+            }
 
-            // 1. Baris Tabel Desktop
             tableHtml += `<tr>
                 <td><strong>${i+1}</strong></td>
                 <td><strong class="text-dark">${window.escapeHtml(s.brand)}</strong><br><small class="text-primary fw-bold">${window.escapeHtml(s.itemName || '-')}</small></td>
                 <td>
                     <strong class="text-dark">${window.escapeHtml(em)}</strong>
-                    <button class="btn-icon-only" style="width:22px; height:22px; font-size:0.65rem; margin-left:4px;" onclick="window.copyTextToClipboard('${safeCredCopy}', 'Kredensial Stok')"><i class="fa-regular fa-copy"></i></button>
+                    <button class="btn-icon-only" style="width:22px; height:22px; font-size:0.65rem; margin-left:4px;" onclick="window.copyTextToClipboard('${safeCredCopy}', 'Data Stok')"><i class="fa-regular fa-copy"></i></button>
                     <br><small class="text-muted">${window.escapeHtml(pw)}</small>
                 </td>
                 <td class="text-dark text-xs">${window.escapeHtml(dur)}</td>
                 <td>${badge}</td>
-                <td><button aria-label="Hapus Stok" class="btn-icon-only text-danger" style="width:32px; height:32px;" onclick="window.deleteStock('${s.dbId}')"><i class="fa-solid fa-trash"></i></button></td>
+                <td>
+                    <div class="flex-gap">
+                        <button class="btn-icon-only" style="width:30px; height:30px;" onclick="window.toggleStockReusableMode('${s.dbId}', ${!s.isReusable})" title="Ubah Mode Sekali Pakai / Berulang"><i class="fa-solid fa-repeat"></i></button>
+                        <button aria-label="Hapus Stok" class="btn-icon-only text-danger" style="width:30px; height:30px;" onclick="window.deleteStock('${s.dbId}')"><i class="fa-solid fa-trash"></i></button>
+                    </div>
+                </td>
             </tr>`;
 
-            // 2. Kartu Rapi Mobile
             mobHtml += `
             <div class="stock-mob-card">
                 <div class="stock-mob-top">
-                    <div>
-                        <strong class="text-dark text-sm">#${i+1} &bull; ${window.escapeHtml(s.itemName || s.brand)}</strong>
-                    </div>
+                    <strong class="text-dark text-sm">#${i+1} &bull; ${window.escapeHtml(s.itemName || s.brand)}</strong>
                     ${badge}
                 </div>
                 <div class="stock-mob-cred">
                     <div>
-                        <div><b>User:</b> ${window.escapeHtml(em)}</div>
-                        <div><b>Pass:</b> ${window.escapeHtml(pw)}</div>
+                        <div><b>Data/Link:</b> ${window.escapeHtml(em)}</div>
+                        <div><b>Kode/Pass:</b> ${window.escapeHtml(pw)}</div>
                     </div>
-                    <button class="btn-icon-only" style="width:32px; height:32px; flex-shrink:0;" onclick="window.copyTextToClipboard('${safeCredCopy}', 'Kredensial Stok')">
+                    <button class="btn-icon-only" style="width:32px; height:32px; flex-shrink:0;" onclick="window.copyTextToClipboard('${safeCredCopy}', 'Data Stok')">
                         <i class="fa-regular fa-copy"></i>
                     </button>
                 </div>
                 <div class="stock-mob-foot">
                     <span><i class="fa-solid fa-circle-info"></i> ${window.escapeHtml(dur)}</span>
-                    <button class="btn btn-danger btn-sm" style="padding:3px 10px; min-height:28px;" onclick="window.deleteStock('${s.dbId}')">
-                        <i class="fa-solid fa-trash"></i> Hapus
-                    </button>
+                    <div class="flex-gap">
+                        <button class="btn btn-outline btn-sm" style="padding:3px 8px; min-height:28px;" onclick="window.toggleStockReusableMode('${s.dbId}', ${!s.isReusable})">
+                            <i class="fa-solid fa-repeat"></i> ${s.isReusable ? 'Jadikan 1x' : 'Jadikan ∞'}
+                        </button>
+                        <button class="btn btn-danger btn-sm" style="padding:3px 10px; min-height:28px;" onclick="window.deleteStock('${s.dbId}')">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>
                 </div>
             </div>`;
         });
@@ -1220,13 +1657,27 @@ window.renderAdminStocksByCategory = async function() {
     }
 };
 
+window.toggleStockReusableMode = async function(dbId, newReusableState) {
+    try {
+        await updateDoc(doc(db, pathStocks, dbId), {
+            isReusable: Boolean(newReusableState),
+            status: 'Ready'
+        });
+        window.showToast('Mode Stok Diubah', newReusableState ? 'Stok disetel ke Mode Kirim Berulang-ulang (∞).' : 'Stok disetel ke Mode Sekali Pakai.', 'success');
+        window.renderAdminStocksByCategory();
+    } catch (e) {
+        window.customAlert('Gagal', 'Gagal mengubah mode stok.', 'error');
+    }
+};
+
 window.addStockMassal = async function() {
     const brand = document.getElementById('stock-brand-select').value;
     const itemName = document.getElementById('stock-item-select').value;
+    const isReusable = document.getElementById('stock-reusable-toggle')?.checked || false;
     const rawData = document.getElementById('stock-bulk-input').value.trim();
     
     if(!brand || !itemName || !rawData) {
-        window.customAlert('Data Belum Lengkap', 'Pilih produk, varian item, dan masukkan minimal 1 baris data akun/lisensi.', 'warning');
+        window.customAlert('Data Belum Lengkap', 'Pilih produk, varian item, dan masukkan minimal 1 baris data akun atau link tools.', 'warning');
         return;
     }
     
@@ -1238,11 +1689,17 @@ window.addStockMassal = async function() {
         const lines = rawData.split('\n').filter(l => l.trim() !== '');
         let count = 0;
         for(const line of lines) {
-            const parts = line.split('|');
-            if(parts.length >= 2) {
-                await addDoc(collection(db, pathStocks), { brand: brand, itemName: itemName, data: line.trim(), status: 'Ready', createdAt: Date.now() });
-                count++;
-            }
+            const cleanLine = line.includes('|') ? line.trim() : `${line.trim()}|-|Akses Otomatis`;
+            await addDoc(collection(db, pathStocks), {
+                brand: brand,
+                itemName: itemName,
+                data: cleanLine,
+                isReusable: isReusable,
+                sentCount: 0,
+                status: 'Ready',
+                createdAt: Date.now()
+            });
+            count++;
         }
         document.getElementById('stock-bulk-input').value = '';
         
@@ -1252,7 +1709,7 @@ window.addStockMassal = async function() {
             window.renderAdminStocksByCategory();
         }
         
-        window.customAlert('Berhasil Disimpan', `<b>${count} stok</b> berhasil ditambahkan ke gudang <b>${window.escapeHtml(brand)} - ${window.escapeHtml(itemName)}</b>.`, 'success');
+        window.customAlert('Berhasil Disimpan', `<b>${count} stok ${isReusable ? '(Mode Kirim Berulang ∞)' : '(Sekali Pakai)'}</b> berhasil ditambahkan ke gudang <b>${window.escapeHtml(brand)} - ${window.escapeHtml(itemName)}</b>.`, 'success');
     } catch(e) {
         window.customAlert('Error', 'Gagal menambah stok ke database.', 'error');
     } finally {
@@ -1389,7 +1846,7 @@ window.deleteReview = async function(dbId) {
 };
 
 // ==========================================
-// MANAJEMEN KATALOG MODERN + BULK PRICE ADJUSTER
+// MANAJEMEN KATALOG MODERN + PENENTU JUMLAH KUOTA STOK (`stockCount`)
 // ==========================================
 window.setAdminProdFilter = function(filterType, btnEl) {
     currentAdminProdFilter = filterType;
@@ -1422,7 +1879,7 @@ window.renderAdminProducts = function() {
             : `<div style="width:56px; height:56px; background:var(--primary); color:white; display:flex; justify-content:center; align-items:center; border-radius:14px; border:var(--brutal-border); font-weight:900; font-size:1.4rem;">${window.escapeHtml(b.brandName.charAt(0))}</div>`;
         
         const itemsCount = b.items.length;
-        const isSoldOut = b.items.every(i => i.soldOut);
+        const isSoldOut = b.items.every(i => i.soldOut || (typeof i.stockCount === 'number' && i.stockCount === 0));
         const prices = b.items.map(i => i.priceNum || 0).filter(p => p > 0);
         const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
         
@@ -1447,7 +1904,7 @@ window.renderAdminProducts = function() {
             </div>
             <div class="admin-prod-card-actions">
                 <button class="btn btn-primary btn-sm flex-1" onclick="window.openProductGroupModal('${safeJsBrand}')">
-                    <i class="fa-solid fa-pen-to-square"></i> Edit & Varian
+                    <i class="fa-solid fa-pen-to-square"></i> Edit & Kuota Stok
                 </button>
                 <button class="btn btn-danger btn-sm" onclick="window.deleteProductGroup('${safeJsBrand}')" title="Hapus Produk">
                     <i class="fa-solid fa-trash"></i>
@@ -1507,7 +1964,14 @@ window.openProductGroupModal = function(brandName = null) {
             const gangguanEl = document.getElementById('manage-prod-gangguan');
             if(gangguanEl) gangguanEl.checked = group.isGangguan || false;
             
-            currentGroupNominals = group.items.map(i => ({ dbId: i.dbId, name: i.name, priceNum: i.priceNum, processType: i.processType || 'auto', soldOut: i.soldOut || false }));
+            currentGroupNominals = group.items.map(i => ({
+                dbId: i.dbId,
+                name: i.name,
+                priceNum: i.priceNum,
+                stockCount: typeof i.stockCount === 'number' ? i.stockCount : null,
+                processType: i.processType || 'auto',
+                soldOut: i.soldOut || false
+            }));
             
             const allSoldOut = currentGroupNominals.length > 0 && currentGroupNominals.every(n => n.soldOut);
             document.getElementById('manage-prod-soldout').checked = allSoldOut;
@@ -1543,6 +2007,8 @@ window.openProductGroupModal = function(brandName = null) {
 window.clearTempNominalInput = function() {
     document.getElementById('temp-nom-name').value = '';
     document.getElementById('temp-nom-price').value = '';
+    const stockInp = document.getElementById('temp-nom-stock');
+    if (stockInp) stockInp.value = '';
     document.getElementById('temp-nom-status').value = 'auto';
     document.getElementById('temp-nom-index').value = '-1';
     document.getElementById('btn-add-item').innerHTML = '<i class="fa-solid fa-plus"></i> <span>Tambah</span>';
@@ -1554,6 +2020,8 @@ window.editTempNominal = function(idx) {
     if(!item) return;
     document.getElementById('temp-nom-name').value = item.name;
     document.getElementById('temp-nom-price').value = item.priceNum;
+    const stockInp = document.getElementById('temp-nom-stock');
+    if (stockInp) stockInp.value = typeof item.stockCount === 'number' ? item.stockCount : '';
     document.getElementById('temp-nom-status').value = item.processType;
     document.getElementById('temp-nom-index').value = idx;
     document.getElementById('btn-add-item').innerHTML = '<i class="fa-solid fa-check"></i> <span>Update</span>';
@@ -1567,6 +2035,7 @@ window.cloneTempNominal = function(idx) {
         dbId: null,
         name: item.name + ' (Copy)',
         priceNum: item.priceNum,
+        stockCount: item.stockCount,
         processType: item.processType,
         soldOut: item.soldOut
     });
@@ -1574,7 +2043,6 @@ window.cloneTempNominal = function(idx) {
     window.showToast('Varian Dikloning', 'Silakan sesuaikan nama atau harga varian hasil duplikasi.', 'info');
 };
 
-// Fitur Baru: Naikkan/Turunkan Harga Seluruh Varian Sekaligus
 window.adjustAllTempPrices = function(deltaAmount) {
     if (currentGroupNominals.length === 0) return;
     currentGroupNominals.forEach(n => {
@@ -1594,7 +2062,10 @@ window.addOrUpdateTempNominal = function() {
     const idx = parseInt(document.getElementById('temp-nom-index').value);
     const name = document.getElementById('temp-nom-name').value.trim();
     const priceNum = parseInt(document.getElementById('temp-nom-price').value) || 0;
+    const rawStock = document.getElementById('temp-nom-stock')?.value.trim() || '';
+    const stockCount = rawStock !== '' && !isNaN(parseInt(rawStock)) ? Math.max(0, parseInt(rawStock)) : null;
     const processType = document.getElementById('temp-nom-status').value || 'auto';
+
     if(!name || priceNum <= 0) {
         window.customAlert('Input Belum Lengkap', 'Nama Varian dan Harga Jual harus diisi dengan benar.', 'warning');
         return;
@@ -1603,9 +2074,18 @@ window.addOrUpdateTempNominal = function() {
     if (idx >= 0) {
         currentGroupNominals[idx].name = name;
         currentGroupNominals[idx].priceNum = priceNum;
+        currentGroupNominals[idx].stockCount = stockCount;
         currentGroupNominals[idx].processType = processType;
+        if (stockCount === 0) currentGroupNominals[idx].soldOut = true;
     } else {
-        currentGroupNominals.push({ dbId: null, name, priceNum, processType, soldOut: false });
+        currentGroupNominals.push({
+            dbId: null,
+            name,
+            priceNum,
+            stockCount,
+            processType,
+            soldOut: stockCount === 0
+        });
     }
     
     window.clearTempNominalInput();
@@ -1646,10 +2126,14 @@ window.renderTempNominals = function() {
         const badgeType = nom.processType === 'manual'
             ? `<span class="status-badge status-pending" style="font-size:0.6rem; padding:2px 6px;">MANUAL</span>`
             : `<span class="status-badge status-success" style="font-size:0.6rem; padding:2px 6px;">OTOMATIS</span>`;
+        const stockLabel = typeof nom.stockCount === 'number'
+            ? `<span class="status-badge status-tools" style="font-size:0.6rem; padding:2px 6px;">Stok: ${nom.stockCount}</span>`
+            : `<span class="text-muted text-xs">Stok: ∞</span>`;
+
         html += `
-        <div class="flex-between align-center bg-surface" style="padding: 10px 12px; border-radius: 10px; border: 1.5px solid var(--border); margin-bottom: 8px;">
+        <div class="flex-between align-center bg-surface" style="padding: 10px 12px; border-radius: 10px; border: 1.5px solid var(--border); margin-bottom: 8px; flex-wrap:wrap; gap:8px;">
             <div>
-                <div class="fw-bold text-dark text-sm">${window.escapeHtml(nom.name)} ${badgeType}</div>
+                <div class="fw-bold text-dark text-sm">${window.escapeHtml(nom.name)} ${badgeType} ${stockLabel}</div>
                 <div class="text-primary fw-bold text-xs">Rp${nom.priceNum.toLocaleString('id-ID')}</div>
             </div>
             <div class="flex-gap align-center">
@@ -1700,6 +2184,7 @@ window.saveProductGroup = async function() {
                 brand: brand,
                 name: nom.name,
                 priceNum: nom.priceNum,
+                stockCount: typeof nom.stockCount === 'number' ? nom.stockCount : null,
                 processType: nom.processType || 'auto',
                 imgUrlBase64: imgBase64,
                 desc: desc,
@@ -1746,38 +2231,71 @@ if(manageProdImgEl) {
 }
 
 // ==========================================
-// VOUCHER & PROMO MANAGEMENT
+// STUDIO VOUCHER & PROMO (KARTU KUPON VISUAL)
 // ==========================================
+window.generateRandomPromoCode = function() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let res = 'VIPER';
+    for (let i = 0; i < 4; i++) res += chars.charAt(Math.floor(Math.random() * chars.length));
+    const inp = document.getElementById('manage-promo-code');
+    if (inp) inp.value = res;
+};
+
 window.renderAdminPromos = function() {
-    const tbody = document.getElementById('admin-promo-list');
-    if(!tbody) return;
+    const container = document.getElementById('admin-promo-list');
+    if(!container) return;
     
     if(promos.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted" style="padding: 2rem;">Belum ada kode promo aktif.</td></tr>';
+        container.innerHTML = '<div class="dashboard-panel text-center text-muted" style="grid-column: 1/-1; padding: 2.5rem;"><i class="fa-solid fa-ticket" style="font-size:2.2rem; display:block; margin-bottom:8px;"></i>Belum ada voucher promo yang dibuat. Klik <b>Buat Voucher Promo Baru</b> di atas.</div>';
         return;
     }
+
     let html = '';
     promos.forEach(p => {
-        const typeStr = p.type === 'percent' ? `${p.amount}%` : `Rp${p.amount.toLocaleString('id-ID')}`;
+        const typeStr = p.type === 'percent' ? `Diskon ${p.amount}%` : `Potongan Rp${p.amount.toLocaleString('id-ID')}`;
         const targetStr = p.targetBrand === 'all' ? 'Semua Produk' : (p.targetBrand || 'Semua');
-        const userTgt = p.targetUser === 'new' ? 'Transaksi Pertama' : 'Semua User';
+        const userTgt = p.targetUser === 'new' ? 'Khusus Pembeli Baru' : 'Semua Pelanggan';
+        const used = p.usedCount || 0;
+        const max = p.maxUses || 1;
+        const pct = Math.min(100, Math.round((used / max) * 100));
         
-        html += `<tr>
-            <td><strong class="text-dark">${window.escapeHtml(p.code)}</strong></td>
-            <td><span class="status-badge status-success">${typeStr}</span></td>
-            <td class="text-dark">${window.escapeHtml(targetStr)}</td>
-            <td><span class="text-warning text-xs fw-bold">${userTgt}</span></td>
-            <td class="text-dark fw-bold">${p.usedCount || 0} / ${p.maxUses}</td>
-            <td>${p.active ? '<span class="status-badge status-success">AKTIF</span>' : '<span class="status-badge status-failed">NONAKTIF</span>'}</td>
-            <td>
-                <div class="flex-gap align-center">
-                    <button class="btn-icon-only" style="width:32px; height:32px;" onclick="window.openPromoModal('${p.dbId}')"><i class="fa-solid fa-pen"></i></button>
-                    <button class="btn-icon-only text-danger" style="width:32px; height:32px;" onclick="window.deletePromo('${p.dbId}')"><i class="fa-solid fa-trash"></i></button>
+        html += `
+        <div class="promo-coupon-card">
+            <div>
+                <div class="promo-coupon-top">
+                    <div class="flex-gap align-center">
+                        <span class="promo-code-pill">${window.escapeHtml(p.code)}</span>
+                        <button class="btn-icon-only" style="width:28px; height:28px; font-size:0.75rem;" onclick="window.copyTextToClipboard('${escapeJsStr(p.code)}', 'Kode Voucher')" title="Salin Kode"><i class="fa-regular fa-copy"></i></button>
+                    </div>
+                    ${p.active ? '<span class="status-badge status-success">AKTIF</span>' : '<span class="status-badge status-failed">NONAKTIF</span>'}
                 </div>
-            </td>
-        </tr>`;
+
+                <div class="promo-coupon-body">
+                    <div class="promo-discount-val">${typeStr}</div>
+                    <div class="text-xs text-muted fw-bold mb-2">
+                        <i class="fa-solid fa-layer-group text-primary"></i> ${window.escapeHtml(targetStr)} &bull; <i class="fa-solid fa-user-tag text-warning"></i> ${userTgt}
+                    </div>
+                    <div class="promo-quota-bar">
+                        <div class="promo-quota-fill" style="width: ${pct}%;"></div>
+                    </div>
+                    <div class="flex-between text-xs text-muted fw-bold">
+                        <span>Terpakai: <b>${used}</b> dari <b>${max}</b> kuota</span>
+                        <span>${pct}%</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="promo-coupon-foot">
+                <button class="btn btn-outline btn-sm" onclick="window.openPromoModal('${p.dbId}')">
+                    <i class="fa-solid fa-pen"></i> Edit Voucher
+                </button>
+                <button class="btn btn-danger btn-sm" onclick="window.deletePromo('${p.dbId}')">
+                    <i class="fa-solid fa-trash"></i> Hapus
+                </button>
+            </div>
+        </div>`;
     });
-    tbody.innerHTML = html;
+    container.innerHTML = html;
 };
 
 window.openPromoModal = function(dbId = null) {
@@ -1790,7 +2308,7 @@ window.openPromoModal = function(dbId = null) {
     if(dbId) {
         const p = promos.find(x => x.dbId === dbId);
         if (!p) return;
-        document.getElementById('modal-promo-title').innerText = 'Edit Kode Promo';
+        document.getElementById('modal-promo-title').innerHTML = '<i class="fa-solid fa-ticket text-primary"></i> Edit Voucher Promo';
         document.getElementById('manage-promo-id').value = p.dbId;
         document.getElementById('manage-promo-code').value = p.code;
         document.getElementById('manage-promo-type').value = p.type || 'nominal';
@@ -1800,12 +2318,12 @@ window.openPromoModal = function(dbId = null) {
         if(document.getElementById('manage-promo-user')) document.getElementById('manage-promo-user').value = p.targetUser || 'all';
         document.getElementById('manage-promo-active').checked = p.active;
     } else {
-        document.getElementById('modal-promo-title').innerText = 'Buat Kode Promo Baru';
+        document.getElementById('modal-promo-title').innerHTML = '<i class="fa-solid fa-ticket text-primary"></i> Buat Voucher Promo Baru';
         document.getElementById('manage-promo-id').value = '';
         document.getElementById('manage-promo-code').value = '';
         document.getElementById('manage-promo-type').value = 'nominal';
         document.getElementById('manage-promo-amount').value = '';
-        document.getElementById('manage-promo-max').value = '';
+        document.getElementById('manage-promo-max').value = '50';
         if(targetSelect) document.getElementById('manage-promo-target').value = 'all';
         if(document.getElementById('manage-promo-user')) document.getElementById('manage-promo-user').value = 'all';
         document.getElementById('manage-promo-active').checked = true;
@@ -1842,7 +2360,7 @@ window.savePromo = async function() {
             await addDoc(collection(db, pathPromos), data);
         }
         window.closeModal('modal-manage-promo');
-        window.showToast('Promo Tersimpan', `Kode promo ${data.code} siap digunakan.`, 'success');
+        window.showToast('Promo Tersimpan', `Kode voucher ${data.code} siap digunakan.`, 'success');
     } catch(e) {
         window.customAlert('Error', 'Gagal menyimpan kode promo.', 'error');
     } finally {
@@ -1971,7 +2489,7 @@ window.deleteNews = async function(index) {
 };
 
 // ==========================================
-// PENGATURAN WEB, IKON PWA & ASISTEN AI GEMINI
+// PENGATURAN WEB & IKON PWA (TANPA GEMINI API)
 // ==========================================
 window.quickToggleStoreStatus = async function() {
     if (!isSettingsLoaded) return;
@@ -1991,39 +2509,6 @@ window.quickToggleStoreStatus = async function() {
     }
 };
 
-window.testGeminiApiConnection = async function() {
-    const keyInput = document.getElementById('set-gemini-key')?.value.trim();
-    if (!keyInput) {
-        window.customAlert('API Key Kosong', 'Masukkan Google Gemini API Key terlebih dahulu sebelum melakukan tes.', 'warning');
-        return;
-    }
-
-    const btn = document.getElementById('btn-test-ai');
-    const ogHtml = btn.innerHTML;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Menguji...';
-    btn.disabled = true;
-
-    try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(keyInput)}`;
-        const res = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: "Balas singkat: Koneksi AI Vipercell berhasil!" }] }]
-            })
-        });
-        if (!res.ok) throw new Error('API Error');
-        const data = await res.json();
-        const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text || 'Terhubung!';
-        window.customAlert('Koneksi AI Berhasil! 🤖', `Gemini API merespons dengan baik:<br><br><b>"${window.escapeHtml(reply)}"</b><br><br>Jangan lupa klik <b>Simpan Konfigurasi AI</b>.`, 'success');
-    } catch (err) {
-        window.customAlert('Koneksi Gagal', 'API Key Gemini tidak valid atau kuota habis. Pastikan API Key dari Google AI Studio sudah benar.', 'error');
-    } finally {
-        btn.innerHTML = ogHtml;
-        btn.disabled = false;
-    }
-};
-
 window.saveSettingsManual = async function(showNotification = false) {
     if(!isSettingsLoaded) return;
     const newSettings = {
@@ -2038,17 +2523,13 @@ window.saveSettingsManual = async function(showNotification = false) {
         ttLink: document.getElementById('set-tt').value.trim(),
         qrisStringData: document.getElementById('set-qris-string').value.trim() || siteSettings.qrisStringData || '',
         waChannelLink: document.getElementById('set-wa-channel') ? document.getElementById('set-wa-channel').value.trim() : (siteSettings.waChannelLink || ''),
-        isStoreOpen: document.getElementById('set-store-status') ? document.getElementById('set-store-status').checked : true,
-        aiEnabled: document.getElementById('set-ai-enabled') ? document.getElementById('set-ai-enabled').checked : false,
-        geminiApiKey: document.getElementById('set-gemini-key') ? document.getElementById('set-gemini-key').value.trim() : '',
-        aiDelaySeconds: parseInt(document.getElementById('set-ai-delay')?.value) || 20,
-        aiCustomPrompt: document.getElementById('set-ai-prompt') ? document.getElementById('set-ai-prompt').value.trim() : ''
+        isStoreOpen: document.getElementById('set-store-status') ? document.getElementById('set-store-status').checked : true
     };
     try {
         await setDoc(doc(db, pathSettings, 'mainConfig'), newSettings, { merge: true });
         localStorage.setItem('vipercell_settings_backup', JSON.stringify(newSettings));
         if (showNotification) {
-            window.showToast('Pengaturan Disimpan', 'Konfigurasi web & AI berhasil diamankan.', 'success');
+            window.showToast('Pengaturan Disimpan', 'Konfigurasi web berhasil diamankan.', 'success');
         }
     } catch (e) {
         window.customAlert('Error', 'Gagal menyimpan pengaturan web.', 'error');
@@ -2068,23 +2549,6 @@ window.populateAdminSettings = function() {
     document.getElementById('set-qris-string').value = siteSettings.qrisStringData || '';
     
     if(document.getElementById('set-wa-channel')) document.getElementById('set-wa-channel').value = siteSettings.waChannelLink || '';
-    
-    // Konfigurasi AI Gemini
-    const aiCheck = document.getElementById('set-ai-enabled');
-    const aiKey = document.getElementById('set-gemini-key');
-    const aiDelay = document.getElementById('set-ai-delay');
-    const aiPrompt = document.getElementById('set-ai-prompt');
-    const aiPill = document.getElementById('ai-status-pill');
-
-    if (aiCheck) aiCheck.checked = Boolean(siteSettings.aiEnabled);
-    if (aiKey) aiKey.value = siteSettings.geminiApiKey || '';
-    if (aiDelay) aiDelay.value = siteSettings.aiDelaySeconds || 20;
-    if (aiPrompt) aiPrompt.value = siteSettings.aiCustomPrompt || '';
-    if (aiPill) {
-        const isAiReady = siteSettings.aiEnabled && siteSettings.geminiApiKey;
-        aiPill.className = isAiReady ? 'status-badge status-success' : 'status-badge status-unpaid';
-        aiPill.innerText = isAiReady ? 'AI AKTIF' : 'NONAKTIF';
-    }
 
     const isOpen = siteSettings.isStoreOpen !== false;
     const storeStatusEl = document.getElementById('set-store-status');
@@ -2180,7 +2644,7 @@ window.renderAdminBanners = function() {
     banners.forEach((b64, idx) => {
         html += `
         <div style="position:relative; border:var(--brutal-border); border-radius:12px; overflow:hidden;">
-            <img src="${b64}" style="width:100%; height:130px; object-fit:cover; display:block;" loading="lazy" alt="Banner">
+            <img src="${b64}" style="width:100%; height:115px; object-fit:cover; display:block;" loading="lazy" alt="Banner">
             <button aria-label="Hapus Banner" class="btn btn-danger btn-sm" style="position:absolute; top:8px; right:8px;" onclick="window.deleteBanner(${idx})"><i class="fa-solid fa-trash"></i> Hapus</button>
         </div>`;
     });
@@ -2202,7 +2666,7 @@ window.deleteBanner = async function(idx) {
 };
 
 // ==========================================
-// LIVE CHAT ADMIN + LABEL PESAN AI
+// LIVE CHAT ADMIN + TAP TO NAVIGATE TOAST
 // ==========================================
 function listenAdminLiveChat() {
     if(adminChatUnsubscribe) adminChatUnsubscribe();
@@ -2233,7 +2697,10 @@ function listenAdminLiveChat() {
                         if(lastMsg && lastMsg.sender === 'user') {
                             playNotificationSound('chat');
                             sendAdminNativeNotification(`Chat Baru: ${cData.userInfo || 'Pelanggan'} 💬`, lastMsg.text);
-                            window.showToast(`Chat: ${cData.userInfo || 'Pelanggan'}`, lastMsg.text, 'info');
+                            window.showToast(`Pesan dari ${cData.userInfo || 'Pelanggan'}`, lastMsg.text, 'info', () => {
+                                window.switchAdminTabByName('tab-livechat');
+                                setTimeout(() => window.openAdminChatDetailDesk(docId), 150);
+                            });
                         }
                     }
                     previousChatMsgCount[docId] = newMsgCount;
@@ -2244,7 +2711,7 @@ function listenAdminLiveChat() {
             });
         }
         
-        allLiveChats = newChats.sort((a,b) => b.updatedAt - a.updatedAt);
+        allLiveChats = newChats.sort((a,b) => (b.updatedAt || 0) - (a.updatedAt || 0));
         window.renderAdminChatList();
         
         const hasUnreadAny = allLiveChats.some(c => {
@@ -2288,7 +2755,7 @@ window.renderAdminChatList = function() {
             <div id="chat-card-${chat.id}" class="chat-user-item ${isActive}" onclick="window.openAdminChatDetailDesk('${chat.id}')">
                 <div class="chat-user-info">
                     <strong class="chat-user-name">${window.escapeHtml(chat.userInfo || 'Pelanggan')}</strong>
-                    <span class="chat-user-msg">${lastMsg ? window.escapeHtml(lastMsg.text) : '...'}</span>
+                    <span class="chat-user-msg">${lastMsg ? window.escapeHtml(lastMsg.text) : 'Ruang chat dibuka...'}</span>
                 </div>
                 ${hasUnread ? '<span class="status-badge status-failed" style="font-size:0.6rem; padding:2px 6px;">BARU</span>' : ''}
             </div>
@@ -2316,6 +2783,12 @@ window.openAdminChatDetailDesk = function(chatId) {
     document.getElementById('admin-chat-active').style.display = 'flex';
     document.getElementById('admin-active-chat-id-desk').value = chatId;
     document.getElementById('admin-chat-title-desk').innerText = chat.userInfo || 'Pelanggan';
+    const subEl = document.getElementById('admin-chat-sub-desk');
+    if (subEl) {
+        subEl.innerHTML = chat.userEmail
+            ? `<i class="fa-regular fa-envelope"></i> ${window.escapeHtml(chat.userEmail)}`
+            : `<i class="fa-solid fa-circle" style="font-size:0.5rem;"></i> Pelanggan Tamu / Live Chat`;
+    }
     
     const mainPanel = document.getElementById('admin-chat-main-panel');
     const sidePanel = document.getElementById('admin-chat-sidebar-panel');
@@ -2330,13 +2803,10 @@ window.openAdminChatDetailDesk = function(chatId) {
     
     (chat.messages || []).forEach(msg => {
         const isUser = msg.sender === 'user';
-        const isAi = msg.sender === 'ai' || msg.isAi === true;
-        const cls = isUser ? 'user' : (isAi ? 'ai' : 'admin');
-        const aiHeader = isAi ? `<small style="display:block; font-size:0.65rem; font-weight:800; color:#a78bfa; margin-bottom:2px;"><i class="fa-solid fa-wand-magic-sparkles"></i> Dijawab Otomatis oleh AI</small>` : '';
+        const cls = isUser ? 'user' : 'admin';
 
         html += `
             <div class="chat-msg ${cls}">
-                ${aiHeader}
                 ${window.escapeHtml(msg.text).replace(/\n/g, '<br>')}
                 <span class="chat-time">${new Date(msg.timestamp).toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'})}</span>
             </div>
@@ -2363,10 +2833,10 @@ window.sendAdminChatDesk = async function() {
     
     input.value = '';
     const chatRef = doc(db, pathChats, chatId);
-    await updateDoc(chatRef, {
+    await setDoc(chatRef, {
         updatedAt: Date.now(),
         messages: arrayUnion({ sender: 'admin', text: text, timestamp: Date.now() })
-    });
+    }, { merge: true });
 };
 
 window.resolveChatDesktop = async function() {
