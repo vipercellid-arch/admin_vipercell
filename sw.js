@@ -1,6 +1,5 @@
-const CACHE_NAME = 'vipercell-pwa-v21-stable';
+const CACHE_NAME = 'vipercell-pwa-v22';
 
-// Install Service Worker dengan aman (tidak akan gagal meskipun ada aset yang belum termuat)
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
@@ -21,7 +20,6 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Wajib ada fetch handler aktif agar Chrome mengizinkan instalasi PWA
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET' || !event.request.url.startsWith('http')) return;
   event.respondWith(

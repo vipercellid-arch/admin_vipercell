@@ -1,26 +1,32 @@
 {
   "id": "/",
-  "name": "Vipercell Admin Center",
-  "short_name": "ViperAdmin",
+  "name": "Vipercell admin center",
+  "short_name": "Viperadmin",
   "description": "Platform penyedia layanan aplikasi premium, top up game, dan tools digital otomatis 24/7.",
-  "start_url": "/index.html",
-  "scope": "/",
+  "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#ffffff",
+  "background_color": "#090d16",
   "theme_color": "#2563eb",
-  "orientation": "portrait-primary",
+  "orientation": "any",
   "icons": [
     {
-      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='110' fill='%232563eb'/%3E%3Cpath d='M298 96L144 288h112l-42 128 154-192H256l42-128z' fill='%23fbbf24' stroke='%230f172a' stroke-width='18' stroke-linejoin='round'/%3E%3C/svg%3E",
+      "src": "icon-192.png",
       "sizes": "192x192",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%232563eb'/%3E%3Cpath d='M298 96L144 288h112l-42 128 154-192H256l42-128z' fill='%23fbbf24' stroke='%230f172a' stroke-width='18' stroke-linejoin='round'/%3E%3C/svg%3E",
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='110' fill='%232563eb'/%3E%3Cpath d='M298 96L144 288h112l-42 128 154-192H256l42-128z' fill='%23ffffff'/%3E%3C/svg%3E",
       "sizes": "512x512",
       "type": "image/svg+xml",
-      "purpose": "maskable"
+      "purpose": "any"
     }
   ]
 }

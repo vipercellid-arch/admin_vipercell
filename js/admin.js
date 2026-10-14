@@ -20,11 +20,10 @@ const pathStocks = isWorkspace ? `artifacts/${appId}/public/data/stocks` : 'stoc
 const pathUsers = isWorkspace ? `artifacts/${appId}/public/data/users` : 'users';
 const pathReviews = isWorkspace ? `artifacts/${appId}/public/data/reviews` : 'reviews';
 
-// Path cadangan untuk memulihkan pengaturan lama jika sebelumnya tersimpan di workspace/non-workspace
 const fallbackSettingsPath = isWorkspace ? 'settings' : `artifacts/${appId}/public/data/settings`;
 
 // ==========================================
-// STATE & VARIABEL GLOBAL (ADMIN V21)
+// STATE & VARIABEL GLOBAL (ADMIN V22)
 // ==========================================
 let products = [];
 let groupedBrands = []; 
@@ -40,6 +39,7 @@ let siteSettings = {
     logoText: 'VIPER',
     logoAccent: 'CELL',
     logoImgBase64: '',
+    pwaIconBase64: '',
     marquee: 'Selamat Datang di Vipercell! Layanan Otomatis 24 Jam.',
     qrisStringData: '00020101021126670016COM.NOBUBANK.WWW011893600503000000000051440014ID.CO.QRIS.WWW0215ID10200210007070303UMI5204581253033605802ID5919VIPERCELL INDONESIA6005AMBON61059711662070703A016304',
     adminWa: '085656321860',
@@ -48,7 +48,11 @@ let siteSettings = {
     newsList: [],
     banners: [],
     isStoreOpen: true,
-    waChannelLink: ''
+    waChannelLink: '',
+    aiEnabled: false,
+    geminiApiKey: '',
+    aiDelaySeconds: 20,
+    aiCustomPrompt: ''
 };
 
 let currentAdminUser = null;
@@ -57,6 +61,7 @@ let currentGroupNominals = [];
 let currentOrderFilter = 'ALL';
 let currentAdminProdFilter = 'all';
 let isSoundEnabled = localStorage.getItem('vipercell_admin_sound') !== 'off';
+let isAdminNotifEnabled = localStorage.getItem('vipercell_admin_notif') !== 'off';
 
 let isInitialOrderLoad = true;
 let isInitialChatLoad = true;
@@ -132,50 +137,137 @@ function updateSoundIconUI() {
     const btn = document.getElementById('btn-sound-toggle');
     if (icon) icon.className = isSoundEnabled ? 'fa-solid fa-volume-high' : 'fa-solid fa-volume-xmark';
     if (btn) {
-        btn.style.background = isSoundEnabled ? '#dbeafe' : 'var(--surface)';
-        btn.style.color = isSoundEnabled ? '#1d4ed8' : 'var(--text-muted)';
+        btn.style.background = isSoundEnabled ? 'rgba(37, 99, 235, 0.15)' : 'var(--surface)';
+        btn.style.color = isSoundEnabled ? 'var(--primary-light)' : 'var(--text-muted)';
     }
 }
 
-// Notifikasi Push Sistem (OS/Browser) untuk Admin
-function updateAdminNotifUI() {
-    const btn = document.getElementById('btn-admin-notif-perm');
-    const icon = document.getElementById('admin-notif-icon');
-    if (!btn || !icon || !('Notification' in window)) return;
-    if (Notification.permission === 'granted') {
-        icon.className = 'fa-solid fa-bell';
-        btn.style.background = '#d1fae5';
-        btn.style.color = '#047857';
+// Sakelar Toggle Notifikasi Lonceng Admin (Bisa ON / OFF dari Pengaturan Web)
+function updateAdminNotifToggleUI() {
+    const statusText = document.getElementById('set-admin-notif-status');
+    const btn = document.getElementById('btn-set-admin-notif');
+    const icon = document.getElementById('set-admin-bell-icon');
+    if (!statusText || !btn || !icon) return;
+
+    const granted = ('Notification' in window) && Notification.permission === 'granted';
+    const isActive = isAdminNotifEnabled && granted;
+
+    if (isActive) {
+        statusText.innerText = 'Status: Aktif (Menerima Push Notifikasi)';
+        statusText.className = 'text-success text-xs fw-bold';
+        btn.innerText = 'Matikan';
+        btn.className = 'btn btn-sm btn-danger';
+        icon.className = 'fa-solid fa-bell text-success';
     } else {
-        icon.className = 'fa-regular fa-bell';
+        statusText.innerText = isAdminNotifEnabled ? 'Status: Belum diizinkan browser' : 'Status: Dinonaktifkan';
+        statusText.className = 'text-muted text-xs';
+        btn.innerText = 'Aktifkan';
+        btn.className = 'btn btn-sm btn-primary';
+        icon.className = 'fa-regular fa-bell-slash text-muted';
     }
 }
 
-window.requestAdminNotificationPermission = async function() {
+window.toggleAdminNotificationSetting = async function() {
     if (!('Notification' in window)) {
         window.customAlert('Tidak Didukung', 'Browser perangkat ini belum mendukung notifikasi sistem.', 'warning');
         return;
     }
-    const perm = await Notification.requestPermission();
-    updateAdminNotifUI();
-    if (perm === 'granted') {
-        sendAdminNativeNotification('Vipercell Admin Aktif!', 'Notifikasi pesanan & chat pelanggan siap dikirim ke perangkat Anda.');
-        window.showToast('Notifikasi Aktif', 'Push notifikasi browser telah diaktifkan.', 'success');
+    const granted = Notification.permission === 'granted';
+    if (isAdminNotifEnabled && granted) {
+        isAdminNotifEnabled = false;
+        localStorage.setItem('vipercell_admin_notif', 'off');
+        updateAdminNotifToggleUI();
+        window.showToast('Notifikasi Dimatikan', 'Push notifikasi sistem telah dinonaktifkan.', 'info');
+        return;
     }
+
+    if (Notification.permission === 'default') {
+        const perm = await Notification.requestPermission();
+        if (perm !== 'granted') {
+            updateAdminNotifToggleUI();
+            return;
+        }
+    } else if (Notification.permission === 'denied') {
+        window.customAlert('Izin Diblokir', 'Ubah izin Notifikasi situs menjadi "Izinkan" pada pengaturan browser kamu.', 'warning');
+        return;
+    }
+
+    isAdminNotifEnabled = true;
+    localStorage.setItem('vipercell_admin_notif', 'on');
+    updateAdminNotifToggleUI();
+    sendAdminNativeNotification('Vipercell Admin Aktif!', 'Notifikasi pesanan & chat pelanggan siap dikirim ke perangkat Anda.');
+    window.showToast('Notifikasi Aktif', 'Push notifikasi sistem telah diaktifkan.', 'success');
 };
 
 function sendAdminNativeNotification(title, bodyText) {
+    if (!isAdminNotifEnabled) return;
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
-    const iconUrl = siteSettings.logoImgBase64 || 'https://cdn-icons-png.flaticon.com/512/3659/3659899.png';
+    const iconUrl = siteSettings.pwaIconBase64 || siteSettings.logoImgBase64 || 'icon-192.png';
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.ready.then((reg) => {
             reg.showNotification(title, { body: bodyText, icon: iconUrl, vibrate: [200, 100, 200] });
         }).catch(() => {
-            new Notification(title, { body: bodyText, icon: iconUrl });
+            try { new Notification(title, { body: bodyText, icon: iconUrl }); } catch (e) {}
         });
     } else {
-        new Notification(title, { body: bodyText, icon: iconUrl });
+        try { new Notification(title, { body: bodyText, icon: iconUrl }); } catch (e) {}
     }
+}
+
+// ==========================================
+// DYNAMIC CUSTOM PWA ICON INJECTOR (ADMIN)
+// ==========================================
+let adminManifestBlobUrl = null;
+function applyAdminCustomPwaIcon() {
+    const customIcon = siteSettings.pwaIconBase64 || siteSettings.logoImgBase64;
+    if (!customIcon) return;
+
+    const fav = document.getElementById('admin-favicon');
+    const apple = document.getElementById('admin-apple-icon');
+    const promptLogo = document.getElementById('admin-pwa-prompt-logo');
+    const promptFallback = document.getElementById('admin-pwa-prompt-fallback');
+
+    if (fav) fav.href = customIcon;
+    if (apple) apple.href = customIcon;
+    if (promptLogo) {
+        promptLogo.src = customIcon;
+        promptLogo.style.display = 'block';
+        if (promptFallback) promptFallback.style.display = 'none';
+    }
+
+    try {
+        const manifestObj = {
+            id: "/",
+            name: `${siteSettings.logoText || 'Viper'}${siteSettings.logoAccent || 'cell'} Admin Center`,
+            short_name: `ViperAdmin`,
+            description: "Admin Command Center Vipercell V22",
+            start_url: window.location.origin + window.location.pathname,
+            scope: window.location.origin + "/",
+            display: "standalone",
+            background_color: "#090d16",
+            theme_color: "#2563eb",
+            orientation: "any",
+            icons: [
+                {
+                    src: customIcon,
+                    sizes: "192x192",
+                    type: customIcon.startsWith('data:image/webp') ? "image/webp" : "image/png",
+                    purpose: "any"
+                },
+                {
+                    src: customIcon,
+                    sizes: "512x512",
+                    type: customIcon.startsWith('data:image/webp') ? "image/webp" : "image/png",
+                    purpose: "maskable"
+                }
+            ]
+        };
+        if (adminManifestBlobUrl) URL.revokeObjectURL(adminManifestBlobUrl);
+        const blob = new Blob([JSON.stringify(manifestObj)], { type: 'application/json' });
+        adminManifestBlobUrl = URL.createObjectURL(blob);
+        const link = document.getElementById('admin-pwa-manifest');
+        if (link) link.setAttribute('href', adminManifestBlobUrl);
+    } catch (e) {}
 }
 
 window.copyTextToClipboard = function(text, label = 'Data') {
@@ -195,12 +287,12 @@ window.resizeImageBase64 = function(file, callback, maxWidth, maxHeight) {
         img.onload = function() {
             let w = img.width, h = img.height;
             if(w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth; }
-            if(h > maxHeight) { w = Math.round(w * maxHeight / h); h = maxHeight; }
+            if(h > maxHeight) { h = Math.round(w * maxHeight / h); h = maxHeight; }
             const canvas = document.createElement('canvas');
             canvas.width = w; canvas.height = h;
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, w, h);
-            callback(canvas.toDataURL('image/webp', 0.75)); 
+            callback(canvas.toDataURL('image/webp', 0.8)); 
         };
         img.src = e.target.result;
     };
@@ -216,7 +308,7 @@ window.toggleTheme = function() {
     const icon = document.getElementById('admin-theme-icon');
     if(icon) icon.className = newTheme === 'dark' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
     const metaTheme = document.getElementById('meta-theme-color');
-    if(metaTheme) metaTheme.setAttribute('content', newTheme === 'dark' ? '#0f172a' : '#ffffff');
+    if(metaTheme) metaTheme.setAttribute('content', newTheme === 'dark' ? '#090d16' : '#ffffff');
 };
 
 window.openModal = (id) => {
@@ -266,7 +358,7 @@ window.showToast = function(title, msg, type = 'info') {
     toast.innerHTML = `<div class="toast-icon">${icon}</div><div class="toast-content"><h4>${window.escapeHtml(title)}</h4><p>${window.escapeHtml(msg)}</p></div>`;
     container.appendChild(toast);
     
-    setTimeout(() => toast.classList.add('show'), 10);
+    setTimeout(() => toast.classList.add('show'), 15);
     setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 4500);
 };
 
@@ -284,18 +376,18 @@ window.openConfirm = function(title, message, callback, actionType = 'warning') 
     if (iconContainer && confirmBtn) {
         if (actionType === 'delete') {
             iconContainer.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
-            iconContainer.style.background = '#fee2e2';
-            iconContainer.style.color = '#b91c1c';
+            iconContainer.style.background = 'rgba(239, 68, 68, 0.15)';
+            iconContainer.style.color = '#ef4444';
             confirmBtn.className = 'btn btn-danger flex-1';
         } else if (actionType === 'success') {
             iconContainer.innerHTML = '<i class="fa-solid fa-circle-check"></i>';
-            iconContainer.style.background = '#d1fae5';
-            iconContainer.style.color = '#047857';
+            iconContainer.style.background = 'rgba(16, 185, 129, 0.15)';
+            iconContainer.style.color = '#10b981';
             confirmBtn.className = 'btn btn-success flex-1';
         } else {
             iconContainer.innerHTML = '<i class="fa-solid fa-circle-question"></i>';
-            iconContainer.style.background = '#dbeafe';
-            iconContainer.style.color = '#1d4ed8';
+            iconContainer.style.background = 'rgba(37, 99, 235, 0.15)';
+            iconContainer.style.color = 'var(--primary-light)';
             confirmBtn.className = 'btn btn-primary flex-1';
         }
     }
@@ -355,7 +447,7 @@ async function verifyAdminAccess(user) {
         if (emailLbl) emailLbl.innerText = user.email || 'Otoritas Penuh';
         
         updateSoundIconUI();
-        updateAdminNotifUI();
+        updateAdminNotifToggleUI();
         window.showToast('Berhasil Masuk', `Selamat bertugas kembali, Admin!`, 'success');
         listenAdminData();
     } else {
@@ -441,7 +533,6 @@ function mergeValidSettings(target, source) {
     Object.keys(source).forEach(key => {
         const val = source[key];
         if (val !== undefined && val !== null) {
-            // Jangan timpa string default yang sudah ada dengan string kosong kecuali memang disengaja
             if (typeof val === 'string' && val.trim() === '' && ['logoText', 'logoAccent', 'qrisStringData', 'adminWa'].includes(key) && result[key]) {
                 return;
             }
@@ -455,7 +546,6 @@ function listenAdminData() {
     if (isAdminListening) return;
     isAdminListening = true;
 
-    // 1. SETTINGS (DENGAN AUTO-RECOVERY DARI PATH LAMA & LOCAL CACHE)
     const cachedSettings = localStorage.getItem('vipercell_settings_backup');
     if (cachedSettings) {
         try { siteSettings = mergeValidSettings(siteSettings, JSON.parse(cachedSettings)); } catch (e) {}
@@ -466,7 +556,6 @@ function listenAdminData() {
             const dbData = docSnap.data();
             siteSettings = mergeValidSettings(siteSettings, dbData);
             
-            // Jika dokumen utama kehilangan data penting (misal ter-reset kosong di versi sebelumnya), cek fallback path lama
             if (!dbData.logoImgBase64 && (!dbData.banners || dbData.banners.length === 0)) {
                 try {
                     const fallbackSnap = await getDoc(doc(db, fallbackSettingsPath, 'mainConfig'));
@@ -477,7 +566,6 @@ function listenAdminData() {
             }
             localStorage.setItem('vipercell_settings_backup', JSON.stringify(siteSettings));
         } else {
-            // Cek path alternatif sebelum membuat dokumen baru
             try {
                 const fallbackSnap = await getDoc(doc(db, fallbackSettingsPath, 'mainConfig'));
                 if (fallbackSnap.exists()) {
@@ -490,9 +578,10 @@ function listenAdminData() {
         window.populateAdminSettings();
         window.renderAdminBanners();
         window.renderAdminNews();
+        applyAdminCustomPwaIcon();
     });
 
-    // 2. PRODUCTS (SUPPORT APP, GAME, DAN TOOLS)
+    // 2. PRODUCTS
     onSnapshot(collection(db, pathProducts), (snapshot) => {
         products = [];
         snapshot.forEach((docSnap) => { products.push({ dbId: docSnap.id, ...docSnap.data() }); });
@@ -517,7 +606,6 @@ function listenAdminData() {
         });
         window.renderAdminProducts();
         
-        // Gudang stok mendukung Aplikasi Premium ('app') dan Tools Digital ('tools')
         const stockableBrands = groupedBrands.filter(b => b.type === 'app' || b.type === 'tools');
         const filterSel = document.getElementById('view-stock-category');
         if(filterSel) {
@@ -558,7 +646,7 @@ function listenAdminData() {
         window.renderReviews();
     });
 
-    // 5. ORDERS (AUTO-KIRIM STOK MULTI-QTY UNTUK APP & TOOLS)
+    // 5. ORDERS
     onSnapshot(collection(db, pathOrders), (snapshot) => {
         let newOrders = [];
         snapshot.forEach((docSnap) => {
@@ -620,7 +708,7 @@ function listenAdminData() {
 }
 
 // ==========================================
-// AUTO-KIRIM STOK MULTI-QTY (MENDUKUNG APP & TOOLS)
+// AUTO-KIRIM STOK MULTI-QTY (APP & TOOLS)
 // ==========================================
 window.autoProcessOrder = async function(orderData, orderDbId) {
     if (processingAutoOrderIds.has(orderDbId)) return;
@@ -1016,7 +1104,7 @@ window.promptDeleteOrder = function(dbId, invoiceId) {
 };
 
 // ==========================================
-// GUDANG STOK AKUN & LISENSI (APP + TOOLS)
+// GUDANG STOK AKUN & LISENSI (TABEL DESKTOP + KARTU RAPI MOBILE)
 // ==========================================
 window.updateAdminStockItemSelect = function() {
     const brandName = document.getElementById('stock-brand-select').value;
@@ -1036,17 +1124,20 @@ window.updateAdminStockItemSelect = function() {
 window.renderAdminStocksByCategory = async function() {
     const brand = document.getElementById('view-stock-category').value;
     const tb = document.getElementById('admin-stock-list');
+    const mobContainer = document.getElementById('admin-stock-mobile-cards');
     const readyCountEl = document.getElementById('stock-ready-count');
     const usedCountEl = document.getElementById('stock-used-count');
     
     if(!brand) {
         if (readyCountEl) readyCountEl.innerText = '0';
         if (usedCountEl) usedCountEl.innerText = '0';
-        tb.innerHTML = '<tr><td colspan="6" class="text-center text-muted" style="padding: 3rem;"><i class="fa-solid fa-filter" style="font-size:2rem; display:block; margin-bottom:10px;"></i> Pilih kategori brand untuk menampilkan daftar stok.</td></tr>';
+        if (tb) tb.innerHTML = '<tr><td colspan="6" class="text-center text-muted" style="padding: 3rem;">Pilih kategori brand di atas untuk menampilkan daftar stok.</td></tr>';
+        if (mobContainer) mobContainer.innerHTML = '<div class="text-center text-muted p-3">Pilih kategori brand di atas untuk menampilkan daftar stok.</div>';
         return;
     }
     
-    tb.innerHTML = '<tr><td colspan="6" class="text-center" style="padding: 2rem;"><i class="fa-solid fa-spinner fa-spin"></i> Memuat data gudang stok...</td></tr>';
+    if (tb) tb.innerHTML = '<tr><td colspan="6" class="text-center" style="padding: 2rem;"><i class="fa-solid fa-spinner fa-spin"></i> Memuat data gudang stok...</td></tr>';
+    if (mobContainer) mobContainer.innerHTML = '<div class="text-center p-3"><i class="fa-solid fa-spinner fa-spin"></i> Memuat data gudang stok...</div>';
     
     try {
         const q = query(collection(db, pathStocks), where("brand", "==", brand));
@@ -1060,30 +1151,72 @@ window.renderAdminStocksByCategory = async function() {
         if (usedCountEl) usedCountEl.innerText = usedTotal;
 
         if(localStocks.length === 0) {
-            tb.innerHTML = '<tr><td colspan="6" class="text-center text-muted" style="padding:2rem;">Belum ada stok untuk produk ini.</td></tr>';
+            if (tb) tb.innerHTML = '<tr><td colspan="6" class="text-center text-muted" style="padding:2rem;">Belum ada stok untuk produk ini.</td></tr>';
+            if (mobContainer) mobContainer.innerHTML = '<div class="text-center text-muted p-3">Belum ada stok untuk produk ini.</div>';
             return;
         }
         
         localStocks.sort((a,b) => b.createdAt - a.createdAt);
-        let html = '';
+        let tableHtml = '';
+        let mobHtml = '';
+
         localStocks.forEach((s, i) => {
             const parts = (s.data || '').split('|');
-            const em = parts[0] || '-'; const pw = parts[1] || '-'; const dur = parts[2] || '-';
+            const em = parts[0] || '-';
+            const pw = parts[1] || '-';
+            const dur = parts[2] || '-';
+            const safeCredCopy = escapeJsStr(`${em} | ${pw}`);
+
             const badge = s.status === 'Ready'
                 ? '<span class="status-badge status-success">READY</span>'
                 : `<span class="status-badge status-failed">TERJUAL ${s.orderId ? `(${window.escapeHtml(s.orderId)})` : ''}</span>`;
-            html += `<tr>
+
+            // 1. Baris Tabel Desktop
+            tableHtml += `<tr>
                 <td><strong>${i+1}</strong></td>
                 <td><strong class="text-dark">${window.escapeHtml(s.brand)}</strong><br><small class="text-primary fw-bold">${window.escapeHtml(s.itemName || '-')}</small></td>
-                <td><strong class="text-dark">${window.escapeHtml(em)}</strong><br><small class="text-muted">${window.escapeHtml(pw)}</small></td>
+                <td>
+                    <strong class="text-dark">${window.escapeHtml(em)}</strong>
+                    <button class="btn-icon-only" style="width:22px; height:22px; font-size:0.65rem; margin-left:4px;" onclick="window.copyTextToClipboard('${safeCredCopy}', 'Kredensial Stok')"><i class="fa-regular fa-copy"></i></button>
+                    <br><small class="text-muted">${window.escapeHtml(pw)}</small>
+                </td>
                 <td class="text-dark text-xs">${window.escapeHtml(dur)}</td>
                 <td>${badge}</td>
                 <td><button aria-label="Hapus Stok" class="btn-icon-only text-danger" style="width:32px; height:32px;" onclick="window.deleteStock('${s.dbId}')"><i class="fa-solid fa-trash"></i></button></td>
             </tr>`;
+
+            // 2. Kartu Rapi Mobile
+            mobHtml += `
+            <div class="stock-mob-card">
+                <div class="stock-mob-top">
+                    <div>
+                        <strong class="text-dark text-sm">#${i+1} &bull; ${window.escapeHtml(s.itemName || s.brand)}</strong>
+                    </div>
+                    ${badge}
+                </div>
+                <div class="stock-mob-cred">
+                    <div>
+                        <div><b>User:</b> ${window.escapeHtml(em)}</div>
+                        <div><b>Pass:</b> ${window.escapeHtml(pw)}</div>
+                    </div>
+                    <button class="btn-icon-only" style="width:32px; height:32px; flex-shrink:0;" onclick="window.copyTextToClipboard('${safeCredCopy}', 'Kredensial Stok')">
+                        <i class="fa-regular fa-copy"></i>
+                    </button>
+                </div>
+                <div class="stock-mob-foot">
+                    <span><i class="fa-solid fa-circle-info"></i> ${window.escapeHtml(dur)}</span>
+                    <button class="btn btn-danger btn-sm" style="padding:3px 10px; min-height:28px;" onclick="window.deleteStock('${s.dbId}')">
+                        <i class="fa-solid fa-trash"></i> Hapus
+                    </button>
+                </div>
+            </div>`;
         });
-        tb.innerHTML = html;
+
+        if (tb) tb.innerHTML = tableHtml;
+        if (mobContainer) mobContainer.innerHTML = mobHtml;
     } catch(e) {
-        tb.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Gagal mengambil data stok.</td></tr>';
+        if (tb) tb.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Gagal mengambil data stok.</td></tr>';
+        if (mobContainer) mobContainer.innerHTML = '<div class="text-center text-danger p-3">Gagal mengambil data stok.</div>';
     }
 };
 
@@ -1256,7 +1389,7 @@ window.deleteReview = async function(dbId) {
 };
 
 // ==========================================
-// MANAJEMEN KATALOG MODERN + KATEGORI TOOLS + KLONING VARIAN
+// MANAJEMEN KATALOG MODERN + BULK PRICE ADJUSTER
 // ==========================================
 window.setAdminProdFilter = function(filterType, btnEl) {
     currentAdminProdFilter = filterType;
@@ -1285,8 +1418,8 @@ window.renderAdminProducts = function() {
     list.forEach(b => {
         const safeJsBrand = escapeJsStr(b.brandName);
         const imgHtml = b.imgUrlBase64
-            ? `<img src="${b.imgUrlBase64}" style="width:58px; height:58px; object-fit:cover; border-radius:14px; border:var(--brutal-border);" loading="lazy" alt="${window.escapeHtml(b.brandName)}">`
-            : `<div style="width:58px; height:58px; background:var(--primary); color:white; display:flex; justify-content:center; align-items:center; border-radius:14px; border:var(--brutal-border); font-weight:900; font-size:1.5rem;">${window.escapeHtml(b.brandName.charAt(0))}</div>`;
+            ? `<img src="${b.imgUrlBase64}" style="width:56px; height:56px; object-fit:cover; border-radius:14px; border:var(--brutal-border);" loading="lazy" alt="${window.escapeHtml(b.brandName)}">`
+            : `<div style="width:56px; height:56px; background:var(--primary); color:white; display:flex; justify-content:center; align-items:center; border-radius:14px; border:var(--brutal-border); font-weight:900; font-size:1.4rem;">${window.escapeHtml(b.brandName.charAt(0))}</div>`;
         
         const itemsCount = b.items.length;
         const isSoldOut = b.items.every(i => i.soldOut);
@@ -1307,7 +1440,7 @@ window.renderAdminProducts = function() {
                     ${imgHtml}
                     <div style="flex:1; overflow:hidden;">
                         <div class="flex-wrap-gap mb-1">${typeBadge} ${statusBadgeHtml}</div>
-                        <strong class="text-dark" style="font-size:1.12rem; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${window.escapeHtml(b.brandName)}</strong>
+                        <strong class="text-dark" style="font-size:1.08rem; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${window.escapeHtml(b.brandName)}</strong>
                         <span class="text-xs text-muted fw-bold">${itemsCount} Varian &bull; Mulai Rp${minPrice.toLocaleString('id-ID')}</span>
                     </div>
                 </div>
@@ -1329,7 +1462,6 @@ window.toggleInputTypeBox = function() {
     const type = document.getElementById('manage-prod-type').value;
     const inputGroup = document.getElementById('group-tipe-input');
     if (!inputGroup) return;
-    // Tampilkan pilihan format input untuk Game maupun Tools
     if (type === 'game' || type === 'tools') {
         inputGroup.style.display = 'block';
     } else {
@@ -1391,7 +1523,7 @@ window.openProductGroupModal = function(brandName = null) {
         document.getElementById('manage-prod-brand').value = '';
         document.getElementById('manage-prod-desc').value = '';
         document.getElementById('manage-prod-img-base64').value = '';
-        document.getElementById('manage-prod-file-name').innerText = 'Klik kotak kamera di kiri untuk mengunggah ikon (Auto WebP).';
+        document.getElementById('manage-prod-file-name').innerText = 'Klik kotak kamera untuk mengunggah ikon (Auto WebP).';
         updateProdModalPreviewImg('');
         document.getElementById('manage-prod-soldout').checked = false;
         
@@ -1428,7 +1560,6 @@ window.editTempNominal = function(idx) {
     document.getElementById('btn-cancel-edit-item').style.display = 'inline-flex';
 };
 
-// Fitur Baru: Kloning Varian 1x Klik (Mempercepat Input Varian Serupa)
 window.cloneTempNominal = function(idx) {
     const item = currentGroupNominals[idx];
     if (!item) return;
@@ -1441,6 +1572,17 @@ window.cloneTempNominal = function(idx) {
     });
     window.renderTempNominals();
     window.showToast('Varian Dikloning', 'Silakan sesuaikan nama atau harga varian hasil duplikasi.', 'info');
+};
+
+// Fitur Baru: Naikkan/Turunkan Harga Seluruh Varian Sekaligus
+window.adjustAllTempPrices = function(deltaAmount) {
+    if (currentGroupNominals.length === 0) return;
+    currentGroupNominals.forEach(n => {
+        const nextPrice = (n.priceNum || 0) + deltaAmount;
+        n.priceNum = nextPrice > 500 ? nextPrice : 500;
+    });
+    window.renderTempNominals();
+    window.showToast('Harga Disesuaikan', `Seluruh varian diubah sebesar ${deltaAmount > 0 ? '+' : ''}Rp${deltaAmount.toLocaleString('id-ID')}`, 'info');
 };
 
 window.sortTempNominalsByPrice = function() {
@@ -1718,7 +1860,7 @@ window.deletePromo = function(dbId) {
 };
 
 // ==========================================
-// BERITA & KOMUNITAS WEB (KARTU VISUAL MODERN)
+// BERITA & KOMUNITAS WEB
 // ==========================================
 window.renderAdminNews = function() {
     const list = document.getElementById('admin-news-list');
@@ -1733,14 +1875,14 @@ window.renderAdminNews = function() {
     newsData.forEach((t, i) => {
         const thumbHtml = t.imageUrl
             ? `<img src="${t.imageUrl}" class="admin-news-thumb" alt="Thumb">`
-            : `<div class="admin-news-thumb" style="background:linear-gradient(135deg, var(--primary), #1d4ed8); display:flex; align-items:center; justify-content:center; color:#fff; font-size:2rem;"><i class="fa-solid fa-newspaper"></i></div>`;
+            : `<div class="admin-news-thumb" style="background:linear-gradient(135deg, var(--primary), #1e3a8a); display:flex; align-items:center; justify-content:center; color:#fff; font-size:2rem;"><i class="fa-solid fa-newspaper"></i></div>`;
 
         html += `
         <div class="admin-news-card">
             <div>
                 ${thumbHtml}
                 <div style="padding: 12px;">
-                    <strong class="text-dark d-block mb-1" style="font-size:0.95rem;">${window.escapeHtml(t.title)}</strong>
+                    <strong class="text-dark d-block mb-1" style="font-size:0.92rem;">${window.escapeHtml(t.title)}</strong>
                     <p class="text-muted text-xs mb-0" style="display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">${window.escapeHtml(t.desc)}</p>
                 </div>
             </div>
@@ -1829,7 +1971,7 @@ window.deleteNews = async function(index) {
 };
 
 // ==========================================
-// PENGATURAN WEB (SAFE MERGE ANTI-HILANG DATA)
+// PENGATURAN WEB, IKON PWA & ASISTEN AI GEMINI
 // ==========================================
 window.quickToggleStoreStatus = async function() {
     if (!isSettingsLoaded) return;
@@ -1849,6 +1991,39 @@ window.quickToggleStoreStatus = async function() {
     }
 };
 
+window.testGeminiApiConnection = async function() {
+    const keyInput = document.getElementById('set-gemini-key')?.value.trim();
+    if (!keyInput) {
+        window.customAlert('API Key Kosong', 'Masukkan Google Gemini API Key terlebih dahulu sebelum melakukan tes.', 'warning');
+        return;
+    }
+
+    const btn = document.getElementById('btn-test-ai');
+    const ogHtml = btn.innerHTML;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Menguji...';
+    btn.disabled = true;
+
+    try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(keyInput)}`;
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: "Balas singkat: Koneksi AI Vipercell berhasil!" }] }]
+            })
+        });
+        if (!res.ok) throw new Error('API Error');
+        const data = await res.json();
+        const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text || 'Terhubung!';
+        window.customAlert('Koneksi AI Berhasil! 🤖', `Gemini API merespons dengan baik:<br><br><b>"${window.escapeHtml(reply)}"</b><br><br>Jangan lupa klik <b>Simpan Konfigurasi AI</b>.`, 'success');
+    } catch (err) {
+        window.customAlert('Koneksi Gagal', 'API Key Gemini tidak valid atau kuota habis. Pastikan API Key dari Google AI Studio sudah benar.', 'error');
+    } finally {
+        btn.innerHTML = ogHtml;
+        btn.disabled = false;
+    }
+};
+
 window.saveSettingsManual = async function(showNotification = false) {
     if(!isSettingsLoaded) return;
     const newSettings = {
@@ -1856,19 +2031,24 @@ window.saveSettingsManual = async function(showNotification = false) {
         logoText: document.getElementById('set-logo-text').value.trim() || siteSettings.logoText || 'VIPER',
         logoAccent: document.getElementById('set-logo-accent').value.trim() || siteSettings.logoAccent || 'CELL',
         logoImgBase64: document.getElementById('set-logo-base64').value || siteSettings.logoImgBase64 || '', 
+        pwaIconBase64: document.getElementById('set-pwa-icon-base64').value || siteSettings.pwaIconBase64 || '',
         marquee: document.getElementById('set-marquee').value.trim() || siteSettings.marquee || '',
         adminWa: document.getElementById('set-wa').value.trim() || siteSettings.adminWa || '085656321860',
         igLink: document.getElementById('set-ig').value.trim(),
         ttLink: document.getElementById('set-tt').value.trim(),
         qrisStringData: document.getElementById('set-qris-string').value.trim() || siteSettings.qrisStringData || '',
         waChannelLink: document.getElementById('set-wa-channel') ? document.getElementById('set-wa-channel').value.trim() : (siteSettings.waChannelLink || ''),
-        isStoreOpen: document.getElementById('set-store-status') ? document.getElementById('set-store-status').checked : true
+        isStoreOpen: document.getElementById('set-store-status') ? document.getElementById('set-store-status').checked : true,
+        aiEnabled: document.getElementById('set-ai-enabled') ? document.getElementById('set-ai-enabled').checked : false,
+        geminiApiKey: document.getElementById('set-gemini-key') ? document.getElementById('set-gemini-key').value.trim() : '',
+        aiDelaySeconds: parseInt(document.getElementById('set-ai-delay')?.value) || 20,
+        aiCustomPrompt: document.getElementById('set-ai-prompt') ? document.getElementById('set-ai-prompt').value.trim() : ''
     };
     try {
         await setDoc(doc(db, pathSettings, 'mainConfig'), newSettings, { merge: true });
         localStorage.setItem('vipercell_settings_backup', JSON.stringify(newSettings));
         if (showNotification) {
-            window.showToast('Pengaturan Disimpan', 'Konfigurasi web berhasil diamankan.', 'success');
+            window.showToast('Pengaturan Disimpan', 'Konfigurasi web & AI berhasil diamankan.', 'success');
         }
     } catch (e) {
         window.customAlert('Error', 'Gagal menyimpan pengaturan web.', 'error');
@@ -1879,6 +2059,7 @@ window.populateAdminSettings = function() {
     document.getElementById('set-logo-text').value = siteSettings.logoText || 'VIPER';
     document.getElementById('set-logo-accent').value = siteSettings.logoAccent || 'CELL';
     document.getElementById('set-logo-base64').value = siteSettings.logoImgBase64 || '';
+    document.getElementById('set-pwa-icon-base64').value = siteSettings.pwaIconBase64 || '';
     
     document.getElementById('set-marquee').value = siteSettings.marquee || '';
     document.getElementById('set-wa').value = siteSettings.adminWa || '';
@@ -1888,6 +2069,23 @@ window.populateAdminSettings = function() {
     
     if(document.getElementById('set-wa-channel')) document.getElementById('set-wa-channel').value = siteSettings.waChannelLink || '';
     
+    // Konfigurasi AI Gemini
+    const aiCheck = document.getElementById('set-ai-enabled');
+    const aiKey = document.getElementById('set-gemini-key');
+    const aiDelay = document.getElementById('set-ai-delay');
+    const aiPrompt = document.getElementById('set-ai-prompt');
+    const aiPill = document.getElementById('ai-status-pill');
+
+    if (aiCheck) aiCheck.checked = Boolean(siteSettings.aiEnabled);
+    if (aiKey) aiKey.value = siteSettings.geminiApiKey || '';
+    if (aiDelay) aiDelay.value = siteSettings.aiDelaySeconds || 20;
+    if (aiPrompt) aiPrompt.value = siteSettings.aiCustomPrompt || '';
+    if (aiPill) {
+        const isAiReady = siteSettings.aiEnabled && siteSettings.geminiApiKey;
+        aiPill.className = isAiReady ? 'status-badge status-success' : 'status-badge status-unpaid';
+        aiPill.innerText = isAiReady ? 'AI AKTIF' : 'NONAKTIF';
+    }
+
     const isOpen = siteSettings.isStoreOpen !== false;
     const storeStatusEl = document.getElementById('set-store-status');
     if(storeStatusEl) storeStatusEl.checked = isOpen;
@@ -1901,8 +2099,14 @@ window.populateAdminSettings = function() {
     
     if(siteSettings.logoImgBase64) {
         const p = document.getElementById('set-logo-preview');
-        p.src = siteSettings.logoImgBase64; p.style.display = 'block';
+        if (p) { p.src = siteSettings.logoImgBase64; p.style.display = 'block'; }
         document.getElementById('set-logo-file-name').innerText = "Gambar Logo Aktif";
+    }
+
+    if (siteSettings.pwaIconBase64) {
+        const pwaPrev = document.getElementById('set-pwa-icon-preview');
+        if (pwaPrev) { pwaPrev.src = siteSettings.pwaIconBase64; pwaPrev.style.display = 'block'; }
+        document.getElementById('set-pwa-file-name').innerText = "Ikon Kustom PWA Aktif";
     }
     
     const adminLogoEl = document.getElementById('admin-header-logo-img');
@@ -1927,6 +2131,21 @@ if(logoUploadEl) {
                 p.src = b64; p.style.display = 'block';
                 window.saveSettingsManual(true); 
             }, 500, 500);
+        }
+    });
+}
+
+const pwaIconUploadEl = document.getElementById('pwa-icon-upload');
+if (pwaIconUploadEl) {
+    pwaIconUploadEl.addEventListener('change', function(e) {
+        if (e.target.files[0]) {
+            document.getElementById('set-pwa-file-name').innerText = e.target.files[0].name;
+            window.resizeImageBase64(e.target.files[0], (b64) => {
+                document.getElementById('set-pwa-icon-base64').value = b64;
+                const p = document.getElementById('set-pwa-icon-preview');
+                if (p) { p.src = b64; p.style.display = 'block'; }
+                window.saveSettingsManual(true);
+            }, 512, 512);
         }
     });
 }
@@ -1957,11 +2176,11 @@ window.renderAdminBanners = function() {
         return;
     }
     
-    let html = '<div class="grid-2col">';
+    let html = '<div class="grid-2col" style="gap:10px;">';
     banners.forEach((b64, idx) => {
         html += `
-        <div style="position:relative; border:var(--brutal-border); border-radius:12px; overflow:hidden; box-shadow:var(--brutal-shadow-sm);">
-            <img src="${b64}" style="width:100%; height:140px; object-fit:cover; display:block;" loading="lazy" alt="Banner">
+        <div style="position:relative; border:var(--brutal-border); border-radius:12px; overflow:hidden;">
+            <img src="${b64}" style="width:100%; height:130px; object-fit:cover; display:block;" loading="lazy" alt="Banner">
             <button aria-label="Hapus Banner" class="btn btn-danger btn-sm" style="position:absolute; top:8px; right:8px;" onclick="window.deleteBanner(${idx})"><i class="fa-solid fa-trash"></i> Hapus</button>
         </div>`;
     });
@@ -1983,7 +2202,7 @@ window.deleteBanner = async function(idx) {
 };
 
 // ==========================================
-// LIVE CHAT ADMIN + NOTIFIKASI PUSH
+// LIVE CHAT ADMIN + LABEL PESAN AI
 // ==========================================
 function listenAdminLiveChat() {
     if(adminChatUnsubscribe) adminChatUnsubscribe();
@@ -2110,10 +2329,15 @@ window.openAdminChatDetailDesk = function(chatId) {
     let html = '';
     
     (chat.messages || []).forEach(msg => {
-        const isAdmin = msg.sender === 'admin';
+        const isUser = msg.sender === 'user';
+        const isAi = msg.sender === 'ai' || msg.isAi === true;
+        const cls = isUser ? 'user' : (isAi ? 'ai' : 'admin');
+        const aiHeader = isAi ? `<small style="display:block; font-size:0.65rem; font-weight:800; color:#a78bfa; margin-bottom:2px;"><i class="fa-solid fa-wand-magic-sparkles"></i> Dijawab Otomatis oleh AI</small>` : '';
+
         html += `
-            <div class="chat-msg ${isAdmin ? 'admin' : 'user'}">
-                ${window.escapeHtml(msg.text)}
+            <div class="chat-msg ${cls}">
+                ${aiHeader}
+                ${window.escapeHtml(msg.text).replace(/\n/g, '<br>')}
                 <span class="chat-time">${new Date(msg.timestamp).toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'})}</span>
             </div>
         `;

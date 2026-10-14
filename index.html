@@ -2,16 +2,17 @@
 <html lang="id" data-theme="light">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Vipercell - Admin Command Center V21</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <title>Vipercell - Admin Command Center V22</title>
     <meta name="robots" content="noindex, nofollow">
     
-    <!-- Optimisasi PWA Admin -->
+    <!-- Optimisasi PWA Admin & Rotasi Penuh -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#ffffff" id="meta-theme-color">
-    <link rel="manifest" href="manifest.json">
-    <link rel="icon" id="admin-favicon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='110' fill='%232563eb'/%3E%3Cpath d='M298 96L144 288h112l-42 128 154-192H256l42-128z' fill='%23fbbf24' stroke='%230f172a' stroke-width='18' stroke-linejoin='round'/%3E%3C/svg%3E">
+    <link rel="manifest" href="manifest.json" id="admin-pwa-manifest">
+    <link rel="icon" id="admin-favicon" href="icon-192.png" onerror="this.href='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 512 512\'%3E%3Crect width=\'512\' height=\'512\' rx=\'110\' fill=\'%232563eb\'/%3E%3Cpath d=\'M298 96L144 288h112l-42 128 154-192H256l42-128z\' fill=\'%23ffffff\'/%3E%3C/svg%3E'">
+    <link rel="apple-touch-icon" id="admin-apple-icon" href="icon-192.png">
     
     <!-- Google Fonts: Plus Jakarta Sans & Space Grotesk -->
     <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
@@ -20,28 +21,29 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Space+Grotesk:wght@700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- CSS Modular Admin V21 -->
+    <!-- CSS Modular Admin V22 -->
     <link rel="stylesheet" href="css/admin.css">
     
     <script>
-        // Default tema awal adalah LIGHT (Putih Bersih)
         const savedTheme = localStorage.getItem('vipercell_theme') || 'light';
         document.documentElement.setAttribute('data-theme', savedTheme);
-        document.getElementById('meta-theme-color').setAttribute('content', savedTheme === 'dark' ? '#0f172a' : '#ffffff');
+        document.getElementById('meta-theme-color').setAttribute('content', savedTheme === 'dark' ? '#090d16' : '#ffffff');
     </script>
 </head>
 <body>
+    <!-- WADAH NOTIFIKASI TOAST (POJOK KIRI ATAS) -->
     <div id="toast-container" class="toast-container"></div>
 
     <!-- BANNER INSTALASI PWA ADMIN -->
     <div id="pwa-install-prompt" class="pwa-brutal-prompt" style="display:none;">
-        <div class="pwa-icon-box"><i class="fa-solid fa-bolt"></i></div>
+        <img id="admin-pwa-prompt-logo" src="" alt="Icon" class="pwa-custom-img" style="display:none;">
+        <div id="admin-pwa-prompt-fallback" class="pwa-icon-box"><i class="fa-solid fa-bolt"></i></div>
         <div style="flex-grow:1;">
-            <h4 style="margin:0; font-size:0.9rem; font-weight:800; color:var(--text);">Instal Aplikasi Admin Vipercell</h4>
-            <p style="margin:0; font-size:0.75rem; color:var(--text-muted); font-weight:600;">Pantau pesanan & balas chat lebih cepat dari layar utama!</p>
+            <h4 style="margin:0; font-size:0.88rem; font-weight:800; color:var(--text);">Instal Aplikasi Admin Vipercell</h4>
+            <p style="margin:0; font-size:0.74rem; color:var(--text-muted); font-weight:600;">Mendukung rotasi penuh, ringan & notifikasi instan!</p>
         </div>
         <button id="btn-install-pwa" class="btn btn-primary btn-sm">Instal</button>
-        <button id="btn-close-pwa" class="close-btn" style="width:32px; height:32px;"><i class="fa-solid fa-xmark"></i></button>
+        <button id="btn-close-pwa" class="close-btn" style="width:30px; height:30px;"><i class="fa-solid fa-xmark"></i></button>
     </div>
     
     <!-- LAYAR LOGIN ADMIN (KHUSUS EMAIL & PASSWORD) -->
@@ -49,10 +51,10 @@
         <div class="login-container">
             <div class="login-left-panel hide-mobile">
                 <div class="login-branding">
-                    <div class="login-badge">COMMAND CENTER V21</div>
+                    <div class="login-badge">COMMAND CENTER V22</div>
                     <i class="fa-solid fa-shield-halved"></i>
                     <h2>Vipercell Admin</h2>
-                    <p>Sistem manajemen terpadu untuk Katalog Aplikasi Premium, Top Up Game, Tools Digital, dan Gudang Stok Otomatis.</p>
+                    <p>Pusat kendali toko otomatis, manajemen Katalog Aplikasi Premium, Top Up Game, Tools Digital, serta Asisten AI CS 24 Jam.</p>
                 </div>
             </div>
             <div class="login-right-panel">
@@ -60,20 +62,23 @@
                     <div class="login-header-title">
                         <div class="mobile-shield-box"><i class="fa-solid fa-user-shield"></i></div>
                         <h1>Otoritas Administrator</h1>
-                        <p>Silakan masuk menggunakan Email dan Kata Sandi Admin resmi.</p>
+                        <p>Masuk menggunakan Email dan Kata Sandi Admin resmi Vipercell.</p>
                     </div>
                     
                     <div class="form-group">
-                        <label for="admin-email"><i class="fa-solid fa-envelope text-primary"></i> Email Administrator</label>
+                        <label for="admin-email"><i class="fa-regular fa-envelope text-primary"></i> Email Administrator</label>
                         <input type="email" id="admin-email" class="form-control" placeholder="admin@vipercell.com" autocomplete="email">
                     </div>
                     
                     <div class="form-group">
                         <label for="admin-pass"><i class="fa-solid fa-key text-primary"></i> Kata Sandi</label>
-                        <input type="password" id="admin-pass" class="form-control" placeholder="••••••••" autocomplete="current-password" onkeypress="if(event.key === 'Enter') window.processAdminLogin()">
+                        <div class="input-icon-right">
+                            <input type="password" id="admin-pass" class="form-control" placeholder="••••••••" autocomplete="current-password" onkeypress="if(event.key === 'Enter') window.processAdminLogin()">
+                            <button type="button" class="eye-toggle-btn" onclick="window.toggleAdminInputPass('admin-pass', this)"><i class="fa-regular fa-eye"></i></button>
+                        </div>
                     </div>
                     
-                    <button id="btn-admin-login" class="btn btn-primary btn-block" style="margin-top: 1.5rem; padding: 14px;" onclick="window.processAdminLogin()">
+                    <button id="btn-admin-login" class="btn btn-primary btn-block" style="margin-top: 1.4rem; padding: 13px;" onclick="window.processAdminLogin()">
                         <i class="fa-solid fa-right-to-bracket"></i> <span>Masuk ke Command Center</span>
                     </button>
                 </div>
@@ -104,7 +109,7 @@
                     <span id="admin-tab-order-badge" class="notif-dot badge-right"></span>
                 </button>
                 <button class="admin-tab" onclick="window.switchAdminTab('tab-livechat', this)">
-                    <i class="fa-solid fa-headset"></i> <span>Live Chat User</span> 
+                    <i class="fa-solid fa-headset"></i> <span>Live Chat & AI CS</span> 
                     <span id="admin-chat-tab-badge" class="notif-dot badge-right"></span>
                 </button>
 
@@ -125,9 +130,9 @@
                     <i class="fa-solid fa-newspaper"></i> <span>Berita & Komunitas</span>
                 </button>
                 
-                <span class="menu-label" style="margin-top: 16px;">KONFIGURASI</span>
+                <span class="menu-label" style="margin-top: 16px;">KONFIGURASI SISTEM</span>
                 <button class="admin-tab" onclick="window.switchAdminTab('tab-settings', this)">
-                    <i class="fa-solid fa-sliders"></i> <span>Pengaturan Web</span>
+                    <i class="fa-solid fa-sliders"></i> <span>Pengaturan & AI</span>
                 </button>
             </div>
             
@@ -158,24 +163,16 @@
                 </div>
                 
                 <div class="header-right">
-                    <!-- Tombol Instal PWA di Header Admin -->
                     <button id="btn-header-install-pwa" class="btn btn-outline btn-sm" onclick="window.triggerManualPwaInstall()" title="Instal Aplikasi Admin">
                         <i class="fa-solid fa-download"></i> <span class="hide-mobile">Instal App</span>
                     </button>
-                    <!-- Quick Toggle Buka/Tutup Toko -->
                     <button id="btn-quick-store-toggle" class="btn btn-sm btn-success" onclick="window.quickToggleStoreStatus()" title="Klik untuk Buka/Tutup Toko">
                         <i class="fa-solid fa-store"></i> <span class="hide-mobile" id="quick-store-text">TOKO BUKA</span>
                     </button>
-                    <!-- Izin Notifikasi Push Browser -->
-                    <button id="btn-admin-notif-perm" class="btn-icon-only" onclick="window.requestAdminNotificationPermission()" title="Aktifkan Push Notifikasi Sistem">
-                        <i class="fa-solid fa-bell" id="admin-notif-icon"></i>
-                    </button>
-                    <!-- Tombol Suara Notifikasi -->
                     <button id="btn-sound-toggle" class="btn-icon-only" aria-label="Suara Notifikasi" onclick="window.toggleSoundAlert()" title="Suara Notifikasi Order/Chat">
                         <i class="fa-solid fa-volume-high" id="admin-sound-icon"></i>
                     </button>
-                    <!-- Tema Terang/Gelap -->
-                    <button class="btn-icon-only" aria-label="Tema Admin" onclick="window.toggleTheme()" title="Ganti Tema">
+                    <button class="btn-icon-only" aria-label="Tema Admin" onclick="window.toggleTheme()" title="Mode Terang / Gelap">
                         <i class="fa-solid fa-sun" id="admin-theme-icon"></i>
                     </button>
                 </div>
@@ -185,7 +182,7 @@
                 
                 <!-- TAB 1: DASHBOARD & ANALITIK -->
                 <div id="tab-ringkasan" class="admin-tab-content active" style="display: block;">
-                    <div class="stats-grid" style="margin-bottom: 1.8rem;">
+                    <div class="stats-grid" style="margin-bottom: 1.6rem;">
                         <div class="stat-card">
                             <div class="stat-icon bg-accent-emerald"><i class="fa-solid fa-sack-dollar"></i></div>
                             <div class="stat-details">
@@ -217,7 +214,6 @@
                     </div>
                     
                     <div class="grid-2col">
-                        <!-- Top 5 Produk Terlaris -->
                         <div class="dashboard-panel">
                             <div class="panel-header flex-between align-center">
                                 <h3><i class="fa-solid fa-fire text-warning"></i> Top 5 Produk Terlaris</h3>
@@ -230,7 +226,6 @@
                             </div>
                         </div>
 
-                        <!-- 5 Pesanan Terbaru -->
                         <div class="dashboard-panel">
                             <div class="panel-header flex-between align-center">
                                 <h3><i class="fa-solid fa-bolt text-primary"></i> Aktivitas Pesanan Terbaru</h3>
@@ -297,12 +292,13 @@
                     </div>
                 </div>
                 
-                <!-- TAB 3: GUDANG STOK AKUN OTOMATIS (SUPPORT APP & TOOLS) -->
+                <!-- TAB 3: GUDANG STOK AKUN OTOMATIS (RAPI DI DESKTOP & MOBILE CARDS) -->
                 <div id="tab-stocks" class="admin-tab-content" style="display: none;">
-                    <div class="grid-2col" style="grid-template-columns: 1fr 1.6fr;">
-                        <div class="dashboard-panel">
+                    <div class="stock-layout-grid">
+                        <!-- Panel Input Stok Baru -->
+                        <div class="dashboard-panel" style="height: fit-content;">
                             <div class="panel-header">
-                                <h3><i class="fa-solid fa-folder-plus text-primary"></i> Input Stok Akun / Lisensi Baru</h3>
+                                <h3><i class="fa-solid fa-folder-plus text-primary"></i> Input Stok Akun / Lisensi</h3>
                             </div>
                             <div class="form-group">
                                 <label for="stock-brand-select">1. Pilih Brand (Aplikasi / Tools):</label>
@@ -315,7 +311,7 @@
                                 <select id="stock-item-select" class="form-control">
                                     <option value="">-- Pilih Brand Terlebih Dahulu --</option>
                                 </select>
-                                <small class="text-muted d-block mt-1">Sistem mencocokkan nama varian ini saat pembeli checkout otomatis.</small>
+                                <small class="text-muted d-block mt-1">Sistem mencocokkan varian ini secara otomatis saat pembeli checkout.</small>
                             </div>
                             <div class="form-group">
                                 <label for="stock-bulk-input">3. Data Stok (1 Baris = 1 Akun/Lisensi):</label>
@@ -326,7 +322,8 @@
                             </button>
                         </div>
                         
-                        <div class="dashboard-panel panel-flex">
+                        <!-- Panel Daftar Gudang Stok (Tabel di Desktop, Kartu Rapi di Mobile) -->
+                        <div class="dashboard-panel">
                             <div class="panel-header flex-between align-start-mobile" style="gap: 12px;">
                                 <div>
                                     <h3><i class="fa-solid fa-database text-primary"></i> Gudang Data Stok</h3>
@@ -336,32 +333,39 @@
                                     </div>
                                 </div>
                                 <div class="flex-wrap-gap w-mobile-100">
-                                    <select id="view-stock-category" class="form-control select-compact" onchange="window.renderAdminStocksByCategory()">
+                                    <select id="view-stock-category" class="form-control select-compact flex-1" onchange="window.renderAdminStocksByCategory()">
                                         <option value="">-- Pilih Brand Untuk Dilihat --</option>
                                     </select>
-                                    <button class="btn btn-danger btn-sm" onclick="window.deleteUsedStocksByCategory()" title="Bersihkan stok yang sudah terjual di kategori ini">
+                                    <button class="btn btn-danger btn-sm" onclick="window.deleteUsedStocksByCategory()" title="Bersihkan stok yang sudah terjual">
                                         <i class="fa-solid fa-trash-can"></i> Hapus Terjual
                                     </button>
                                 </div>
                             </div>
-                            <div class="table-responsive flex-grow">
-                                <table class="modern-table" style="min-width: 650px;">
+
+                            <!-- Tampilan Tabel (Khusus Desktop) -->
+                            <div class="table-responsive hide-mobile">
+                                <table class="modern-table" style="min-width: 100%;">
                                     <thead><tr><th>No</th><th>Varian Item</th><th>Kredensial / Kode</th><th>Info Tambahan</th><th>Status</th><th>Aksi</th></tr></thead>
                                     <tbody id="admin-stock-list">
-                                        <tr><td colspan="6" class="text-center text-muted" style="padding: 3rem;"><i class="fa-solid fa-filter" style="font-size:2rem; margin-bottom:10px; display:block;"></i> Pilih kategori brand di atas untuk menampilkan daftar stok.</td></tr>
+                                        <tr><td colspan="6" class="text-center text-muted" style="padding: 3rem;">Pilih kategori brand di atas untuk menampilkan daftar stok.</td></tr>
                                     </tbody>
                                 </table>
+                            </div>
+
+                            <!-- Tampilan Kartu Rapi (Khusus Mobile) -->
+                            <div id="admin-stock-mobile-cards" class="stock-mobile-list hide-desktop-block">
+                                <div class="text-center text-muted p-3">Pilih kategori brand di atas untuk menampilkan daftar stok.</div>
                             </div>
                         </div>
                     </div>
                 </div>
                 
-                <!-- TAB 4: KATALOG & HARGA PRODUK (DENGAN FILTER & PENCARIAN ADMIN) -->
+                <!-- TAB 4: KATALOG & HARGA PRODUK -->
                 <div id="tab-products" class="admin-tab-content" style="display: none;">
                     <div class="panel-toolbar highlight-toolbar">
                         <div class="toolbar-title">
                             <h3><i class="fa-solid fa-boxes-stacked text-primary"></i> Pusat Manajemen Katalog & Harga</h3>
-                            <p>Kelola produk Aplikasi Premium, Top Up Game, dan Tools Digital secara rapi dan modern.</p>
+                            <p>Kelola produk Aplikasi Premium, Top Up Game, dan Tools Digital secara rapi dan cepat.</p>
                         </div>
                         <div class="toolbar-action w-mobile-100">
                             <button class="btn btn-primary btn-block" onclick="window.openProductGroupModal()">
@@ -370,7 +374,6 @@
                         </div>
                     </div>
 
-                    <!-- Filter Kategori Katalog Admin -->
                     <div class="order-filter-bar mb-3">
                         <div class="filter-pills">
                             <button class="filter-pill active" onclick="window.setAdminProdFilter('all', this)">Semua Kategori</button>
@@ -425,7 +428,7 @@
                     </div>
                 </div>
                 
-                <!-- TAB 7: BERITA & KOMUNITAS (TAMPILAN KARTU BARU) -->
+                <!-- TAB 7: BERITA & KOMUNITAS -->
                 <div id="tab-news" class="admin-tab-content" style="display: none;">
                     <div class="grid-2col" style="grid-template-columns: 1.5fr 1fr;">
                         <div class="dashboard-panel">
@@ -475,7 +478,7 @@
                                     <div style="display:flex; align-items:center; gap:10px;">
                                         <button class="btn-icon-only hide-desktop" style="width: 34px; height: 34px;" id="btn-back-chat" onclick="window.backToChatListMobile()"><i class="fa-solid fa-arrow-left"></i></button>
                                         <div>
-                                            <h3 id="admin-chat-title-desk" style="margin:0; font-size:1.05rem;">Nama Pelanggan</h3>
+                                            <h3 id="admin-chat-title-desk" style="margin:0; font-size:1.02rem;">Nama Pelanggan</h3>
                                             <small class="text-success fw-bold"><i class="fa-solid fa-circle" style="font-size:0.5rem;"></i> Live Chat Aktif</small>
                                         </div>
                                     </div>
@@ -489,7 +492,7 @@
                                 <div class="chat-quick-replies">
                                     <button class="btn btn-outline btn-sm flex-shrink-0" onclick="window.insertQuickReplyDesk('Halo kak, ada yang bisa Admin Vipercell bantu?')">👋 Halo</button>
                                     <button class="btn btn-outline btn-sm flex-shrink-0" onclick="window.insertQuickReplyDesk('Baik kak, pembayaran sudah masuk dan pesanan sedang kami proses ya.')">⚡ Diproses</button>
-                                    <button class="btn btn-outline btn-sm flex-shrink-0" onclick="window.insertQuickReplyDesk('Pesanan kakak sudah selesai dikirim! Silakan cek di menu Lacak/Pesanan ya. Terima kasih!')">✅ Selesai</button>
+                                    <button class="btn btn-outline btn-sm flex-shrink-0" onclick="window.insertQuickReplyDesk('Pesanan kakak sudah selesai dikirim! Silakan cek di menu Pesanan ya. Terima kasih!')">✅ Selesai</button>
                                     <button class="btn btn-outline btn-sm flex-shrink-0" onclick="window.insertQuickReplyDesk('Untuk klaim garansi, mohon lampirkan kendala beserta ID Invoice pesanan kakak ya.')">🛡️ Garansi</button>
                                 </div>
                                 
@@ -503,13 +506,14 @@
                     </div>
                 </div>
                 
-                <!-- TAB 9: PENGATURAN WEB (SETTINGS + AUTO-RECOVERY) -->
+                <!-- TAB 9: PENGATURAN WEB, IKON PWA & ASISTEN AI GEMINI -->
                 <div id="tab-settings" class="admin-tab-content" style="display: none;">
                     <div class="grid-2col">
-                        <!-- Identitas & Tampilan Toko -->
+                        
+                        <!-- 1. IDENTITAS TOKO & IKON PWA SENDIRI -->
                         <div class="dashboard-panel">
                             <div class="panel-header">
-                                <h3><i class="fa-solid fa-palette text-primary"></i> Identitas & Tampilan Web</h3>
+                                <h3><i class="fa-solid fa-palette text-primary"></i> Identitas Toko & Ikon Aplikasi PWA</h3>
                             </div>
                             <div class="grid-2col" style="gap: 10px;">
                                 <div class="form-group">
@@ -522,66 +526,142 @@
                                 </div>
                             </div>
                             
+                            <!-- Upload Logo Header Web -->
                             <div class="form-group">
-                                <label>Logo Gambar / Ikon Toko</label>
+                                <label>Logo Header Website</label>
                                 <div class="file-upload-box">
-                                    <button class="btn btn-outline btn-sm" onclick="document.getElementById('logo-upload').click()"><i class="fa-solid fa-upload"></i> Pilih File</button>
-                                    <span id="set-logo-file-name" class="text-muted text-sm flex-1 ms-2">Tersimpan</span>
+                                    <button class="btn btn-outline btn-sm" onclick="document.getElementById('logo-upload').click()"><i class="fa-solid fa-upload"></i> Pilih Logo</button>
+                                    <span id="set-logo-file-name" class="text-muted text-xs flex-1 ms-2">Tersimpan</span>
                                     <input type="file" id="logo-upload" accept="image/*" style="display: none;">
                                     <input type="hidden" id="set-logo-base64">
                                 </div>
-                                <img id="set-logo-preview" src="" alt="Preview Logo" class="mt-2" style="display: none; max-height: 48px; border-radius: 8px; border: 2px solid var(--border);">
+                                <img id="set-logo-preview" src="" alt="Preview Logo" class="mt-2" style="display: none; max-height: 44px; border-radius: 8px; border: 1.5px solid var(--border);">
+                            </div>
+
+                            <!-- Upload Ikon Khusus Aplikasi PWA -->
+                            <div class="form-group">
+                                <label><i class="fa-solid fa-mobile-screen-button text-primary"></i> Ikon Khusus Aplikasi PWA (Home Screen Icon)</label>
+                                <div class="file-upload-box">
+                                    <button class="btn btn-outline btn-sm" onclick="document.getElementById('pwa-icon-upload').click()"><i class="fa-solid fa-image"></i> Upload Ikon PWA</button>
+                                    <span id="set-pwa-file-name" class="text-muted text-xs flex-1 ms-2">Otomatis ikuti logo</span>
+                                    <input type="file" id="pwa-icon-upload" accept="image/*" style="display: none;">
+                                    <input type="hidden" id="set-pwa-icon-base64">
+                                </div>
+                                <div style="display:flex; align-items:center; gap:10px; margin-top:8px;">
+                                    <img id="set-pwa-icon-preview" src="" alt="Preview PWA" style="display: none; width: 48px; height: 48px; object-fit: cover; border-radius: 10px; border: 1.5px solid var(--border);">
+                                    <small class="text-muted text-xs">Gunakan gambar persegi (1:1) agar tampilan ikon saat diinstal di HP terlihat tajam.</small>
+                                </div>
                             </div>
 
                             <div class="form-group">
                                 <label for="set-marquee">Teks Pengumuman Berjalan (Marquee)</label>
-                                <textarea id="set-marquee" class="form-control" rows="3" placeholder="Selamat datang di Vipercell! Promo diskon setiap hari..."></textarea>
+                                <textarea id="set-marquee" class="form-control" rows="2" placeholder="Selamat datang di Vipercell! Promo diskon setiap hari..."></textarea>
                             </div>
 
-                            <div class="toggle-box info-box bg-primary-light border-primary mt-3">
+                            <div class="toggle-box info-box bg-primary-light border-primary mt-2">
                                 <label for="set-store-status" class="fw-bold text-dark mb-0 flex-1 pointer">Status Operasional Toko (Buka / Tutup)</label>
                                 <input type="checkbox" id="set-store-status" class="large-checkbox" checked>
                             </div>
 
+                            <!-- Sakelar Lonceng Notifikasi Admin (ON/OFF) -->
+                            <div class="notif-admin-card mt-2">
+                                <div style="display:flex; align-items:center; gap:10px;">
+                                    <i class="fa-solid fa-bell text-primary" id="set-admin-bell-icon" style="font-size:1.1rem;"></i>
+                                    <div>
+                                        <strong class="text-dark text-xs d-block">Push Notifikasi Browser Admin</strong>
+                                        <span id="set-admin-notif-status" class="text-muted text-xs">Status: Memeriksa...</span>
+                                    </div>
+                                </div>
+                                <button id="btn-set-admin-notif" class="btn btn-sm btn-primary" onclick="window.toggleAdminNotificationSetting()">Aktifkan</button>
+                            </div>
+
                             <button class="btn btn-primary btn-block mt-3" onclick="window.saveSettingsManual(true)">
-                                <i class="fa-solid fa-floppy-disk"></i> Simpan Pengaturan Identitas
+                                <i class="fa-solid fa-floppy-disk"></i> Simpan Identitas & PWA
                             </button>
                         </div>
                         
-                        <!-- Pembayaran QRIS & Kontak Sosial -->
+                        <!-- 2. KONFIGURASI ASISTEN AI GEMINI (AUTO-REPLY LIVE CHAT) -->
+                        <div class="dashboard-panel">
+                            <div class="panel-header flex-between align-center">
+                                <h3><i class="fa-solid fa-wand-magic-sparkles text-primary"></i> Asisten AI Customer Service (Gemini)</h3>
+                                <span id="ai-status-pill" class="status-badge status-unpaid">NONAKTIF</span>
+                            </div>
+                            <p class="text-muted text-xs mb-3">
+                                Saat diaktifkan, Asisten AI akan otomatis membalas pesan pembeli di Live Chat jika Admin belum membalas melewati batas waktu tunggu yang diatur di bawah.
+                            </p>
+
+                            <div class="toggle-box info-box bg-accent-purple border-primary mb-3">
+                                <label for="set-ai-enabled" class="fw-bold text-dark mb-0 flex-1 pointer">
+                                    <i class="fa-solid fa-robot"></i> Aktifkan Balasan Otomatis AI Gemini
+                                </label>
+                                <input type="checkbox" id="set-ai-enabled" class="large-checkbox">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="set-gemini-key"><i class="fa-solid fa-key text-primary"></i> Google Gemini API Key</label>
+                                <div class="input-icon-right">
+                                    <input type="password" id="set-gemini-key" class="form-control code-input" placeholder="AIzaSy...">
+                                    <button type="button" class="eye-toggle-btn" onclick="window.toggleAdminInputPass('set-gemini-key', this)"><i class="fa-regular fa-eye"></i></button>
+                                </div>
+                                <small class="text-muted text-xs d-block mt-1">Dapatkan API Key gratis di Google AI Studio (Model: <code>gemini-2.5-flash</code>).</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="set-ai-delay"><i class="fa-regular fa-clock text-primary"></i> Waktu Tunggu Sebelum AI Membalas (Detik)</label>
+                                <input type="number" id="set-ai-delay" class="form-control" min="3" max="600" placeholder="Contoh: 20">
+                                <small class="text-muted text-xs d-block mt-1">Jika Admin membalas sebelum waktu ini habis, AI otomatis batal membalas.</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="set-ai-prompt"><i class="fa-solid fa-comment-dots text-primary"></i> Instruksi Tambahan untuk AI (Opsional)</label>
+                                <textarea id="set-ai-prompt" class="form-control" rows="3" placeholder="Contoh: Beritahu pembeli bahwa garansi klaim maksimal 1x24 jam dengan menyertakan screenshot kendala..."></textarea>
+                            </div>
+
+                            <div class="flex-wrap-gap mt-3">
+                                <button type="button" id="btn-test-ai" class="btn btn-outline flex-1" onclick="window.testGeminiApiConnection()">
+                                    <i class="fa-solid fa-plug-circle-check"></i> Tes Koneksi AI
+                                </button>
+                                <button type="button" class="btn btn-primary flex-1" onclick="window.saveSettingsManual(true)">
+                                    <i class="fa-solid fa-floppy-disk"></i> Simpan Konfigurasi AI
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 3. PEMBAYARAN QRIS & KONTAK SOSIAL -->
                         <div class="dashboard-panel">
                             <div class="panel-header">
                                 <h3><i class="fa-solid fa-qrcode text-primary"></i> Payload QRIS & Kontak CS</h3>
                             </div>
                             <div class="form-group">
-                                <label for="set-qris-string">String Payload QRIS Statis</label>
-                                <textarea id="set-qris-string" class="form-control code-input text-sm" rows="4" placeholder="000201010211...6304"></textarea>
-                                <small class="text-muted mt-1 d-block">Sistem otomatis merakit nominal dinamis + CRC16 dari kode QRIS statis Anda.</small>
+                                <label for="set-qris-string">String Payload QRIS Statis (EMVCo)</label>
+                                <textarea id="set-qris-string" class="form-control code-input text-xs" rows="4" placeholder="000201010211...6304XXXX"></textarea>
+                                <small class="text-muted mt-1 d-block">Mesin EMVCo TLV V22 otomatis mengubah kode statis di atas menjadi QRIS Dinamis yang valid di semua aplikasi bank & e-wallet.</small>
                             </div>
-                            <hr style="border:none; border-top:1.5px dashed var(--border-subtle); margin:1.2rem 0;">
-                            <div class="form-group">
-                                <label for="set-wa"><i class="fa-brands fa-whatsapp text-success"></i> Nomor WhatsApp CS</label>
-                                <input type="text" id="set-wa" class="form-control" placeholder="Contoh: 085656321860">
+                            <div class="grid-2col" style="gap: 10px;">
+                                <div class="form-group mb-0">
+                                    <label for="set-wa"><i class="fa-brands fa-whatsapp text-success"></i> WhatsApp CS</label>
+                                    <input type="text" id="set-wa" class="form-control" placeholder="085656321860">
+                                </div>
+                                <div class="form-group mb-0">
+                                    <label for="set-ig"><i class="fa-brands fa-instagram text-danger"></i> Link Instagram</label>
+                                    <input type="text" id="set-ig" class="form-control" placeholder="https://instagram.com/...">
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label for="set-ig"><i class="fa-brands fa-instagram text-danger"></i> Link Profil Instagram</label>
-                                <input type="text" id="set-ig" class="form-control" placeholder="https://instagram.com/vipercell...">
-                            </div>
-                            <div class="form-group">
+                            <div class="form-group mt-2">
                                 <label for="set-tt"><i class="fa-brands fa-tiktok"></i> Link Profil TikTok</label>
-                                <input type="text" id="set-tt" class="form-control" placeholder="https://tiktok.com/@vipercell...">
+                                <input type="text" id="set-tt" class="form-control" placeholder="https://tiktok.com/@...">
                             </div>
-                            <button class="btn btn-primary btn-block mt-3" onclick="window.saveSettingsManual(true)">
-                                <i class="fa-solid fa-floppy-disk"></i> Simpan Pembayaran & Kontak
+                            <button class="btn btn-primary btn-block mt-2" onclick="window.saveSettingsManual(true)">
+                                <i class="fa-solid fa-floppy-disk"></i> Simpan QRIS & Kontak
                             </button>
                         </div>
                         
-                        <!-- Panel Banner Slider Utama -->
-                        <div class="dashboard-panel" style="grid-column: 1 / -1;">
+                        <!-- 4. PANEL BANNER SLIDER UTAMA -->
+                        <div class="dashboard-panel">
                             <div class="panel-header flex-between align-center">
-                                <h3><i class="fa-solid fa-images text-primary"></i> Spanduk / Banner Promo Utama</h3>
+                                <h3><i class="fa-solid fa-images text-primary"></i> Spanduk / Banner Promo</h3>
                                 <button class="btn btn-primary btn-sm" onclick="document.getElementById('banner-upload').click()">
-                                    <i class="fa-solid fa-plus"></i> Upload Banner Baru
+                                    <i class="fa-solid fa-plus"></i> Upload Banner
                                 </button>
                             </div>
                             <input type="file" id="banner-upload" accept="image/*" style="display: none;">
@@ -659,7 +739,7 @@
         </div>
     </div>
 
-    <!-- MODAL TAMBAH/EDIT BERITA (DENGAN PREVIEW GAMBAR) -->
+    <!-- MODAL TAMBAH/EDIT BERITA -->
     <div class="modal-overlay" id="modal-manage-news">
         <div class="modal-content">
             <div class="modal-header">
@@ -747,7 +827,7 @@
         </div>
     </div>
 
-    <!-- MODAL MANAJEMEN PRODUK BARU (DESAIN MODERN 2-BAGIAN + KATEGORI TOOLS) -->
+    <!-- MODAL MANAJEMEN PRODUK BARU (DENGAN BULK PRICE ADJUSTER & KLONING) -->
     <div class="modal-overlay" id="modal-manage-product">
         <div class="modal-content large">
             <div class="modal-header">
@@ -756,9 +836,7 @@
             </div>
             <input type="hidden" id="manage-prod-old-brand">
             
-            <!-- BAGIAN 1: IDENTITAS & LOGO PRODUK -->
             <div class="prod-modal-top-grid mb-3">
-                <!-- Kotak Upload & Preview Gambar -->
                 <div class="prod-logo-uploader" onclick="document.getElementById('manage-prod-img-file').click()" title="Klik untuk ganti ikon produk">
                     <img id="manage-prod-img-preview" src="" alt="Preview" style="display:none; width:100%; height:100%; object-fit:cover;">
                     <div id="manage-prod-img-placeholder" class="uploader-placeholder">
@@ -769,8 +847,7 @@
                     <input type="hidden" id="manage-prod-img-base64">
                 </div>
 
-                <!-- Form Kategori & Nama Brand -->
-                <div style="flex:1;">
+                <div style="flex:1; width:100%;">
                     <div class="grid-2col" style="gap: 10px;">
                         <div class="form-group mb-2">
                             <label for="manage-prod-type">1. Kategori Layanan</label>
@@ -789,11 +866,10 @@
                         <label for="manage-prod-desc">3. Deskripsi & Panduan Singkat (Opsional)</label>
                         <textarea id="manage-prod-desc" class="form-control" rows="2" placeholder="Tulis informasi garansi, cara pemakaian, atau catatan penting..."></textarea>
                     </div>
-                    <small id="manage-prod-file-name" class="text-muted text-xs d-block mt-1">Klik kotak kamera di kiri untuk mengunggah gambar (Auto WebP).</small>
+                    <small id="manage-prod-file-name" class="text-muted text-xs d-block mt-1">Klik kotak kamera untuk mengunggah gambar (Auto WebP).</small>
                 </div>
             </div>
             
-            <!-- BAGIAN 2: FORMAT INPUT TUJUAN (TAMPIL UNTUK GAME & TOOLS) -->
             <div id="group-tipe-input" class="dashboard-panel bg-surface-hover mb-3" style="padding: 1rem;">
                 <label class="fw-bold d-block mb-2 text-sm"><i class="fa-solid fa-keyboard text-primary"></i> Format Input Data Tujuan Pembeli:</label>
                 <div class="input-type-grid">
@@ -816,16 +892,18 @@
                 </div>
             </div>
             
-            <!-- BAGIAN 3: BUILDER VARIAN HARGA MODERN -->
             <div class="dashboard-panel bg-surface-hover mb-3" style="padding: 1.2rem;">
-                <div class="flex-between align-center mb-2">
+                <div class="flex-between align-center flex-wrap-gap mb-2">
                     <label class="fw-bold mb-0"><i class="fa-solid fa-tags text-primary"></i> Daftar Varian & Harga (<span id="temp-nom-count">0</span> Varian)</label>
-                    <button type="button" class="btn btn-outline btn-sm" style="padding:3px 8px; min-height:28px; font-size:0.72rem;" onclick="window.sortTempNominalsByPrice()">
-                        <i class="fa-solid fa-arrow-down-1-9"></i> Urutkan Termurah
-                    </button>
+                    <div class="flex-wrap-gap">
+                        <button type="button" class="btn btn-outline btn-sm" style="padding:3px 8px; min-height:28px; font-size:0.7rem;" onclick="window.adjustAllTempPrices(1000)" title="Naikkan semua varian +Rp1.000">+Rp1rb Semua</button>
+                        <button type="button" class="btn btn-outline btn-sm" style="padding:3px 8px; min-height:28px; font-size:0.7rem;" onclick="window.adjustAllTempPrices(-1000)" title="Turunkan semua varian -Rp1.000">-Rp1rb Semua</button>
+                        <button type="button" class="btn btn-outline btn-sm" style="padding:3px 8px; min-height:28px; font-size:0.7rem;" onclick="window.sortTempNominalsByPrice()">
+                            <i class="fa-solid fa-arrow-down-1-9"></i> Urutkan Harga
+                        </button>
+                    </div>
                 </div>
                 
-                <!-- Input Bar Varian -->
                 <div class="info-box bg-bg border-border mb-3">
                     <input type="hidden" id="temp-nom-index" value="-1">
                     <div class="flex-wrap-gap align-end">
@@ -853,7 +931,6 @@
                     </div>
                 </div>
                 
-                <!-- List Varian Tersimpan -->
                 <div id="manage-prod-nominals-list" class="variant-list-admin"></div>
             </div>
             
@@ -898,10 +975,10 @@
         </div>
     </div>
 
-    <!-- Script Utama Admin -->
+    <!-- Script Utama Admin V22 -->
     <script type="module" src="js/admin.js" defer></script>
 
-    <!--Registrasi PWA Service Worker Admin -->
+    <!-- Registrasi PWA Service Worker Admin -->
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
@@ -943,6 +1020,19 @@
             pwaBanner.style.display = 'none';
             localStorage.setItem('viperadmin_pwa_dismissed', 'true');
         });
+
+        window.toggleAdminInputPass = function(id, btnEl) {
+            const inp = document.getElementById(id);
+            if (!inp) return;
+            const ico = btnEl.querySelector('i');
+            if (inp.type === 'password') {
+                inp.type = 'text';
+                if (ico) ico.className = 'fa-regular fa-eye-slash';
+            } else {
+                inp.type = 'password';
+                if (ico) ico.className = 'fa-regular fa-eye';
+            }
+        };
     </script>
 </body>
 </html>
