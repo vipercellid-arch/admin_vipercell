@@ -21,7 +21,7 @@ const pathUsers = isWorkspace ? `artifacts/${appId}/public/data/users` : 'users'
 const pathReviews = isWorkspace ? `artifacts/${appId}/public/data/reviews` : 'reviews';
 
 // ==========================================
-// STATE & VARIABEL GLOBAL (ADMIN)
+// STATE & VARIABEL GLOBAL (ADMIN V20)
 // ==========================================
 let products = [];
 let groupedBrands = []; 
@@ -29,9 +29,9 @@ let orders = [];
 let promos = [];
 let reviewsList = [];
 let allLiveChats = [];
-let currentOrderFilter = 'ALL';
 
 let adminChatUnsubscribe = null; 
+let isAdminListening = false;
 
 let siteSettings = { 
     logoText: 'VIPER', logoAccent: 'CELL', logoImgBase64: '', marquee: '',
@@ -42,40 +42,37 @@ let siteSettings = {
 let currentAdminUser = null;
 let isSettingsLoaded = false;
 let currentGroupNominals = [];
+let currentOrderFilter = 'ALL';
+let isSoundEnabled = localStorage.getItem('vipercell_admin_sound') !== 'off';
 
-// Variabel Memori (Sistem Anti-Spam Notifikasi & Auto-Process Lock)
+// Variabel Memori (Sistem Anti-Spam Notifikasi & Auto-Delivery)
 let isInitialOrderLoad = true;
 let isInitialChatLoad = true;
 let previousOrdersData = {};
 let previousChatMsgCount = {};
-let autoProcessingLocks = {};
+let processingAutoOrderIds = new Set();
 window.tempProcessStocks = []; 
 
-// Status Suara Notifikasi Browser
-let isSoundEnabled = localStorage.getItem('vipercell_admin_sound') !== 'false';
-
 // ==========================================
-// UTILITAS KEAMANAN TEKS & KARAKTER KUTIP
+// UTILITAS KEAMANAN TEKS & SOUND SYNTHESIZER
 // ==========================================
 window.escapeHtml = function(str) {
     if (!str) return '';
     return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
 };
 
-window.escapeJsStr = function(str) {
+function escapeJsStr(str) {
     if (!str) return '';
     return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
-};
+}
 
-// ==========================================
-// NOTIFIKASI SUARA WEB AUDIO (PENGGANTI TELEGRAM)
-// ==========================================
-window.playAdminDing = function(type = 'order') {
+// Notifikasi Suara (Web Audio API - Tanpa File Eksternal)
+function playNotificationSound(type = 'order') {
     if (!isSoundEnabled) return;
     try {
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -86,49 +83,60 @@ window.playAdminDing = function(type = 'order') {
         osc.connect(gain);
         gain.connect(ctx.destination);
 
+        const now = ctx.currentTime;
         if (type === 'order') {
             osc.type = 'triangle';
-            osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
-            osc.frequency.setValueAtTime(880, ctx.currentTime + 0.12); // A5
-            gain.gain.setValueAtTime(0.25, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
-            osc.start(ctx.currentTime);
-            osc.stop(ctx.currentTime + 0.45);
+            osc.frequency.setValueAtTime(587.33, now); // D5
+            osc.frequency.setValueAtTime(880, now + 0.12); // A5
+            gain.gain.setValueAtTime(0.18, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+            osc.start(now);
+            osc.stop(now + 0.45);
         } else {
             osc.type = 'sine';
-            osc.frequency.setValueAtTime(659.25, ctx.currentTime); // E5
-            osc.frequency.setValueAtTime(783.99, ctx.currentTime + 0.1); // G5
-            gain.gain.setValueAtTime(0.2, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
-            osc.start(ctx.currentTime);
-            osc.stop(ctx.currentTime + 0.35);
+            osc.frequency.setValueAtTime(659.25, now); // E5
+            osc.frequency.setValueAtTime(783.99, now + 0.1); // G5
+            gain.gain.setValueAtTime(0.15, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+            osc.start(now);
+            osc.stop(now + 0.35);
         }
-    } catch (e) {
-        // Abaikan jika browser memblokir autoplay sebelum interaksi pertama
-    }
-};
+    } catch (e) {}
+}
 
 window.toggleSoundAlert = function() {
     isSoundEnabled = !isSoundEnabled;
-    localStorage.setItem('vipercell_admin_sound', isSoundEnabled ? 'true' : 'false');
+    localStorage.setItem('vipercell_admin_sound', isSoundEnabled ? 'on' : 'off');
     updateSoundIconUI();
     if (isSoundEnabled) {
-        window.playAdminDing('chat');
+        playNotificationSound('chat');
         window.showToast('Suara Aktif', 'Notifikasi suara pesanan & chat diaktifkan.', 'success');
     } else {
-        window.showToast('Suara Bisu', 'Notifikasi suara dimatikan.', 'info');
+        window.showToast('Suara Dimatikan', 'Notifikasi suara telah dibisukan.', 'info');
     }
 };
 
 function updateSoundIconUI() {
     const icon = document.getElementById('admin-sound-icon');
+    const btn = document.getElementById('btn-sound-toggle');
     if (icon) {
-        icon.className = isSoundEnabled ? 'fa-solid fa-volume-high text-success' : 'fa-solid fa-volume-xmark text-danger';
+        icon.className = isSoundEnabled ? 'fa-solid fa-volume-high' : 'fa-solid fa-volume-xmark';
+    }
+    if (btn) {
+        btn.style.background = isSoundEnabled ? 'var(--accent-yellow)' : 'var(--surface)';
+        btn.style.color = isSoundEnabled ? '#0f172a' : 'var(--text-muted)';
     }
 }
 
+window.copyTextToClipboard = function(text, label = 'Data') {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+        window.showToast('Tersalin', `${label} berhasil disalin ke papan klip!`, 'success');
+    });
+};
+
 // ==========================================
-// UTILITAS UMUM & UI NEO-BRUTALISM
+// UTILITAS UMUM & UI DASAR
 // ==========================================
 window.resizeImageBase64 = function(file, callback, maxWidth, maxHeight) {
     const reader = new FileReader();
@@ -180,10 +188,10 @@ window.customAlert = (title, message, type = 'info') => {
     if(extraEl) extraEl.innerHTML = '';
     if(iconEl) {
         iconEl.className = `msg-icon ${type}`;
-        if(type === 'success') iconEl.innerHTML = '<i class="fa-solid fa-circle-check text-success"></i>';
-        else if(type === 'error') iconEl.innerHTML = '<i class="fa-solid fa-circle-xmark text-danger"></i>';
-        else if(type === 'warning') iconEl.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-warning"></i>';
-        else iconEl.innerHTML = '<i class="fa-solid fa-circle-info text-primary"></i>';
+        if(type === 'success') iconEl.innerHTML = '<i class="fa-solid fa-circle-check"></i>';
+        else if(type === 'error') iconEl.innerHTML = '<i class="fa-solid fa-circle-xmark"></i>';
+        else if(type === 'warning') iconEl.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i>';
+        else iconEl.innerHTML = '<i class="fa-solid fa-circle-info"></i>';
     }
     if(alertEl) alertEl.classList.add('active');
     document.body.classList.add('no-scroll');
@@ -224,15 +232,18 @@ window.openConfirm = function(title, message, callback, actionType = 'warning') 
     if (iconContainer && confirmBtn) {
         if (actionType === 'delete') {
             iconContainer.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
-            iconContainer.className = 'msg-icon bg-danger-light text-danger';
+            iconContainer.style.background = 'var(--danger)';
+            iconContainer.style.color = '#ffffff';
             confirmBtn.className = 'btn btn-danger flex-1';
         } else if (actionType === 'success') {
             iconContainer.innerHTML = '<i class="fa-solid fa-circle-check"></i>';
-            iconContainer.className = 'msg-icon bg-success-light text-success';
+            iconContainer.style.background = 'var(--success)';
+            iconContainer.style.color = '#0f172a';
             confirmBtn.className = 'btn btn-success flex-1';
         } else {
             iconContainer.innerHTML = '<i class="fa-solid fa-circle-question"></i>';
-            iconContainer.className = 'msg-icon bg-warning-light text-warning';
+            iconContainer.style.background = 'var(--accent-yellow)';
+            iconContainer.style.color = '#0f172a';
             confirmBtn.className = 'btn btn-primary flex-1';
         }
     }
@@ -247,9 +258,9 @@ window.resolveConfirm = function(isConfirmed) {
 window.switchAdminTab = function(tabId, btnEl) {
     document.querySelectorAll('.admin-tab').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.admin-tab-content').forEach(c => c.style.display = 'none');
-    if(btnEl) btnEl.classList.add('active');
+    if (btnEl) btnEl.classList.add('active');
     const targetEl = document.getElementById(tabId);
-    if(targetEl) targetEl.style.display = 'block';
+    if (targetEl) targetEl.style.display = 'block';
     
     const titleText = btnEl && btnEl.querySelector('span') ? btnEl.querySelector('span').innerText : 'Command Center';
     const pageTitle = document.getElementById('admin-page-title');
@@ -264,17 +275,8 @@ window.switchAdminTab = function(tabId, btnEl) {
 window.jumpToPendingOrders = function() {
     const orderTabBtn = document.querySelectorAll('.admin-tab')[1];
     window.switchAdminTab('tab-orders', orderTabBtn);
-    const pillBtns = document.querySelectorAll('.filter-pill');
-    if (pillBtns.length > 1) {
-        window.setAdminOrderFilter('NEED_ACTION', pillBtns[1]);
-    }
-};
-
-window.copyTextHelper = function(text, label = 'Data') {
-    if (!text) return;
-    navigator.clipboard.writeText(text).then(() => {
-        window.showToast('Tersalin!', `${label} berhasil disalin ke clipboard.`, 'success');
-    });
+    const pillNeedAction = document.querySelectorAll('.filter-pill')[1];
+    window.setAdminOrderFilter('NEED_ACTION', pillNeedAction);
 };
 
 // ==========================================
@@ -300,11 +302,12 @@ async function verifyAdminAccess(user) {
         const emailLbl = document.getElementById('admin-logged-email');
         if (emailLbl) emailLbl.innerText = user.email || 'Otoritas Penuh';
         
-        window.showToast('Akses Diterima', 'Selamat datang di Vipercell Admin V20!', 'success');
+        updateSoundIconUI();
+        window.showToast('Sistem Siap', `Selamat bertugas kembali, Admin!`, 'success');
         listenAdminData();
     } else {
         await signOut(auth);
-        window.customAlert('Akses Ditolak', 'Akun ini tidak memiliki otoritas Administrator.', 'error');
+        window.customAlert('Akses Ditolak', 'Akun ini tidak memiliki izin akses Administrator Vipercell.', 'error');
         resetLoginButtons();
     }
 }
@@ -328,7 +331,7 @@ window.processAdminLogin = async function() {
     try {
         await signInWithEmailAndPassword(auth, em, pw);
     } catch(e) {
-        window.customAlert('Akses Ditolak', 'Email atau Kata Sandi tidak valid.', 'error');
+        window.customAlert('Akses Ditolak', 'Email atau kata sandi administrator tidak valid.', 'error');
         resetLoginButtons();
     }
 };
@@ -342,7 +345,7 @@ window.processAdminGoogleLogin = async function() {
     try {
         await signInWithPopup(auth, provider);
     } catch(e) {
-        window.customAlert('Batal / Gagal', 'Login Google dibatalkan atau gagal.', 'error');
+        window.customAlert('Akses Ditolak', 'Otentikasi Google gagal atau dibatalkan.', 'error');
         resetLoginButtons();
     }
 };
@@ -356,13 +359,25 @@ async function initAdminApp() {
     const savedTheme = localStorage.getItem('vipercell_theme') || 'dark';
     const icon = document.getElementById('admin-theme-icon');
     if(icon) icon.className = savedTheme === 'dark' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
-    updateSoundIconUI();
     
-    // Perbaikan Bug Resize Live Chat Mobile -> Desktop
+    await setPersistence(auth, browserLocalPersistence);
+    
+    onAuthStateChanged(auth, async (user) => {
+        if (user) {
+            await verifyAdminAccess(user);
+        } else {
+            document.getElementById('admin-login-screen').style.display = 'flex';
+            document.getElementById('admin-dashboard').style.display = 'none';
+            resetLoginButtons();
+        }
+    });
+
+    // Perbaikan Bug Responsif Live Chat saat layar diubah ukurannya (Mobile <-> Desktop)
     window.addEventListener('resize', () => {
         const mainPanel = document.getElementById('admin-chat-main-panel');
         const sidePanel = document.getElementById('admin-chat-sidebar-panel');
         if (!mainPanel || !sidePanel) return;
+
         if (window.innerWidth > 768) {
             sidePanel.style.display = 'flex';
             mainPanel.style.display = 'flex';
@@ -379,24 +394,11 @@ async function initAdminApp() {
             }
         }
     });
-
-    await setPersistence(auth, browserLocalPersistence);
-    
-    onAuthStateChanged(auth, async (user) => {
-        if (user) {
-            await verifyAdminAccess(user);
-        } else {
-            document.getElementById('admin-login-screen').style.display = 'flex';
-            document.getElementById('admin-dashboard').style.display = 'none';
-            resetLoginButtons();
-        }
-    });
 }
 
 // ==========================================
-// DATA LISTENERS (REAL-TIME FIRESTORE)
+// DATA LISTENERS REAL-TIME
 // ==========================================
-let isAdminListening = false;
 function listenAdminData() {
     if (isAdminListening) return;
     isAdminListening = true;
@@ -466,7 +468,7 @@ function listenAdminData() {
         window.renderReviews();
     });
 
-    // 5. ORDERS + AUTO-KIRIM STOK MULTI-QTY
+    // 5. ORDERS (AUTO-KIRIM STOK MULTI-QTY + SUARA NOTIFIKASI)
     onSnapshot(collection(db, pathOrders), (snapshot) => {
         let newOrders = [];
         snapshot.forEach((docSnap) => {
@@ -487,22 +489,23 @@ function listenAdminData() {
                     
                     let oldData = previousOrdersData[dbId] || {};
                     let oldStatus = oldData.status;
+                    let oldReply = oldData.adminReply;
                     
                     // Pesanan Baru Masuk
                     if (!oldStatus && (data.status === 'PENDING' || data.status === 'UNPAID')) {
-                        window.playAdminDing('order');
+                        playNotificationSound('order');
                         window.showToast('Pesanan Baru!', `Invoice ${data.id} baru saja dibuat.`, 'info');
                     }
-                    // Pembayaran Lunas -> Cek Auto-Process atau Manual
+                    // Pembayaran Lunas -> Cek Auto-Delivery atau Manual
                     else if ((oldStatus === 'PENDING' || oldStatus === 'UNPAID' || !oldStatus) && data.status === 'SUCCESS' && !data.adminReply) {
-                        window.playAdminDing('order');
+                        playNotificationSound('order');
                         let hasAppItem = data.items && data.items.some(i => i.type === 'app');
                         let isManualProcess = data.items && data.items.some(i => i.processType === 'manual');
                         
                         if (hasAppItem && !isManualProcess) {
                             window.autoProcessOrder(data, dbId);
                         } else {
-                            window.showToast('Pembayaran Lunas!', `Invoice ${data.id} butuh proses manual!`, 'success');
+                            window.showToast('Pembayaran Lunas!', `Invoice ${data.id} menunggu proses manual Anda.`, 'success');
                         }
                     }
                     
@@ -528,15 +531,15 @@ function listenAdminData() {
 }
 
 // ==========================================
-// PENGIRIMAN STOK OTOMATIS MULTI-QTY (DIPERBAIKI MATANG)
+// AUTO-KIRIM STOK MENDUKUNG MULTI-KUANTITAS (QTY >= 1)
 // ==========================================
 window.autoProcessOrder = async function(orderData, orderDbId) {
-    if (autoProcessingLocks[orderDbId]) return;
-    autoProcessingLocks[orderDbId] = true;
+    if (processingAutoOrderIds.has(orderDbId)) return;
+    processingAutoOrderIds.add(orderDbId);
 
     const appItem = orderData.items.find(i => i.type === 'app');
     if(!appItem) {
-        delete autoProcessingLocks[orderDbId];
+        processingAutoOrderIds.delete(orderDbId);
         return;
     }
     
@@ -553,51 +556,49 @@ window.autoProcessOrder = async function(orderData, orderDbId) {
         );
         const snap = await getDocs(q);
         
-        // Pastikan jumlah stok mencukupi sesuai qty yang dibeli
         if (snap.docs.length >= neededQty) {
             const selectedDocs = snap.docs.slice(0, neededQty);
-            let accountsTextBlocks = [];
+            let accountDetailsList = [];
 
             for (let idx = 0; idx < selectedDocs.length; idx++) {
                 const stockDoc = selectedDocs[idx];
                 const stockData = stockDoc.data();
                 const parts = stockData.data.split('|');
+                
+                const headerTitle = neededQty > 1 ? `[AKUN #${idx + 1}]` : `[DETAIL AKUN PREMIUM]`;
+                accountDetailsList.push(
+                    `${headerTitle}\nEmail/NoHP : ${parts[0] || '-'}\nPassword   : ${parts[1] || '-'}\nKeterangan : ${parts[2] || '-'}`
+                );
 
-                // Tandai masing-masing stok sebagai Used
                 await updateDoc(doc(db, pathStocks, stockDoc.id), {
                     status: 'Used',
                     usedAt: Date.now(),
                     orderId: orderData.id
                 });
-
-                const headerLabel = neededQty > 1 ? `[AKUN #${idx + 1}]\n` : '';
-                accountsTextBlocks.push(
-                    `${headerLabel}Email/NoHP : ${parts[0] || '-'}\nPassword   : ${parts[1] || '-'}\nKeterangan : ${parts[2] || '-'}`
-                );
             }
 
-            const replyText = `Terima kasih! Pembayaran Anda telah lunas.\n\nBerikut Detail ${neededQty} Akun Premium (${targetBrand} - ${exactItemName}):\n\n` +
-                              accountsTextBlocks.join('\n------------------------\n') +
-                              `\n\nSilakan langsung diamankan. Hubungi Live Chat jika butuh bantuan.`;
-
+            const replyText = `Terima kasih! Pembayaran Anda telah diverifikasi otomatis.\n\n${accountDetailsList.join('\n\n')}\n\nSilakan langsung digunakan dan hubungi Live Chat jika ada kendala.`;
             await updateDoc(doc(db, pathOrders, orderDbId), { adminReply: replyText });
-            window.showToast('Auto-Delivery Sukses!', `${neededQty} akun terkirim otomatis ke Invoice ${orderData.id}.`, 'success');
+            window.showToast('Auto-Delivery Sukses', `${neededQty} akun terkirim otomatis untuk ${orderData.id}`, 'success');
+
+            const curView = document.getElementById('view-stock-category')?.value;
+            if (curView === targetBrand) window.renderAdminStocksByCategory();
         } else {
-            window.showToast('Stok Kurang / Kosong!', `Invoice ${orderData.id} butuh ${neededQty} stok (${exactItemName}), tersedia ${snap.docs.length}. Proses secara manual!`, 'error');
+            window.showToast('Stok Kurang / Habis!', `Invoice ${orderData.id} butuh ${neededQty} stok ${exactItemName}, tersedia ${snap.docs.length}. Proses manual diperlukan!`, 'error');
         }
     } catch(e) {
         console.error("Auto Process Gagal: ", e);
     } finally {
-        delete autoProcessingLocks[orderDbId];
+        setTimeout(() => processingAutoOrderIds.delete(orderDbId), 3000);
     }
 };
 
 // ==========================================
-// RINGKASAN & LAPORAN DASHBOARD LENGKAP
+// RINGKASAN & ANALITIK DASHBOARD (OMZET HARIAN + TERBARU)
 // ==========================================
 window.generateAdminReports = function() {
     const successOrders = orders.filter(o => o.status === 'SUCCESS');
-    const needActionCount = orders.filter(o => o.status === 'PENDING' || (o.status === 'SUCCESS' && !o.adminReply)).length;
+    const needActionOrders = orders.filter(o => o.status === 'PENDING' || (o.status === 'SUCCESS' && !o.adminReply));
     
     const todayStr = new Date().toLocaleDateString('id-ID');
     let totalRevenue = 0;
@@ -606,17 +607,17 @@ window.generateAdminReports = function() {
     let productCountMap = {};
     
     successOrders.forEach(o => {
-        const orderTotal = o.finalTotal || 0;
-        totalRevenue += orderTotal;
+        const amount = o.finalTotal || 0;
+        totalRevenue += amount;
         if (new Date(o.date).toLocaleDateString('id-ID') === todayStr) {
-            todayRevenue += orderTotal;
+            todayRevenue += amount;
         }
         (o.items || []).forEach(item => {
-            const cleanName = item.brandName ? `${item.brandName} - ${item.exactItemName || item.name}` : item.name;
-            if (!productCountMap[cleanName]) productCountMap[cleanName] = { qty: 0, revenue: 0 };
+            const keyName = `${item.brandName || ''} - ${item.exactItemName || item.name}`;
+            if (!productCountMap[keyName]) productCountMap[keyName] = { qty: 0, revenue: 0 };
             const iQty = item.qty || 1;
-            productCountMap[cleanName].qty += iQty;
-            productCountMap[cleanName].revenue += ((item.priceNum || 0) * iQty);
+            productCountMap[keyName].qty += iQty;
+            productCountMap[keyName].revenue += (item.priceNum * iQty);
         });
     });
     
@@ -628,14 +629,14 @@ window.generateAdminReports = function() {
     if(revEl) revEl.innerText = `Rp${totalRevenue.toLocaleString('id-ID')}`;
     if(todayRevEl) todayRevEl.innerText = `Rp${todayRevenue.toLocaleString('id-ID')}`;
     if(saleEl) saleEl.innerText = totalSales;
-    if(pendEl) pendEl.innerText = needActionCount;
+    if(pendEl) pendEl.innerText = needActionOrders.length;
     
-    // Tabel Top 5 Produk Terlaris
+    // Top 5 Produk
     const sortedProducts = Object.entries(productCountMap).sort((a, b) => b[1].qty - a[1].qty).slice(0, 5);
     const topTbody = document.getElementById('report-top-products');
     if(topTbody) {
         if (sortedProducts.length === 0) {
-            topTbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">Belum ada data penjualan sukses.</td></tr>';
+            topTbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">Belum ada data penjualan.</td></tr>';
         } else {
             let html = '';
             sortedProducts.forEach(prod => {
@@ -649,22 +650,22 @@ window.generateAdminReports = function() {
         }
     }
 
-    // Tabel 5 Transaksi Terbaru
+    // 5 Transaksi Terbaru
     const recentTbody = document.getElementById('report-recent-orders');
     if (recentTbody) {
-        const recentFive = orders.slice(0, 5);
-        if (recentFive.length === 0) {
-            recentTbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Belum ada transaksi masuk.</td></tr>';
+        const recentList = orders.slice(0, 5);
+        if (recentList.length === 0) {
+            recentTbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Belum ada pesanan masuk.</td></tr>';
         } else {
             let rHtml = '';
-            recentFive.forEach(o => {
-                const badgeCls = o.status === 'SUCCESS' ? 'status-success' : (o.status === 'PENDING' ? 'status-pending' : (o.status === 'UNPAID' ? 'status-unpaid' : 'status-failed'));
-                const itemTitle = o.items && o.items[0] ? o.items[0].name : '-';
+            recentList.forEach(o => {
+                const badgeClass = o.status === 'SUCCESS' ? 'status-success' : (o.status === 'PENDING' ? 'status-pending' : (o.status === 'UNPAID' ? 'status-unpaid' : 'status-failed'));
+                const itemName = o.items && o.items[0] ? o.items[0].name : '-';
                 rHtml += `<tr>
-                    <td><strong class="text-dark">${window.escapeHtml(o.id)}</strong></td>
-                    <td><span class="text-xs">${window.escapeHtml(itemTitle)}</span></td>
+                    <td><strong>${window.escapeHtml(o.id)}</strong></td>
+                    <td><span class="text-xs">${window.escapeHtml(itemName)}</span></td>
                     <td class="fw-bold">Rp${(o.finalTotal || 0).toLocaleString('id-ID')}</td>
-                    <td><span class="status-badge ${badgeCls}">${o.status}</span></td>
+                    <td><span class="status-badge ${badgeClass}">${o.status}</span></td>
                 </tr>`;
             });
             recentTbody.innerHTML = rHtml;
@@ -673,7 +674,7 @@ window.generateAdminReports = function() {
 };
 
 // ==========================================
-// MANAJEMEN PESANAN (FILTER, EXPORT CSV, CLEAN EXPIRED)
+// MANAJEMEN PESANAN (FILTER, EXPORT CSV, CLEANUP)
 // ==========================================
 window.setAdminOrderFilter = function(filterType, btnEl) {
     currentOrderFilter = filterType;
@@ -692,13 +693,10 @@ window.renderAdminOrders = function() {
     let filteredOrders = orders.filter(o => {
         if (currentOrderFilter === 'NEED_ACTION') {
             return o.status === 'PENDING' || (o.status === 'SUCCESS' && !o.adminReply);
-        } else if (currentOrderFilter === 'UNPAID') {
-            return o.status === 'UNPAID';
-        } else if (currentOrderFilter === 'SUCCESS') {
-            return o.status === 'SUCCESS' && !!o.adminReply;
-        } else if (currentOrderFilter === 'FAILED') {
-            return o.status === 'FAILED' || o.status === 'EXPIRED';
         }
+        if (currentOrderFilter === 'UNPAID') return o.status === 'UNPAID';
+        if (currentOrderFilter === 'SUCCESS') return o.status === 'SUCCESS' && !!o.adminReply;
+        if (currentOrderFilter === 'FAILED') return o.status === 'FAILED' || o.status === 'EXPIRED';
         return true;
     });
 
@@ -706,62 +704,56 @@ window.renderAdminOrders = function() {
         filteredOrders = filteredOrders.filter(o => {
             const matchId = o.id && o.id.toUpperCase().includes(queryText);
             const matchEmail = o.userEmail && o.userEmail.toUpperCase().includes(queryText);
-            const matchItem = o.items && o.items.some(i => i.name.toUpperCase().includes(queryText) || (i.playerInfo && i.playerInfo.toUpperCase().includes(queryText)));
+            const matchItem = o.items && o.items.some(i => (i.name || '').toUpperCase().includes(queryText) || (i.playerInfo || '').toUpperCase().includes(queryText));
             return matchId || matchEmail || matchItem;
         });
     }
     
     if(filteredOrders.length === 0) { 
-        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted" style="padding: 2.5rem;">Tidak ada pesanan yang sesuai dengan filter/pencarian.</td></tr>`; 
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted" style="padding: 2.5rem;">Tidak ada pesanan pada filter ini.</td></tr>`; 
         return; 
     }
     
     let renderLimit = filteredOrders.slice(0, 100);
     let html = '';
     renderLimit.forEach(o => {
-        const needsManualSend = o.status === 'SUCCESS' && !o.adminReply;
-        let sBadge = '';
-        if (needsManualSend) {
-            sBadge = `<span class="status-badge status-pending"><i class="fa-solid fa-bell"></i> LUNAS (BELUM DIKIRIM)</span>`;
-        } else if (o.status === 'UNPAID') {
-            sBadge = `<span class="status-badge status-unpaid">UNPAID</span>`;
-        } else if (o.status === 'PENDING') {
-            sBadge = `<span class="status-badge status-pending">PENDING</span>`;
-        } else if (o.status === 'FAILED' || o.status === 'EXPIRED') {
-            sBadge = `<span class="status-badge status-failed">${o.status}</span>`;
-        } else {
-            sBadge = `<span class="status-badge status-success">SELESAI</span>`;
-        }
+        let sBadge = `<span class="status-badge status-unpaid">UNPAID</span>`;
+        if (o.status === 'PENDING') sBadge = `<span class="status-badge status-pending">PENDING</span>`;
+        else if (o.status === 'FAILED') sBadge = `<span class="status-badge status-failed">FAILED</span>`;
+        else if (o.status === 'EXPIRED') sBadge = `<span class="status-badge status-failed">EXPIRED</span>`;
+        else if (o.status === 'SUCCESS' && !o.adminReply) sBadge = `<span class="status-badge status-pending">LUNAS - BELUM DIKIRIM</span>`;
+        else if (o.status === 'SUCCESS') sBadge = `<span class="status-badge status-success">SELESAI</span>`;
         
         let itemsDesc = (o.items || []).map(i => {
-            const pInfo = i.playerInfo || '';
-            const copyTargetBtn = i.type === 'game'
-                ? `<button class="btn btn-outline btn-sm" style="padding:2px 6px; min-height:22px; font-size:0.65rem; margin-left:6px;" onclick="window.copyTextHelper('${window.escapeJsStr(pInfo)}', 'Data Target')"><i class="fa-regular fa-copy"></i> Salin ID</button>`
-                : '';
-            return `<strong class="text-dark">${window.escapeHtml(i.name)}</strong><br><span class="text-muted text-xs">${window.escapeHtml(pInfo)}</span>${copyTargetBtn}`;
+            const safeTarget = escapeJsStr(i.playerInfo || '');
+            const copyTargetBtn = i.type === 'game' ? `<button class="btn btn-outline btn-sm" style="padding:2px 6px; min-height:22px; font-size:0.65rem; margin-left:6px;" onclick="window.copyTextToClipboard('${safeTarget}', 'Target ID')" title="Salin ID/Tujuan"><i class="fa-regular fa-copy"></i> Salin ID</button>` : '';
+            return `<strong class="text-dark">${window.escapeHtml(i.name)}</strong><br><span class="text-muted text-xs">${window.escapeHtml(i.playerInfo)}</span>${copyTargetBtn}`;
         }).join('<br>');
 
         let promoDesc = o.promoCode ? `<br><small class="text-success text-xs fw-bold">Voucher: ${window.escapeHtml(o.promoCode)} (-Rp${o.promoDiscount})</small>` : '';
-        let paymentMethodStr = o.paymentMethod === 'cash' ? '<span class="status-badge status-pending">TUNAI</span>' : '<span class="status-badge status-unpaid">QRIS</span>';
+        let paymentMethodStr = o.paymentMethod === 'cash' ? '<span class="status-badge status-pending">CASH / COD</span>' : '<span class="status-badge status-unpaid">QRIS</span>';
         
         let actionBtn = '';
-        if(o.status === 'PENDING' || o.status === 'UNPAID' || o.status === 'EXPIRED' || needsManualSend) {
+        if(o.status === 'PENDING' || o.status === 'UNPAID' || o.status === 'EXPIRED' || (o.status === 'SUCCESS' && !o.adminReply)) {
             actionBtn = `<button class="btn btn-primary btn-sm" onclick="window.promptProcessOrder('${o.dbId}')"><i class="fa-solid fa-bolt"></i> Proses</button>`;
         } else {
-            actionBtn = `<button class="btn btn-outline btn-sm" onclick="window.promptProcessOrder('${o.dbId}')" title="Lihat / Edit Balasan"><i class="fa-solid fa-eye"></i> Detail</button>`;
+            actionBtn = `<button class="btn btn-outline btn-sm" onclick="window.promptProcessOrder('${o.dbId}')" title="Edit Balasan"><i class="fa-solid fa-eye"></i> Detail</button>`;
         }
             
-        let deleteBtn = `<button aria-label="Hapus Order" class="btn-icon-only text-danger" style="width:34px; height:34px;" title="Hapus Permanen" onclick="window.promptDeleteOrder('${o.dbId}', '${window.escapeJsStr(o.id)}')"><i class="fa-solid fa-trash"></i></button>`;
+        let deleteBtn = `<button aria-label="Hapus Order" class="btn-icon-only text-danger" style="width:34px; height:34px;" title="Hapus Permanen" onclick="window.promptDeleteOrder('${o.dbId}', '${escapeJsStr(o.id)}')"><i class="fa-solid fa-trash"></i></button>`;
         
         html += `<tr>
             <td>
-                <strong class="text-dark" style="font-size:0.95rem;">${window.escapeHtml(o.id)}</strong><br>
+                <div class="flex-gap align-center">
+                    <strong class="text-dark">${window.escapeHtml(o.id)}</strong>
+                    <button class="btn-icon-only" style="width:24px; height:24px; font-size:0.7rem;" onclick="window.copyTextToClipboard('${escapeJsStr(o.id)}', 'Invoice ID')" title="Salin Invoice"><i class="fa-regular fa-copy"></i></button>
+                </div>
                 <small class="text-muted text-xs">${new Date(o.date).toLocaleString('id-ID')}</small>
             </td>
             <td>${itemsDesc}${promoDesc}</td>
-            <td><span class="text-sm fw-bold">${window.escapeHtml(o.userEmail || '-')}</span></td>
+            <td><span class="text-xs fw-bold">${window.escapeHtml(o.userEmail || '-')}</span></td>
             <td>${paymentMethodStr}</td>
-            <td class="text-primary fw-bold" style="font-size:0.98rem;">Rp${(o.finalTotal || 0).toLocaleString('id-ID')}</td>
+            <td class="text-primary fw-bold">Rp${(o.finalTotal || 0).toLocaleString('id-ID')}</td>
             <td>${sBadge}</td>
             <td><div class="flex-gap align-center">${actionBtn} ${deleteBtn}</div></td>
         </tr>`;
@@ -770,49 +762,56 @@ window.renderAdminOrders = function() {
     tbody.innerHTML = html;
 };
 
+// Export Laporan Pesanan ke CSV
 window.exportOrdersCSV = function() {
     if (orders.length === 0) {
         window.customAlert('Data Kosong', 'Belum ada data pesanan untuk diekspor.', 'warning');
         return;
     }
-    const headers = ['Invoice_ID', 'Waktu', 'Email_Pembeli', 'Produk', 'Target_Tujuan', 'Metode_Bayar', 'Total_Bayar', 'Status'];
+    const headers = ['Invoice ID', 'Tanggal', 'Email Pembeli', 'Produk', 'Tujuan/Info', 'Metode Bayar', 'Total Bayar (Rp)', 'Status'];
     const rows = orders.map(o => {
         const itemStr = (o.items || []).map(i => i.name).join('; ');
-        const targetStr = (o.items || []).map(i => i.playerInfo).join('; ');
+        const infoStr = (o.items || []).map(i => i.playerInfo).join('; ');
         return [
             o.id,
             new Date(o.date).toLocaleString('id-ID'),
             o.userEmail || '-',
-            `"${itemStr.replace(/"/g, '""')}"`,
-            `"${targetStr.replace(/"/g, '""')}"`,
+            `"${(itemStr || '').replace(/"/g, '""')}"`,
+            `"${(infoStr || '').replace(/"/g, '""')}"`,
             o.paymentMethod || 'qris',
             o.finalTotal || 0,
             o.status
         ].join(',');
     });
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows].join('\n');
+
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows].join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Laporan_Vipercell_${new Date().toISOString().slice(0,10)}.csv`);
+    link.setAttribute('download', `Laporan_Transaksi_Vipercell_${new Date().toISOString().slice(0,10)}.csv`);
     document.body.appendChild(link);
     link.click();
     link.remove();
-    window.showToast('Berhasil Ekspor', 'File CSV laporan transaksi berhasil diunduh.', 'success');
+    window.showToast('CSV Diunduh', 'File laporan transaksi berhasil diunduh.', 'success');
 };
 
+// Bersihkan Semua Pesanan Expired Sekali Klik
 window.cleanExpiredOrders = function() {
     const expiredList = orders.filter(o => o.status === 'EXPIRED');
     if (expiredList.length === 0) {
         window.customAlert('Bersih!', 'Tidak ada pesanan berstatus EXPIRED saat ini.', 'info');
         return;
     }
-    window.openConfirm('Bersihkan Pesanan Expired', `Hapus permanen <b>${expiredList.length} pesanan EXPIRED</b> agar database lebih rapi?`, async (confirmed) => {
+    window.openConfirm('Bersihkan Pesanan Expired', `Hapus permanen <b>${expiredList.length} pesanan</b> yang sudah EXPIRED dari database?`, async (confirmed) => {
         if (confirmed) {
-            for (const exp of expiredList) {
-                await deleteDoc(doc(db, pathOrders, exp.dbId)).catch(()=>{});
+            try {
+                for (const ord of expiredList) {
+                    await deleteDoc(doc(db, pathOrders, ord.dbId));
+                }
+                window.showToast('Selesai Dibersihkan', `${expiredList.length} pesanan expired telah dihapus.`, 'success');
+            } catch (e) {
+                window.customAlert('Gagal', 'Terjadi kesalahan saat menghapus data expired.', 'error');
             }
-            window.showToast('Database Bersih', `${expiredList.length} pesanan Expired telah dihapus.`, 'success');
         }
     }, 'delete');
 };
@@ -824,20 +823,12 @@ window.promptProcessOrder = async function(dbId) {
     document.getElementById('proc-inv').innerText = order.id;
     document.getElementById('proc-order-id').value = dbId;
     
-    let defaultReply = order.adminReply || `Pesanan Anda telah berhasil diproses! Silakan cek akun/aplikasi Anda. Terima kasih telah berbelanja di Vipercell!`;
+    let defaultReply = order.adminReply || `Pesanan Top Up Anda telah berhasil diproses! Silakan cek di dalam game/aplikasi. Terima kasih telah berbelanja di Vipercell!`;
     document.getElementById('proc-reply').value = defaultReply;
     
     const list = document.getElementById('proc-items-list');
     list.innerHTML = '<strong class="text-dark mb-1 d-block">Rincian Item & Tujuan:</strong>' +
-        order.items.map(i => `
-            <div class="flex-between align-center mt-1" style="background:var(--bg); padding:8px 10px; border-radius:8px; border:1.5px solid var(--border);">
-                <div>
-                    <strong class="text-dark text-sm">${window.escapeHtml(i.name)}</strong> <span class="status-badge status-unpaid">${i.processType || 'auto'}</span><br>
-                    <small class="text-primary fw-bold">${window.escapeHtml(i.playerInfo)}</small>
-                </div>
-                <button type="button" class="btn btn-outline btn-sm" onclick="window.copyTextHelper('${window.escapeJsStr(i.playerInfo)}', 'Target Tujuan')"><i class="fa-regular fa-copy"></i> Salin</button>
-            </div>
-        `).join('');
+        order.items.map(i => `<div class="text-sm fw-bold text-primary">${window.escapeHtml(i.name)} (${i.processType || 'auto'})</div><div class="text-xs text-muted">${window.escapeHtml(i.playerInfo)}</div>`).join('<hr style="margin:6px 0;">');
     
     const hasApp = order.items.some(i => i.type === 'app');
     const stockSec = document.getElementById('proc-stock-section');
@@ -856,9 +847,9 @@ window.promptProcessOrder = async function(dbId) {
             const snap = await getDocs(q);
             
             if(snap.empty) {
-                stockSel.innerHTML = '<option value="">-- Gudang Stok Varian Ini Kosong (Isi Manual di Bawah) --</option>';
+                stockSel.innerHTML = '<option value="">-- Gudang Stok Varian Ini Kosong (Ketik Manual di Bawah) --</option>';
             } else {
-                let selHtml = '<option value="">-- Pilih Stok Manual (Atau Biarkan Kosong) --</option>';
+                let selHtml = '<option value="">-- Jangan Pakai Stok Gudang (Ketik Manual) --</option>';
                 window.tempProcessStocks = [];
                 snap.forEach((s) => {
                     const data = {dbId: s.id, ...s.data()};
@@ -873,7 +864,7 @@ window.promptProcessOrder = async function(dbId) {
                     const sData = window.tempProcessStocks.find(x => x.dbId === sId);
                     if(sData) {
                         const parts = sData.data.split('|');
-                        document.getElementById('proc-reply').value = `Terima kasih! Berikut Detail Akun Premium Kamu:\n\nEmail/NoHP : ${parts[0] || '-'}\nPassword   : ${parts[1] || '-'}\nKeterangan : ${parts[2] || '-'}`;
+                        document.getElementById('proc-reply').value = `[DETAIL AKUN PREMIUM]\nEmail/NoHP : ${parts[0] || '-'}\nPassword   : ${parts[1] || '-'}\nKeterangan : ${parts[2] || '-'}`;
                     }
                 };
                 if (window.tempProcessStocks.length > 0) {
@@ -882,7 +873,7 @@ window.promptProcessOrder = async function(dbId) {
                 }
             }
         } catch(e) {
-            stockSel.innerHTML = '<option value="">Gagal mengambil daftar stok.</option>';
+            stockSel.innerHTML = '<option value="">Gagal memuat stok.</option>';
         }
     } else {
         stockSec.style.display = 'none';
@@ -911,20 +902,26 @@ window.markOrderComplete = async function(statusType) {
             }
         }
         
-        await updateDoc(doc(db, pathOrders, dbId), { status: statusType, adminReply: statusType === 'SUCCESS' ? reply : '' });
+        // Kunci agar listener tidak memicu autoProcessOrder ganda
+        processingAutoOrderIds.add(dbId);
+        await updateDoc(doc(db, pathOrders, dbId), {
+            status: statusType,
+            adminReply: statusType === 'SUCCESS' ? reply : ''
+        });
         window.closeModal('modal-process-order');
         
-        if(statusType === 'SUCCESS') window.showToast('Pesanan Selesai!', `Invoice ${order.id} telah diselesaikan.`, 'success');
-        else window.showToast('Pesanan Dibatalkan', `Invoice ${order.id} ditandai FAILED.`, 'info');
+        if(statusType === 'SUCCESS') window.showToast('Transaksi Selesai', `Invoice ${order.id} telah diselesaikan & dikirim.`, 'success');
+        else window.showToast('Dibatalkan', `Invoice ${order.id} ditandai gagal.`, 'info');
     } catch(e) {
         window.customAlert('Error', 'Gagal memperbarui status pesanan.', 'error');
     } finally {
         btn.innerHTML = ogHtml; btn.disabled = false;
+        setTimeout(() => processingAutoOrderIds.delete(dbId), 2000);
     }
 };
 
 window.promptDeleteOrder = function(dbId, invoiceId) {
-    window.openConfirm("Hapus Invoice", `Hapus permanen data transaksi <b>${window.escapeHtml(invoiceId)}</b>?`, async (confirmed) => {
+    window.openConfirm("Hapus Pesanan", `Hapus permanen data Invoice <b>${window.escapeHtml(invoiceId)}</b>?`, async (confirmed) => {
         if(confirmed) {
             await deleteDoc(doc(db, pathOrders, dbId));
             window.showToast("Terhapus", `Invoice ${invoiceId} berhasil dihapus.`, "success");
@@ -959,11 +956,11 @@ window.renderAdminStocksByCategory = async function() {
     if(!brand) {
         if (readyCountEl) readyCountEl.innerText = '0';
         if (usedCountEl) usedCountEl.innerText = '0';
-        tb.innerHTML = '<tr><td colspan="6" class="text-center text-muted" style="padding: 3rem;"><i class="fa-solid fa-filter" style="font-size:2rem; display:block; margin-bottom:10px;"></i> Pilih kategori brand di atas untuk merender tabel stok.</td></tr>';
+        tb.innerHTML = '<tr><td colspan="6" class="text-center text-muted" style="padding: 3rem;"><i class="fa-solid fa-filter" style="font-size:2rem; display:block; margin-bottom:10px;"></i> Pilih kategori brand untuk menampilkan daftar stok.</td></tr>';
         return;
     }
     
-    tb.innerHTML = '<tr><td colspan="6" class="text-center" style="padding: 2rem;"><i class="fa-solid fa-spinner fa-spin"></i> Mengambil data stok dari server...</td></tr>';
+    tb.innerHTML = '<tr><td colspan="6" class="text-center" style="padding: 2rem;"><i class="fa-solid fa-spinner fa-spin"></i> Memuat data gudang stok...</td></tr>';
     
     try {
         const q = query(collection(db, pathStocks), where("brand", "==", brand));
@@ -977,23 +974,23 @@ window.renderAdminStocksByCategory = async function() {
         if (usedCountEl) usedCountEl.innerText = usedTotal;
 
         if(localStocks.length === 0) {
-            tb.innerHTML = '<tr><td colspan="6" class="text-center text-muted" style="padding:2.5rem;">Gudang stok kosong untuk produk ini.</td></tr>';
+            tb.innerHTML = '<tr><td colspan="6" class="text-center text-muted" style="padding:2rem;">Belum ada stok untuk produk ini.</td></tr>';
             return;
         }
         
-        localStocks.sort((a,b) => (a.status === 'Ready' ? -1 : 1) || (b.createdAt - a.createdAt));
+        localStocks.sort((a,b) => b.createdAt - a.createdAt);
         let html = '';
         localStocks.forEach((s, i) => {
             const parts = (s.data || '').split('|');
             const em = parts[0] || '-'; const pw = parts[1] || '-'; const dur = parts[2] || '-';
             const badge = s.status === 'Ready'
                 ? '<span class="status-badge status-success">READY</span>'
-                : `<span class="status-badge status-failed">TERJUAL ${s.orderId ? '(' + window.escapeHtml(s.orderId) + ')' : ''}</span>`;
+                : `<span class="status-badge status-failed">TERJUAL ${s.orderId ? `(${window.escapeHtml(s.orderId)})` : ''}</span>`;
             html += `<tr>
-                <td><b>${i+1}</b></td>
+                <td><strong>${i+1}</strong></td>
                 <td><strong class="text-dark">${window.escapeHtml(s.brand)}</strong><br><small class="text-primary fw-bold">${window.escapeHtml(s.itemName || '-')}</small></td>
-                <td><strong class="text-dark">${window.escapeHtml(em)}</strong><br><small class="text-muted code-input">${window.escapeHtml(pw)}</small></td>
-                <td class="text-dark text-sm">${window.escapeHtml(dur)}</td>
+                <td><strong class="text-dark">${window.escapeHtml(em)}</strong><br><small class="text-muted">${window.escapeHtml(pw)}</small></td>
+                <td class="text-dark text-xs">${window.escapeHtml(dur)}</td>
                 <td>${badge}</td>
                 <td><button aria-label="Hapus Stok" class="btn-icon-only text-danger" style="width:32px; height:32px;" onclick="window.deleteStock('${s.dbId}')"><i class="fa-solid fa-trash"></i></button></td>
             </tr>`;
@@ -1010,7 +1007,7 @@ window.addStockMassal = async function() {
     const rawData = document.getElementById('stock-bulk-input').value.trim();
     
     if(!brand || !itemName || !rawData) {
-        window.customAlert('Data Belum Lengkap', 'Pilih produk, varian item, dan masukkan minimal 1 baris data akun (Email|Password|Info).', 'warning');
+        window.customAlert('Data Belum Lengkap', 'Pilih produk, varian item, dan masukkan minimal 1 baris data akun.', 'warning');
         return;
     }
     
@@ -1024,27 +1021,21 @@ window.addStockMassal = async function() {
         for(const line of lines) {
             const parts = line.split('|');
             if(parts.length >= 2) {
-                await addDoc(collection(db, pathStocks), {
-                    brand: brand,
-                    itemName: itemName,
-                    data: line.trim(),
-                    status: 'Ready',
-                    createdAt: Date.now()
-                });
+                await addDoc(collection(db, pathStocks), { brand: brand, itemName: itemName, data: line.trim(), status: 'Ready', createdAt: Date.now() });
                 count++;
             }
         }
         document.getElementById('stock-bulk-input').value = '';
         
-        const filterSel = document.getElementById('view-stock-category');
-        if (filterSel) {
-            filterSel.value = brand;
+        const viewSel = document.getElementById('view-stock-category');
+        if (viewSel) {
+            viewSel.value = brand;
             window.renderAdminStocksByCategory();
         }
         
-        window.showToast('Stok Ditambahkan', `${count} akun baru siap dikirim otomatis!`, 'success');
+        window.customAlert('Berhasil Disimpan', `<b>${count} akun</b> berhasil ditambahkan ke gudang stok <b>${window.escapeHtml(brand)} - ${window.escapeHtml(itemName)}</b>.`, 'success');
     } catch(e) {
-        window.customAlert('Error', 'Gagal menyimpan stok ke database.', 'error');
+        window.customAlert('Error', 'Gagal menambah stok ke database.', 'error');
     } finally {
         btn.innerHTML = ogHtml; btn.disabled = false;
     }
@@ -1054,7 +1045,7 @@ window.deleteStock = async function(dbId) {
     window.openConfirm('Hapus Stok', 'Hapus baris stok akun ini secara permanen?', async (confirmed) => {
         if(confirmed) {
             await deleteDoc(doc(db, pathStocks, dbId));
-            window.showToast('Terhapus', 'Data stok akun telah dihapus.', 'info');
+            window.showToast('Terhapus', 'Stok akun berhasil dihapus.', 'info');
             window.renderAdminStocksByCategory(); 
         }
     }, 'delete');
@@ -1063,56 +1054,153 @@ window.deleteStock = async function(dbId) {
 window.deleteUsedStocksByCategory = async function() {
     const brand = document.getElementById('view-stock-category').value;
     if (!brand) {
-        window.customAlert('Pilih Kategori', 'Pilih brand terlebih dahulu di dropdown filter stok.', 'warning');
+        window.customAlert('Pilih Kategori', 'Pilih kategori produk terlebih dahulu di dropdown.', 'warning');
         return;
     }
-    window.openConfirm('Hapus Stok Terjual', `Bersihkan semua stok yang sudah berstatus <b>TERJUAL (Used)</b> pada produk <b>${window.escapeHtml(brand)}</b>?`, async (confirmed) => {
+    window.openConfirm('Bersihkan Stok Terjual', `Hapus semua stok berstatus <b>Terjual (Used)</b> pada produk <b>${window.escapeHtml(brand)}</b>?`, async (confirmed) => {
         if (confirmed) {
-            const q = query(collection(db, pathStocks), where("brand", "==", brand), where("status", "==", "Used"));
-            const snap = await getDocs(q);
-            let delCount = 0;
-            for (const d of snap.docs) {
-                await deleteDoc(doc(db, pathStocks, d.id));
-                delCount++;
+            try {
+                const q = query(collection(db, pathStocks), where("brand", "==", brand), where("status", "==", "Used"));
+                const snap = await getDocs(q);
+                let delCount = 0;
+                for (const d of snap.docs) {
+                    await deleteDoc(doc(db, pathStocks, d.id));
+                    delCount++;
+                }
+                window.showToast('Gudang Dibersihkan', `${delCount} stok terjual berhasil dihapus.`, 'success');
+                window.renderAdminStocksByCategory();
+            } catch (e) {
+                window.customAlert('Gagal', 'Gagal membersihkan stok terjual.', 'error');
             }
-            window.showToast('Gudang Dibersihkan', `${delCount} stok terjual berhasil dihapus.`, 'success');
-            window.renderAdminStocksByCategory();
         }
     }, 'delete');
 };
 
 // ==========================================
-// MANAJEMEN PRODUK (KATALOG & HARGA)
+// MANAJEMEN ULASAN PEMBELI
+// ==========================================
+window.renderReviews = function() {
+    const list = document.getElementById('admin-reviews-list');
+    if(!list) return;
+    
+    if(reviewsList.length === 0) {
+        list.innerHTML = '<div class="text-center text-muted w-100 dashboard-panel" style="padding: 3rem;"><i class="fa-solid fa-comment-slash" style="font-size:2.5rem; margin-bottom:10px; display:block;"></i>Belum ada ulasan dari pembeli.</div>';
+        return;
+    }
+    
+    let html = '';
+    reviewsList.forEach(r => {
+        let stars = '';
+        for(let i=0; i<5; i++) {
+            stars += `<i class="fa-${i < r.rating ? 'solid' : 'regular'} fa-star text-warning text-xs"></i>`;
+        }
+        
+        const invTag = r.orderId ? `<span class="status-badge status-unpaid">#${window.escapeHtml(r.orderId)}</span>` : '';
+        const adminReplyHtml = r.adminReply 
+            ? `<div class="mt-2 text-sm bg-primary-light border-primary" style="padding:10px 12px; border-radius:8px;">
+                 <strong class="text-primary"><i class="fa-solid fa-reply"></i> Balasan Admin:</strong><br>
+                 <span class="text-dark">${window.escapeHtml(r.adminReply)}</span>
+               </div>` 
+            : '';
+
+        html += `
+        <div class="dashboard-panel flex-between align-start-mobile mb-2" style="padding: 1.2rem; gap: 15px;">
+            <div style="flex:1;">
+                <div class="flex-wrap-gap align-center mb-1">
+                    <strong class="text-dark" style="font-size:1rem;">${window.escapeHtml(r.userName || 'Pelanggan')}</strong>
+                    <small class="text-muted">(${window.escapeHtml(r.userEmail || '-')})</small>
+                    ${invTag}
+                </div>
+                <div class="mb-2">${stars} <span class="text-primary fw-bold text-sm ms-2">${window.escapeHtml(r.brandName)}</span></div>
+                <p class="bg-bg border-border text-dark" style="padding:10px 12px; border-radius:8px; margin:0; font-size:0.9rem;">"${window.escapeHtml(r.text)}"</p>
+                ${adminReplyHtml}
+                <small class="text-muted text-xs d-block mt-2"><i class="fa-regular fa-clock"></i> ${new Date(r.timestamp).toLocaleString('id-ID')}</small>
+            </div>
+            
+            <div class="flex-gap align-center">
+                <button class="btn btn-primary btn-sm" onclick="window.promptReplyReview('${r.dbId}')">
+                    <i class="fa-solid fa-reply"></i> ${r.adminReply ? 'Edit Balasan' : 'Balas'}
+                </button>
+                <button class="btn btn-danger btn-sm" onclick="window.deleteReview('${r.dbId}')">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
+            </div>
+        </div>`;
+    });
+    list.innerHTML = html;
+};
+
+// PERBAIKAN BUG: Ambil teks ulasan langsung dari objek di memori (aman dari kutip tunggal)
+window.promptReplyReview = function(dbId) {
+    const rev = reviewsList.find(r => r.dbId === dbId);
+    if (!rev) return;
+
+    document.getElementById('reply-review-id').value = dbId;
+    document.getElementById('reply-review-text').innerText = `"${rev.text}"`;
+    document.getElementById('reply-review-input').value = rev.adminReply || '';
+    
+    window.openModal('modal-reply-review');
+};
+
+window.submitReviewReply = async function() {
+    const dbId = document.getElementById('reply-review-id').value;
+    const replyTxt = document.getElementById('reply-review-input').value.trim();
+    if(!replyTxt) return window.customAlert('Peringatan', 'Kolom balasan tidak boleh kosong.', 'warning');
+    
+    const btn = document.getElementById('btn-save-review-reply');
+    const og = btn.innerHTML;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'; btn.disabled = true;
+    try {
+        await updateDoc(doc(db, pathReviews, dbId), { adminReply: replyTxt });
+        window.closeModal('modal-reply-review');
+        window.showToast('Tersimpan', 'Balasan ulasan berhasil dipublikasikan.', 'success');
+    } catch(e) {
+        window.customAlert('Error', 'Gagal menyimpan balasan ulasan.', 'error');
+    } finally {
+        btn.innerHTML = og; btn.disabled = false;
+    }
+};
+
+window.deleteReview = async function(dbId) {
+    window.openConfirm('Hapus Ulasan', 'Hapus ulasan pembeli ini secara permanen?', async (confirmed) => {
+        if(confirmed) {
+            await deleteDoc(doc(db, pathReviews, dbId));
+            window.showToast('Terhapus', 'Ulasan berhasil dihapus.', 'info');
+        }
+    }, 'delete');
+};
+
+// ==========================================
+// MANAJEMEN KATALOG & HARGA PRODUK
 // ==========================================
 window.renderAdminProducts = function() {
     const tbody = document.getElementById('admin-prod-list');
     if(!tbody) return;
     if(groupedBrands.length === 0) {
-        tbody.innerHTML = `<div class="dashboard-panel text-center text-muted">Katalog masih kosong. Klik tombol "Tambah Brand / Produk Baru" di atas.</div>`;
+        tbody.innerHTML = `<div class="dashboard-panel text-center text-muted" style="padding: 2.5rem;">Katalog produk masih kosong. Klik tombol <b>Tambah Brand / Produk Baru</b> di atas.</div>`;
         return;
     }
     
     let html = '';
     groupedBrands.forEach(b => {
-        const safeHtmlBrand = window.escapeHtml(b.brandName);
-        const safeJsBrand = window.escapeJsStr(b.brandName);
+        const safeJsBrand = escapeJsStr(b.brandName);
         const imgHtml = b.imgUrlBase64
-            ? `<img src="${b.imgUrlBase64}" style="width:54px; height:54px; object-fit:cover; border-radius:12px; border:2px solid var(--border);" loading="lazy" alt="${safeHtmlBrand}">`
-            : `<div style="width:54px; height:54px; background:var(--accent-yellow); color:#0f172a; border:2px solid var(--border); display:flex; justify-content:center; align-items:center; border-radius:12px; font-weight:900; font-size:1.5rem;">${safeHtmlBrand.charAt(0)}</div>`;
+            ? `<img src="${b.imgUrlBase64}" style="width:54px; height:54px; object-fit:cover; border-radius:12px; border:2px solid var(--border);" loading="lazy" alt="${window.escapeHtml(b.brandName)}">`
+            : `<div style="width:54px; height:54px; background:var(--primary); color:white; display:flex; justify-content:center; align-items:center; border-radius:12px; border:2px solid var(--border); font-weight:900; font-size:1.5rem;">${window.escapeHtml(b.brandName.charAt(0))}</div>`;
         
         const itemsCount = b.items.length;
         const isSoldOut = b.items.every(i => i.soldOut);
         
         let statusBadgeHtml = isSoldOut ? '<span class="status-badge status-failed">HABIS SEMUA</span>' : '<span class="status-badge status-success">AKTIF</span>';
-        if (b.isGangguan) statusBadgeHtml = '<span class="status-badge status-pending">GANGGUAN SERVER</span>';
+        if (b.isGangguan) statusBadgeHtml = '<span class="status-badge status-pending">MAINTENANCE</span>';
         
         html += `
         <div class="dashboard-panel flex-between align-center mb-2" style="padding:1.2rem; flex-wrap:wrap; gap:12px;">
             <div class="flex-gap align-center">
                 ${imgHtml}
                 <div>
-                    <strong class="text-dark" style="font-size:1.12rem;">${safeHtmlBrand}</strong><br>
-                    <span class="text-xs fw-bold text-muted">${b.type === 'app' ? '📱 APLIKASI PREMIUM' : '🎮 TOP UP GAME'} &bull; ${itemsCount} Varian Harga</span>
+                    <strong class="text-dark" style="font-size:1.1rem;">${window.escapeHtml(b.brandName)}</strong><br>
+                    <span class="text-xs text-muted fw-bold">${b.type === 'app' ? 'APLIKASI PREMIUM' : 'TOP UP GAME'} &bull; ${itemsCount} Varian Harga</span>
                 </div>
             </div>
             <div class="flex-wrap-gap align-center">
@@ -1142,24 +1230,18 @@ window.openProductGroupModal = function(brandName = null) {
     if(brandName) {
         const group = groupedBrands.find(b => b.brandName === brandName);
         if(group) {
-            document.getElementById('modal-prod-title').innerHTML = '<i class="fa-solid fa-pen-to-square"></i> Edit Grup Produk';
+            document.getElementById('modal-prod-title').innerHTML = '<i class="fa-solid fa-box-open"></i> Edit Grup Produk';
             document.getElementById('manage-prod-old-brand').value = brandName;
             document.getElementById('manage-prod-type').value = group.type;
             document.getElementById('manage-prod-brand').value = group.brandName;
             document.getElementById('manage-prod-img-base64').value = group.imgUrlBase64 || '';
             document.getElementById('manage-prod-desc').value = group.desc || '';
-            document.getElementById('manage-prod-file-name').innerText = group.imgUrlBase64 ? 'Gambar Tersimpan' : 'Belum ada gambar';
+            document.getElementById('manage-prod-file-name').innerText = group.imgUrlBase64 ? 'Gambar tersimpan' : 'Belum ada gambar';
             
             const gangguanEl = document.getElementById('manage-prod-gangguan');
             if(gangguanEl) gangguanEl.checked = group.isGangguan || false;
             
-            currentGroupNominals = group.items.map(i => ({
-                dbId: i.dbId,
-                name: i.name,
-                priceNum: i.priceNum,
-                processType: i.processType || 'auto',
-                soldOut: i.soldOut || false
-            }));
+            currentGroupNominals = group.items.map(i => ({ dbId: i.dbId, name: i.name, priceNum: i.priceNum, processType: i.processType || 'auto', soldOut: i.soldOut || false }));
             
             const allSoldOut = currentGroupNominals.length > 0 && currentGroupNominals.every(n => n.soldOut);
             document.getElementById('manage-prod-soldout').checked = allSoldOut;
@@ -1169,7 +1251,7 @@ window.openProductGroupModal = function(brandName = null) {
             if(targetEl) window.selectInputType(inpType, targetEl.parentElement);
         }
     } else {
-        document.getElementById('modal-prod-title').innerHTML = '<i class="fa-solid fa-plus"></i> Tambah Brand Produk Baru';
+        document.getElementById('modal-prod-title').innerHTML = '<i class="fa-solid fa-box-open"></i> Tambah Brand Baru';
         document.getElementById('manage-prod-old-brand').value = '';
         document.getElementById('manage-prod-type').value = 'game';
         document.getElementById('manage-prod-brand').value = '';
@@ -1217,7 +1299,7 @@ window.addOrUpdateTempNominal = function() {
     const priceNum = parseInt(document.getElementById('temp-nom-price').value) || 0;
     const processType = document.getElementById('temp-nom-status').value || 'auto';
     if(!name || priceNum <= 0) {
-        window.customAlert('Input Belum Valid', 'Nama Varian dan Harga Jual wajib diisi dengan benar.', 'warning');
+        window.customAlert('Input Tidak Valid', 'Nama Varian dan Harga Jual harus diisi dengan benar.', 'warning');
         return;
     }
     
@@ -1255,7 +1337,7 @@ window.renderTempNominals = function() {
     if(!container) return;
     
     if(currentGroupNominals.length === 0) {
-        container.innerHTML = `<div class="text-center text-muted text-sm" style="padding: 12px;">Belum ada varian ditambahkan. Isi form di atas lalu klik "Tambah Varian ke Daftar".</div>`;
+        container.innerHTML = `<div class="text-center text-muted text-sm" style="padding: 12px;">Belum ada varian ditambahkan.</div>`;
         return;
     }
     
@@ -1263,20 +1345,20 @@ window.renderTempNominals = function() {
     currentGroupNominals.forEach((nom, index) => {
         const isSold = nom.soldOut ? 'checked' : '';
         const badgeType = nom.processType === 'manual'
-            ? `<span class="status-badge status-pending">MANUAL</span>`
-            : `<span class="status-badge status-success">AUTO</span>`;
+            ? `<span class="status-badge status-pending" style="font-size:0.6rem; padding:2px 6px;">MANUAL</span>`
+            : `<span class="status-badge status-success" style="font-size:0.6rem; padding:2px 6px;">AUTO</span>`;
         html += `
-        <div class="flex-between align-center" style="padding: 10px 12px; background: var(--bg); border: 2px solid var(--border); border-radius: 10px; margin-bottom: 8px;">
+        <div class="flex-between align-center" style="padding: 10px; border-bottom: 2px solid var(--border-subtle);">
             <div>
                 <div class="fw-bold text-dark text-sm">${window.escapeHtml(nom.name)} ${badgeType}</div>
                 <div class="text-primary fw-bold text-xs">Rp${nom.priceNum.toLocaleString('id-ID')}</div>
             </div>
             <div class="flex-gap align-center">
-                <label class="text-xs fw-bold text-danger pointer flex-gap align-center" style="margin:0;">
+                <label class="text-xs text-danger fw-bold pointer flex-gap align-center">
                     <input type="checkbox" class="large-checkbox" style="width:16px; height:16px;" onchange="window.toggleIndividualSoldOut(${index}, this.checked)" ${isSold}> Habis
                 </label>
-                <button class="btn-icon-only text-primary" style="width:32px; height:32px;" onclick="window.editTempNominal(${index})" title="Edit Varian"><i class="fa-solid fa-pen"></i></button>
-                <button class="btn-icon-only text-danger" style="width:32px; height:32px;" onclick="window.removeTempNominal(${index})" title="Hapus Varian"><i class="fa-solid fa-trash"></i></button>
+                <button class="btn-icon-only" style="width:30px; height:30px;" onclick="window.editTempNominal(${index})" title="Edit"><i class="fa-solid fa-pen"></i></button>
+                <button class="btn-icon-only text-danger" style="width:30px; height:30px;" onclick="window.removeTempNominal(${index})" title="Hapus"><i class="fa-solid fa-trash"></i></button>
             </div>
         </div>`;
     });
@@ -1297,12 +1379,12 @@ window.saveProductGroup = async function() {
     const checkedType = document.querySelector('input[name="manage_input_type"]:checked');
     if(checkedType) inputType = checkedType.value;
     
-    if(!brand) { window.customAlert('Error', 'Nama Brand / Produk wajib diisi.', 'error'); return; }
-    if(currentGroupNominals.length === 0) { window.customAlert('Error', 'Tambahkan minimal 1 varian harga ke dalam grup produk ini.', 'error'); return; }
+    if(!brand) { window.customAlert('Error', 'Nama Brand wajib diisi.', 'error'); return; }
+    if(currentGroupNominals.length === 0) { window.customAlert('Error', 'Tambahkan minimal 1 varian harga ke dalam grup ini.', 'error'); return; }
     
     const btn = document.getElementById('btn-save-group');
     const ogHtml = btn.innerHTML;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Menyimpan Katalog...</span>';
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Menyimpan...</span>';
     btn.disabled = true;
     try {
         const oldGroup = groupedBrands.find(b => b.brandName === oldBrand);
@@ -1323,7 +1405,7 @@ window.saveProductGroup = async function() {
         }
         
         window.closeModal('modal-manage-product');
-        window.showToast('Tersimpan!', `Katalog produk ${brand} berhasil diperbarui.`, 'success');
+        window.showToast('Tersimpan', `Seluruh varian produk ${brand} berhasil disimpan.`, 'success');
     } catch(e) {
         window.customAlert('Error', 'Gagal menyimpan grup produk.', 'error');
     } finally {
@@ -1332,12 +1414,12 @@ window.saveProductGroup = async function() {
 };
 
 window.deleteProductGroup = function(brandName) {
-    window.openConfirm("Hapus Grup Produk", `Hapus seluruh varian dari produk <b>${window.escapeHtml(brandName)}</b>?`, async (confirmed) => {
+    window.openConfirm("Hapus Brand Produk", `Hapus seluruh varian item dalam brand <b>${window.escapeHtml(brandName)}</b>?`, async (confirmed) => {
         if(confirmed) {
             const group = groupedBrands.find(b => b.brandName === brandName);
             if(group) {
                 for(const item of group.items) { await deleteDoc(doc(db, pathProducts, item.dbId)); }
-                window.showToast('Dihapus', `Grup produk ${brandName} telah dihapus.`, 'info');
+                window.showToast('Terhapus', `Produk ${brandName} telah dihapus.`, 'info');
             }
         }
     }, 'delete');
@@ -1357,115 +1439,24 @@ if(manageProdImgEl) {
 }
 
 // ==========================================
-// ULASAN PEMBELI & BALASAN ADMIN
-// ==========================================
-window.renderReviews = function() {
-    const list = document.getElementById('admin-reviews-list');
-    if(!list) return;
-    
-    if(reviewsList.length === 0) {
-        list.innerHTML = '<div class="dashboard-panel text-center text-muted" style="padding: 3rem;">Belum ada ulasan yang masuk dari pembeli.</div>';
-        return;
-    }
-    
-    let html = '';
-    reviewsList.forEach(r => {
-        let stars = '';
-        for(let i=0; i<5; i++) {
-            stars += `<i class="fa-${i < r.rating ? 'solid' : 'regular'} fa-star text-warning text-xs"></i>`;
-        }
-        
-        const invBadge = r.orderId ? `<span class="status-badge status-unpaid">#${window.escapeHtml(r.orderId)}</span>` : '';
-        const adminReplyHtml = r.adminReply 
-            ? `<div class="mt-2 text-sm bg-primary-light border-primary" style="padding:10px 12px; border-radius:8px;">
-                 <strong class="text-primary"><i class="fa-solid fa-reply"></i> Balasan Admin:</strong><br>
-                 <span class="text-dark">${window.escapeHtml(r.adminReply)}</span>
-               </div>` 
-            : '';
-
-        html += `
-        <div class="dashboard-panel flex-between align-center mb-2" style="padding: 1.3rem; flex-wrap:wrap; gap:14px;">
-            <div style="flex:1; min-width:240px;">
-                <div class="flex-gap align-center mb-1">
-                    <strong class="text-dark" style="font-size:1rem;">${window.escapeHtml(r.userName || 'Pelanggan')}</strong>
-                    <small class="text-muted">(${window.escapeHtml(r.userEmail || '-')})</small>
-                    ${invBadge}
-                </div>
-                <div class="mb-2">${stars} <span class="text-primary fw-bold text-sm ms-2">${window.escapeHtml(r.brandName)}</span></div>
-                <p class="bg-bg border-border text-dark" style="padding:10px 12px; border-radius:8px; margin:0; font-size:0.92rem;">"${window.escapeHtml(r.text)}"</p>
-                ${adminReplyHtml}
-                <small class="text-muted text-xs d-block mt-2"><i class="fa-regular fa-clock"></i> ${new Date(r.timestamp).toLocaleString('id-ID')}</small>
-            </div>
-            
-            <div class="flex-gap">
-                <button class="btn btn-primary btn-sm" onclick="window.promptReplyReview('${r.dbId}')">
-                    <i class="fa-solid fa-reply"></i> ${r.adminReply ? 'Edit Balasan' : 'Balas'}
-                </button>
-                <button class="btn btn-danger btn-sm" onclick="window.deleteReview('${r.dbId}')">
-                    <i class="fa-solid fa-trash"></i>
-                </button>
-            </div>
-        </div>`;
-    });
-    list.innerHTML = html;
-};
-
-window.promptReplyReview = function(dbId) {
-    const rev = reviewsList.find(r => r.dbId === dbId);
-    if (!rev) return;
-    document.getElementById('reply-review-id').value = dbId;
-    document.getElementById('reply-review-text').innerText = `"${rev.text}"`;
-    document.getElementById('reply-review-input').value = rev.adminReply || '';
-    window.openModal('modal-reply-review');
-};
-
-window.submitReviewReply = async function() {
-    const dbId = document.getElementById('reply-review-id').value;
-    const replyTxt = document.getElementById('reply-review-input').value.trim();
-    if(!replyTxt) return window.customAlert('Balasan Kosong', 'Silakan tulis balasan untuk ulasan ini.', 'warning');
-    
-    const btn = document.getElementById('btn-save-review-reply');
-    const og = btn.innerHTML;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'; btn.disabled = true;
-    try {
-        await updateDoc(doc(db, pathReviews, dbId), { adminReply: replyTxt });
-        window.closeModal('modal-reply-review');
-        window.showToast('Balasan Dipublikasikan', 'Balasan Anda kini tampil di bawah ulasan pembeli.', 'success');
-    } catch(e) {
-        window.customAlert('Error', 'Gagal menyimpan balasan ulasan.', 'error');
-    } finally {
-        btn.innerHTML = og; btn.disabled = false;
-    }
-};
-
-window.deleteReview = async function(dbId) {
-    window.openConfirm('Hapus Ulasan', 'Hapus ulasan pembeli ini secara permanen?', async (confirmed) => {
-        if(confirmed) {
-            await deleteDoc(doc(db, pathReviews, dbId));
-            window.showToast('Terhapus', 'Ulasan berhasil dihapus.', 'success');
-        }
-    }, 'delete');
-};
-
-// ==========================================
-// MANAJEMEN VOUCHER & PROMO
+// VOUCHER & PROMO MANAGEMENT
 // ==========================================
 window.renderAdminPromos = function() {
     const tbody = document.getElementById('admin-promo-list');
     if(!tbody) return;
     
     if(promos.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted" style="padding: 2rem;">Belum ada kode promo dibuat.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted" style="padding: 2rem;">Belum ada kode promo aktif.</td></tr>';
         return;
     }
     let html = '';
     promos.forEach(p => {
         const typeStr = p.type === 'percent' ? `${p.amount}%` : `Rp${p.amount.toLocaleString('id-ID')}`;
         const targetStr = p.targetBrand === 'all' ? 'Semua Produk' : (p.targetBrand || 'Semua');
-        const userTgt = p.targetUser === 'new' ? 'Khusus User Baru' : 'Semua User';
+        const userTgt = p.targetUser === 'new' ? 'Transaksi Pertama' : 'Semua User';
         
         html += `<tr>
-            <td><strong class="text-dark code-input" style="font-size:0.95rem;">${window.escapeHtml(p.code)}</strong></td>
+            <td><strong class="text-dark">${window.escapeHtml(p.code)}</strong></td>
             <td><span class="status-badge status-success">${typeStr}</span></td>
             <td class="text-dark">${window.escapeHtml(targetStr)}</td>
             <td><span class="text-warning text-xs fw-bold">${userTgt}</span></td>
@@ -1473,7 +1464,7 @@ window.renderAdminPromos = function() {
             <td>${p.active ? '<span class="status-badge status-success">AKTIF</span>' : '<span class="status-badge status-failed">NONAKTIF</span>'}</td>
             <td>
                 <div class="flex-gap align-center">
-                    <button class="btn-icon-only text-primary" style="width:32px; height:32px;" onclick="window.openPromoModal('${p.dbId}')"><i class="fa-solid fa-pen"></i></button>
+                    <button class="btn-icon-only" style="width:32px; height:32px;" onclick="window.openPromoModal('${p.dbId}')"><i class="fa-solid fa-pen"></i></button>
                     <button class="btn-icon-only text-danger" style="width:32px; height:32px;" onclick="window.deletePromo('${p.dbId}')"><i class="fa-solid fa-trash"></i></button>
                 </div>
             </td>
@@ -1491,6 +1482,7 @@ window.openPromoModal = function(dbId = null) {
     }
     if(dbId) {
         const p = promos.find(x => x.dbId === dbId);
+        if (!p) return;
         document.getElementById('modal-promo-title').innerText = 'Edit Kode Promo';
         document.getElementById('manage-promo-id').value = p.dbId;
         document.getElementById('manage-promo-code').value = p.code;
@@ -1527,7 +1519,7 @@ window.savePromo = async function() {
         usedCount: 0 
     };
     if(!data.code || data.amount <= 0 || data.maxUses <= 0) {
-        window.customAlert('Data Tidak Valid', 'Kode Promo, Nilai Potongan, dan Kuota wajib diisi lebih dari 0.', 'warning');
+        window.customAlert('Data Tidak Valid', 'Pastikan kode voucher, nilai potongan, dan batas kuota diisi dengan benar.', 'warning');
         return;
     }
     
@@ -1543,7 +1535,7 @@ window.savePromo = async function() {
             await addDoc(collection(db, pathPromos), data);
         }
         window.closeModal('modal-manage-promo');
-        window.showToast('Sukses', `Kode promo ${data.code} disimpan.`, 'success');
+        window.showToast('Promo Tersimpan', `Kode promo ${data.code} siap digunakan.`, 'success');
     } catch(e) {
         window.customAlert('Error', 'Gagal menyimpan kode promo.', 'error');
     } finally {
@@ -1555,7 +1547,7 @@ window.deletePromo = function(dbId) {
     window.openConfirm("Hapus Promo", "Hapus kode promo ini secara permanen?", async (confirmed) => {
         if(confirmed) {
             await deleteDoc(doc(db, pathPromos, dbId));
-            window.showToast('Dihapus', 'Kode promo berhasil dihapus.', 'info');
+            window.showToast('Terhapus', 'Kode promo berhasil dihapus.', 'info');
         }
     }, 'delete');
 };
@@ -1568,16 +1560,16 @@ window.renderAdminNews = function() {
     if(!list) return;
     const newsData = siteSettings.newsList || [];
     if(newsData.length === 0) {
-        list.innerHTML = '<p class="text-muted text-center p-3">Belum ada pengumuman atau berita komunitas.</p>';
+        list.innerHTML = '<p class="text-muted text-center p-3">Belum ada pengumuman atau berita.</p>';
         return;
     }
     
     let html = '';
     newsData.forEach((t, i) => {
         html += `<div class="info-box bg-bg mb-2 flex-between align-center">
-            <div><strong class="text-dark">${window.escapeHtml(t.title)}</strong><br><small class="text-muted">Artikel Informasi</small></div>
+            <div><strong class="text-dark">${window.escapeHtml(t.title)}</strong><br><small class="text-muted">Papan Informasi</small></div>
             <div class="flex-gap">
-                <button class="btn-icon-only text-primary" style="width:32px; height:32px;" onclick="window.openNewsModal(${i})"><i class="fa-solid fa-pen"></i></button>
+                <button class="btn-icon-only" style="width:32px; height:32px;" onclick="window.openNewsModal(${i})"><i class="fa-solid fa-pen"></i></button>
                 <button class="btn-icon-only text-danger" style="width:32px; height:32px;" onclick="window.deleteNews(${i})"><i class="fa-solid fa-trash"></i></button>
             </div>
         </div>`;
@@ -1592,7 +1584,7 @@ window.openNewsModal = function(index = -1) {
         document.getElementById('manage-news-title').value = news.title || '';
         document.getElementById('manage-news-image').value = news.imageUrl || '';
         document.getElementById('manage-news-desc').value = news.desc || '';
-        document.getElementById('modal-news-title').innerText = "Edit Berita / Pengumuman";
+        document.getElementById('modal-news-title').innerText = "Edit Berita / Info";
     } else {
         document.getElementById('manage-news-title').value = '';
         document.getElementById('manage-news-image').value = '';
@@ -1607,7 +1599,7 @@ window.handleNewsUpload = function(event) {
     if(!file) return;
     window.resizeImageBase64(file, (b64) => {
         document.getElementById('manage-news-image').value = b64;
-        window.showToast('Gambar Siap', 'Gambar lampiran berita berhasil diproses.', 'success');
+        window.showToast('Gambar Siap', 'Gambar lampiran berita berhasil dimuat.', 'success');
     }, 800, 600);
 };
 
@@ -1638,7 +1630,7 @@ window.saveNews = async function() {
 };
 
 window.deleteNews = async function(index) {
-    window.openConfirm('Hapus Berita', 'Hapus berita/informasi ini secara permanen?', async (confirmed) => {
+    window.openConfirm('Hapus Berita', 'Hapus berita ini secara permanen?', async (confirmed) => {
         if(confirmed) {
             const newsList = [...siteSettings.newsList];
             newsList.splice(index, 1);
@@ -1649,20 +1641,23 @@ window.deleteNews = async function(index) {
 };
 
 // ==========================================
-// PENGATURAN WEB & QUICK STORE TOGGLE
+// PENGATURAN WEB & QUICK STORE TOGGLE (TANPA TELEGRAM)
 // ==========================================
 window.quickToggleStoreStatus = async function() {
     if (!isSettingsLoaded) return;
-    const newStatus = !(siteSettings.isStoreOpen !== false);
+    const newStatus = siteSettings.isStoreOpen === false ? true : false;
+    const storeCheckEl = document.getElementById('set-store-status');
+    if (storeCheckEl) storeCheckEl.checked = newStatus;
+
     try {
         await updateDoc(doc(db, pathSettings, 'mainConfig'), { isStoreOpen: newStatus });
         window.showToast(
             newStatus ? 'Toko Dibuka!' : 'Toko Ditutup!',
-            newStatus ? 'Pelanggan kini dapat melakukan transaksi.' : 'Transaksi sementara dinonaktifkan untuk pelanggan.',
+            newStatus ? 'Pelanggan kini dapat melakukan transaksi.' : 'Transaksi ditutup sementara untuk pelanggan.',
             newStatus ? 'success' : 'info'
         );
     } catch (e) {
-        window.customAlert('Error', 'Gagal mengubah status toko.', 'error');
+        window.customAlert('Gagal', 'Gagal mengubah status toko.', 'error');
     }
 };
 
@@ -1670,8 +1665,8 @@ window.saveSettingsManual = async function(showNotification = false) {
     if(!isSettingsLoaded) return;
     const newSettings = {
         ...siteSettings,
-        logoText: document.getElementById('set-logo-text').value.trim(),
-        logoAccent: document.getElementById('set-logo-accent').value.trim(),
+        logoText: document.getElementById('set-logo-text').value.trim() || 'VIPER',
+        logoAccent: document.getElementById('set-logo-accent').value.trim() || 'CELL',
         logoImgBase64: document.getElementById('set-logo-base64').value, 
         marquee: document.getElementById('set-marquee').value.trim(),
         adminWa: document.getElementById('set-wa').value.trim(),
@@ -1684,7 +1679,7 @@ window.saveSettingsManual = async function(showNotification = false) {
     try {
         await updateDoc(doc(db, pathSettings, 'mainConfig'), newSettings);
         if (showNotification) {
-            window.showToast('Pengaturan Disimpan', 'Perubahan konfigurasi web telah aktif.', 'success');
+            window.showToast('Pengaturan Disimpan', 'Konfigurasi web berhasil diperbarui.', 'success');
         }
     } catch (e) {
         window.customAlert('Error', 'Gagal menyimpan pengaturan web.', 'error');
@@ -1703,6 +1698,7 @@ window.populateAdminSettings = function() {
     document.getElementById('set-qris-string').value = siteSettings.qrisStringData || '';
     
     if(document.getElementById('set-wa-channel')) document.getElementById('set-wa-channel').value = siteSettings.waChannelLink || '';
+    
     const isOpen = siteSettings.isStoreOpen !== false;
     const storeStatusEl = document.getElementById('set-store-status');
     if(storeStatusEl) storeStatusEl.checked = isOpen;
@@ -1718,10 +1714,280 @@ window.populateAdminSettings = function() {
     if(siteSettings.logoImgBase64) {
         const p = document.getElementById('set-logo-preview');
         p.src = siteSettings.logoImgBase64; p.style.display = 'block';
-        document.getElementById('set-logo-file-name').innerText = "Gambar Tersimpan";
+        document.getElementById('set-logo-file-name').innerText = "Gambar Aktif";
     }
     
     const adminLogoEl = document.getElementById('admin-header-logo-img');
     const defAdminIco = document.getElementById('admin-header-default-icon');
     if(siteSettings.logoImgBase64) {
-        if(adminLogo)
+        if(adminLogoEl){ adminLogoEl.src = siteSettings.logoImgBase64; adminLogoEl.style.display = 'inline-block'; }
+        if(defAdminIco) defAdminIco.style.display = 'none';
+    } else {
+        if(adminLogoEl) adminLogoEl.style.display = 'none';
+        if(defAdminIco) defAdminIco.style.display = 'flex';
+    }
+};
+
+const logoUploadEl = document.getElementById('logo-upload');
+if(logoUploadEl) {
+    logoUploadEl.addEventListener('change', function(e) {
+        if (e.target.files[0]) {
+            document.getElementById('set-logo-file-name').innerText = e.target.files[0].name;
+            window.resizeImageBase64(e.target.files[0], (b64) => {
+                document.getElementById('set-logo-base64').value = b64; 
+                const p = document.getElementById('set-logo-preview');
+                p.src = b64; p.style.display = 'block';
+                window.saveSettingsManual(true); 
+            }, 500, 500);
+        }
+    });
+}
+
+const bannerUploadEl = document.getElementById('banner-upload');
+if(bannerUploadEl) {
+    bannerUploadEl.addEventListener('change', function(e) {
+        if (e.target.files[0]) {
+            window.resizeImageBase64(e.target.files[0], async (b64) => {
+                const banners = siteSettings.banners || [];
+                banners.push(b64);
+                await updateDoc(doc(db, pathSettings, 'mainConfig'), { banners: banners });
+                siteSettings.banners = banners;
+                window.renderAdminBanners();
+                window.showToast('Banner Ditambahkan', 'Spanduk promo baru berhasil diunggah.', 'success');
+                e.target.value = ''; 
+            }, 1200, 600); 
+        }
+    });
+}
+
+window.renderAdminBanners = function() {
+    const list = document.getElementById('admin-banner-list');
+    if(!list) return;
+    const banners = siteSettings.banners || [];
+    if(banners.length === 0){
+        list.innerHTML = '<div class="text-muted text-sm p-3 text-center">Belum ada spanduk/banner promo yang diunggah.</div>';
+        return;
+    }
+    
+    let html = '<div class="grid-2col">';
+    banners.forEach((b64, idx) => {
+        html += `
+        <div style="position:relative; border:var(--brutal-border); border-radius:12px; overflow:hidden; box-shadow:var(--brutal-shadow-sm);">
+            <img src="${b64}" style="width:100%; height:140px; object-fit:cover; display:block;" loading="lazy" alt="Banner">
+            <button aria-label="Hapus Banner" class="btn btn-danger btn-sm" style="position:absolute; top:8px; right:8px;" onclick="window.deleteBanner(${idx})"><i class="fa-solid fa-trash"></i> Hapus</button>
+        </div>`;
+    });
+    html += '</div>';
+    list.innerHTML = html;
+};
+
+window.deleteBanner = async function(idx) {
+    window.openConfirm('Hapus Banner', 'Hapus spanduk promo ini dari halaman utama?', async (confirmed) => {
+        if(confirmed) {
+            const banners = siteSettings.banners || [];
+            banners.splice(idx, 1);
+            await updateDoc(doc(db, pathSettings, 'mainConfig'), { banners: banners });
+            siteSettings.banners = banners;
+            window.renderAdminBanners();
+            window.showToast('Terhapus', 'Banner telah dihapus.', 'info');
+        }
+    }, 'delete');
+};
+
+// ==========================================
+// LIVE CHAT ADMIN (RESPONSIF + SUARA NOTIFIKASI)
+// ==========================================
+function listenAdminLiveChat() {
+    if(adminChatUnsubscribe) adminChatUnsubscribe();
+    
+    adminChatUnsubscribe = onSnapshot(collection(db, pathChats), (snapshot) => {
+        let newChats = [];
+        snapshot.forEach(docSnap => { 
+            newChats.push({ id: docSnap.id, ...docSnap.data() });
+        });
+
+        if(isInitialChatLoad) {
+            snapshot.forEach(docSnap => { 
+                let cData = docSnap.data();
+                previousChatMsgCount[docSnap.id] = cData.messages ? cData.messages.length : 0;
+            });
+            isInitialChatLoad = false;
+        } else {
+            snapshot.docChanges().forEach(change => {
+                if(change.type === "added" || change.type === "modified") {
+                    let cData = change.doc.data();
+                    let docId = change.doc.id;
+                    
+                    let oldMsgCount = previousChatMsgCount[docId] || 0;
+                    let newMsgCount = cData.messages ? cData.messages.length : 0;
+                    
+                    if(newMsgCount > oldMsgCount) {
+                        let lastMsg = cData.messages[newMsgCount - 1];
+                        if(lastMsg && lastMsg.sender === 'user') {
+                            playNotificationSound('chat');
+                            window.showToast(`Chat: ${cData.userInfo || 'Pelanggan'}`, lastMsg.text, 'info');
+                        }
+                    }
+                    previousChatMsgCount[docId] = newMsgCount;
+                }
+                if (change.type === "removed") {
+                    delete previousChatMsgCount[change.doc.id];
+                }
+            });
+        }
+        
+        allLiveChats = newChats.sort((a,b) => b.updatedAt - a.updatedAt);
+        window.renderAdminChatList();
+        
+        const hasUnreadAny = allLiveChats.some(c => {
+            const msgs = c.messages || [];
+            return msgs.length > 0 && msgs[msgs.length - 1].sender === 'user';
+        });
+        const badge = document.getElementById('admin-chat-tab-badge');
+        if(badge) badge.style.display = hasUnreadAny ? 'inline-block' : 'none';
+        
+        const countPill = document.getElementById('chat-active-count-pill');
+        if (countPill) countPill.innerText = allLiveChats.length;
+        
+        const activeId = document.getElementById('admin-active-chat-id-desk')?.value;
+        if(activeId) {
+            const targetChat = allLiveChats.find(c => c.id === activeId);
+            if(targetChat) window.openAdminChatDetailDesk(activeId); 
+        }
+    });
+}
+
+window.renderAdminChatList = function() {
+    const list = document.getElementById('admin-chat-list');
+    if(!list) return;
+    if(allLiveChats.length === 0) {
+        list.innerHTML = '<div class="chat-empty-state"><i class="fa-solid fa-comments"></i><p>Belum ada sesi chat pelanggan aktif.</p></div>';
+        document.getElementById('admin-chat-empty').style.display = 'flex';
+        document.getElementById('admin-chat-active').style.display = 'none';
+        return;
+    }
+    
+    const activeId = document.getElementById('admin-active-chat-id-desk')?.value;
+    let html = '';
+    
+    allLiveChats.forEach(chat => {
+        const msgs = chat.messages || [];
+        const lastMsg = msgs.length > 0 ? msgs[msgs.length-1] : null;
+        const hasUnread = lastMsg && lastMsg.sender === 'user';
+        const isActive = chat.id === activeId ? 'active' : '';
+        
+        html += `
+            <div id="chat-card-${chat.id}" class="chat-user-item ${isActive}" onclick="window.openAdminChatDetailDesk('${chat.id}')">
+                <div class="chat-user-info">
+                    <strong class="chat-user-name">${window.escapeHtml(chat.userInfo || 'Pelanggan')}</strong>
+                    <span class="chat-user-msg">${lastMsg ? window.escapeHtml(lastMsg.text) : '...'}</span>
+                </div>
+                ${hasUnread ? '<span class="status-badge status-failed" style="font-size:0.6rem; padding:2px 6px;">BARU</span>' : ''}
+            </div>
+        `;
+    });
+    list.innerHTML = html;
+};
+
+window.backToChatListMobile = function() {
+    document.getElementById('admin-active-chat-id-desk').value = '';
+    const mainPanel = document.getElementById('admin-chat-main-panel');
+    const sidePanel = document.getElementById('admin-chat-sidebar-panel');
+    
+    if (window.innerWidth <= 768) {
+        mainPanel.style.display = 'none';
+        sidePanel.style.display = 'flex';
+    }
+};
+
+window.openAdminChatDetailDesk = function(chatId) {
+    const chat = allLiveChats.find(c => c.id === chatId);
+    if(!chat) return;
+    
+    document.getElementById('admin-chat-empty').style.display = 'none';
+    document.getElementById('admin-chat-active').style.display = 'flex';
+    document.getElementById('admin-active-chat-id-desk').value = chatId;
+    document.getElementById('admin-chat-title-desk').innerText = chat.userInfo || 'Pelanggan';
+    
+    const mainPanel = document.getElementById('admin-chat-main-panel');
+    const sidePanel = document.getElementById('admin-chat-sidebar-panel');
+    
+    if(window.innerWidth <= 768) {
+        sidePanel.style.display = 'none';
+        mainPanel.style.display = 'flex';
+        mainPanel.style.transform = 'translateX(0)';
+    }
+    
+    const body = document.getElementById('admin-chat-body-desktop');
+    let html = '';
+    
+    (chat.messages || []).forEach(msg => {
+        const isAdmin = msg.sender === 'admin';
+        html += `
+            <div class="chat-msg ${isAdmin ? 'admin' : 'user'}">
+                ${window.escapeHtml(msg.text)}
+                <span class="chat-time">${new Date(msg.timestamp).toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'})}</span>
+            </div>
+        `;
+    });
+    body.innerHTML = html;
+    
+    setTimeout(() => { body.scrollTop = body.scrollHeight; }, 50);
+    document.querySelectorAll('.chat-user-item').forEach(el => el.classList.remove('active'));
+    const activeCard = document.getElementById(`chat-card-${chatId}`);
+    if(activeCard) activeCard.classList.add('active');
+};
+
+window.insertQuickReplyDesk = function(text) {
+    const input = document.getElementById('admin-chat-input-desk');
+    if(input) { input.value = text; input.focus(); }
+};
+
+window.sendAdminChatDesk = async function() {
+    const chatId = document.getElementById('admin-active-chat-id-desk').value;
+    const input = document.getElementById('admin-chat-input-desk');
+    const text = input.value.trim();
+    if(!text || !chatId) return;
+    
+    input.value = '';
+    const chatRef = doc(db, pathChats, chatId);
+    await updateDoc(chatRef, {
+        updatedAt: Date.now(),
+        messages: arrayUnion({ sender: 'admin', text: text, timestamp: Date.now() })
+    });
+};
+
+window.resolveChatDesktop = async function() {
+    const chatId = document.getElementById('admin-active-chat-id-desk').value;
+    if(!chatId) return;
+    
+    window.openConfirm('Tutup Sesi Chat', 'Tandai selesai dan hapus riwayat sesi obrolan ini?', async (confirmed) => {
+        if (!confirmed) return;
+        const btn = document.getElementById('btn-resolve-chat');
+        const ogHtml = btn.innerHTML;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+        btn.disabled = true;
+        try {
+            await deleteDoc(doc(db, pathChats, chatId));
+            document.getElementById('admin-active-chat-id-desk').value = '';
+            document.getElementById('admin-chat-empty').style.display = 'flex';
+            document.getElementById('admin-chat-active').style.display = 'none';
+            
+            if(window.innerWidth <= 768) {
+                window.backToChatListMobile();
+            }
+            window.showToast('Sesi Selesai', 'Sesi obrolan telah ditutup.', 'success');
+        } catch(e) {
+            window.customAlert('Gagal', 'Tidak dapat menghapus sesi obrolan.', 'error');
+        } finally {
+            btn.innerHTML = ogHtml; btn.disabled = false;
+        }
+    }, 'delete');
+};
+
+// Inisialisasi Aplikasi Admin
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initAdminApp);
+} else {
+    initAdminApp();
+}
