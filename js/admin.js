@@ -19,11 +19,13 @@ const pathChats = isWorkspace ? `artifacts/${appId}/public/data/chats` : 'chats'
 const pathStocks = isWorkspace ? `artifacts/${appId}/public/data/stocks` : 'stocks';
 const pathUsers = isWorkspace ? `artifacts/${appId}/public/data/users` : 'users';
 const pathReviews = isWorkspace ? `artifacts/${appId}/public/data/reviews` : 'reviews';
+const pathDeviceLocks = isWorkspace ? `artifacts/${appId}/public/data/device_locks` : 'device_locks';
+const pathDeletedAccounts = isWorkspace ? `artifacts/${appId}/public/data/deleted_accounts` : 'deleted_accounts';
 
 const fallbackSettingsPath = isWorkspace ? 'settings' : `artifacts/${appId}/public/data/settings`;
 
 // ==========================================
-// STATE & VARIABEL GLOBAL (ADMIN V23)
+// STATE & VARIABEL GLOBAL (ADMIN V24.5)
 // ==========================================
 let products = [];
 let groupedBrands = []; 
@@ -31,7 +33,8 @@ let orders = [];
 let promos = [];
 let reviewsList = [];
 let allLiveChats = [];
-let membersList = [];
+let allUsersList = [];
+let deviceLocksMap = {};
 
 let adminChatUnsubscribe = null; 
 let isAdminListening = false;
@@ -44,6 +47,7 @@ let siteSettings = {
     pwaIconBase64: '',
     marquee: 'Selamat Datang di Vipercell! Layanan Otomatis 24 Jam.',
     qrisStringData: '00020101021126670016COM.NOBUBANK.WWW011893600503000000000051440014ID.CO.QRIS.WWW0215ID10200210007070303UMI5204581253033605802ID5919VIPERCELL INDONESIA6005AMBON61059711662070703A016304',
+    emailWebhookUrl: '',
     adminWa: '085656321860',
     igLink: '',
     ttLink: '',
@@ -58,6 +62,7 @@ let isSettingsLoaded = false;
 let currentGroupNominals = [];
 let currentOrderFilter = 'ALL';
 let currentAdminProdFilter = 'all';
+let currentMemberFilter = 'ALL';
 let isSoundEnabled = localStorage.getItem('vipercell_admin_sound') !== 'off';
 let isAdminNotifEnabled = localStorage.getItem('vipercell_admin_notif') !== 'off';
 
@@ -68,6 +73,23 @@ let previousChatMsgCount = {};
 let processingAutoOrderIds = new Set();
 let deductedStockOrderIds = new Set();
 window.tempProcessStocks = []; 
+
+// ==========================================
+// CONTROLLER PRE-LOADER ANTI-MACET (ZERO-HANG)
+// ==========================================
+function hideAdminPreloader() {
+    const loader = document.getElementById('app-preloader-overlay');
+    if (loader && !loader.classList.contains('hidden')) {
+        loader.classList.add('hidden');
+        setTimeout(() => {
+            loader.style.display = 'none';
+        }, 260);
+    }
+    document.body.classList.remove('no-scroll');
+}
+
+// Safety Timeout: Jaminan mutlak preloader tidak akan pernah nyangkut lebih dari 2 detik
+setTimeout(hideAdminPreloader, 2000);
 
 // ==========================================
 // UTILITAS KEAMANAN TEKS, SUARA & NOTIFIKASI PWA
@@ -238,7 +260,7 @@ function applyAdminCustomPwaIcon() {
             id: "/",
             name: `${siteSettings.logoText || 'Viper'}${siteSettings.logoAccent || 'cell'} Admin Center`,
             short_name: `ViperAdmin`,
-            description: "Admin Command Center Vipercell V23",
+            description: "Admin Command Center Vipercell V24.5",
             start_url: window.location.origin + window.location.pathname,
             scope: window.location.origin + "/",
             display: "standalone",
@@ -283,7 +305,7 @@ window.showToast = function(title, msg, type = 'info', actionCallback = null) {
     if(!container) return;
     const toast = document.createElement('div');
     toast.className = `toast-item toast-${type}`;
-    let icon = type === 'success' ? '<i class="fa-solid fa-circle-check"></i>' : (type === 'error' ? '<i class="fa-solid fa-circle-xmark"></i>' : '<i class="fa-solid fa-bolt"></i>');
+    let icon = type === 'success' ? '<i class="fa-solid fa-circle-check"></i>' : (type === 'error' ? '<i class="fa-solid fa-circle-xmark"></i>' : (type === 'warning' ? '<i class="fa-solid fa-triangle-exclamation"></i>' : '<i class="fa-solid fa-bolt"></i>'));
     const hintText = actionCallback ? 'Ketuk untuk buka &bull; Geser untuk tutup' : 'Geser ke kiri/kanan untuk tutup';
 
     toast.innerHTML = `
@@ -496,35 +518,45 @@ window.jumpToPendingOrders = function() {
 };
 
 // ==========================================
-// AUTHENTICATION KHUSUS EMAIL & PASSWORD
+// AUTHENTICATION KHUSUS EMAIL & PASSWORD (ANTI-MACET)
 // ==========================================
 async function verifyAdminAccess(user) {
-    let role = 'user';
-    const allowedEmails = ['vipercell.id@gmail.com', 'viperdev4@gmail.com']; 
-    
-    if (allowedEmails.includes(user.email)) {
-        role = 'superadmin';
-    } else {
-        const userDoc = await getDoc(doc(db, pathUsers, user.uid));
-        if (userDoc.exists() && userDoc.data().role) {
-            role = userDoc.data().role;
-        }
-    }
-
-    if (role === 'admin' || role === 'superadmin') {
-        currentAdminUser = user;
-        document.getElementById('admin-login-screen').style.display = 'none';
-        document.getElementById('admin-dashboard').style.display = 'flex';
-        const emailLbl = document.getElementById('admin-logged-email');
-        if (emailLbl) emailLbl.innerText = user.email || 'Otoritas Penuh';
+    try {
+        let role = 'user';
+        const allowedEmails = ['vipercell.id@gmail.com', 'viperdev4@gmail.com']; 
         
-        updateSoundIconUI();
-        updateAdminNotifToggleUI();
-        window.showToast('Berhasil Masuk', `Selamat bertugas kembali, Admin!`, 'success');
-        listenAdminData();
-    } else {
-        await signOut(auth);
-        window.customAlert('Akses Ditolak', 'Akun ini tidak memiliki otoritas Administrator Vipercell.', 'error');
+        if (allowedEmails.includes((user.email || '').toLowerCase())) {
+            role = 'superadmin';
+        } else {
+            const userDoc = await getDoc(doc(db, pathUsers, user.uid));
+            if (userDoc.exists() && userDoc.data().role) {
+                role = userDoc.data().role;
+            }
+        }
+
+        if (role === 'admin' || role === 'superadmin') {
+            currentAdminUser = user;
+            document.getElementById('admin-login-screen').style.display = 'none';
+            document.getElementById('admin-dashboard').style.display = 'flex';
+            const emailLbl = document.getElementById('admin-logged-email');
+            if (emailLbl) emailLbl.innerText = user.email || 'Otoritas Penuh';
+            
+            updateSoundIconUI();
+            updateAdminNotifToggleUI();
+            hideAdminPreloader();
+            listenAdminData();
+        } else {
+            await signOut(auth);
+            document.getElementById('admin-login-screen').style.display = 'flex';
+            document.getElementById('admin-dashboard').style.display = 'none';
+            hideAdminPreloader();
+            window.customAlert('Akses Ditolak', 'Akun ini tidak memiliki otoritas Administrator Vipercell.', 'error');
+            resetLoginButtons();
+        }
+    } catch (err) {
+        console.error("Verify Admin Error:", err);
+        document.getElementById('admin-login-screen').style.display = 'flex';
+        hideAdminPreloader();
         resetLoginButtons();
     }
 }
@@ -562,15 +594,21 @@ async function initAdminApp() {
     const icon = document.getElementById('admin-theme-icon');
     if(icon) icon.className = savedTheme === 'dark' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
     
-    await setPersistence(auth, browserLocalPersistence);
+    try {
+        await setPersistence(auth, browserLocalPersistence);
+    } catch (e) {}
     
     onAuthStateChanged(auth, async (user) => {
-        if (user) {
+        if (user && !user.isAnonymous) {
             await verifyAdminAccess(user);
         } else {
+            if (user && user.isAnonymous) {
+                await signOut(auth).catch(() => {});
+            }
             document.getElementById('admin-login-screen').style.display = 'flex';
             document.getElementById('admin-dashboard').style.display = 'none';
             resetLoginButtons();
+            hideAdminPreloader();
         }
     });
 
@@ -597,7 +635,7 @@ async function initAdminApp() {
 }
 
 // ==========================================
-// DATA LISTENERS + AUTO-RECOVERY PENGATURAN LAMA
+// DATA LISTENERS REAL-TIME
 // ==========================================
 function mergeValidSettings(target, source) {
     if (!source) return target;
@@ -678,6 +716,7 @@ function listenAdminData() {
             }
         });
         window.renderAdminProducts();
+        populateNewsBrandDropdown();
         
         const stockableBrands = groupedBrands.filter(b => b.type === 'app' || b.type === 'tools');
         const filterSel = document.getElementById('view-stock-category');
@@ -719,20 +758,25 @@ function listenAdminData() {
         window.renderReviews();
     });
 
-    // 5. MEMBERS (USERS COLLECTION)
-    onSnapshot(collection(db, pathUsers), (snapshot) => {
-        membersList = [];
+    // 5. USERS & DEVICE LOCKS (DIREKTORI MEMBER & ANONIM)
+    onSnapshot(collection(db, pathDeviceLocks), (snapshot) => {
+        deviceLocksMap = {};
         snapshot.forEach(docSnap => {
-            const uData = docSnap.data();
-            if (!uData.isGuest) {
-                membersList.push({ uid: docSnap.id, ...uData });
-            }
+            deviceLocksMap[docSnap.id] = { lockId: docSnap.id, ...docSnap.data() };
         });
-        membersList.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
         window.renderAdminMembers();
     });
 
-    // 6. ORDERS (AUTO-KIRIM STOK REUSABLE & ONCE + PENGURANGAN KUOTA STOK)
+    onSnapshot(collection(db, pathUsers), (snapshot) => {
+        allUsersList = [];
+        snapshot.forEach(docSnap => {
+            allUsersList.push({ uid: docSnap.id, ...docSnap.data() });
+        });
+        allUsersList.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+        window.renderAdminMembers();
+    });
+
+    // 6. ORDERS
     onSnapshot(collection(db, pathOrders), (snapshot) => {
         let newOrders = [];
         snapshot.forEach((docSnap) => {
@@ -764,7 +808,6 @@ function listenAdminData() {
                     }
                     else if ((oldStatus === 'PENDING' || oldStatus === 'UNPAID' || !oldStatus) && data.status === 'SUCCESS') {
                         playNotificationSound('order');
-                        // Kurangi kuota stockCount produk jika belum dikurangi
                         deductProductQuotaOnSuccess(data, dbId);
 
                         if (!data.adminReply) {
@@ -806,7 +849,7 @@ function listenAdminData() {
 }
 
 // ==========================================
-// PENGURANGAN KUOTA STOK VARIAN (`stockCount`) OTOMATIS SAAT TRANSAKSI SUKSES
+// PENGURANGAN KUOTA STOK VARIAN (`stockCount`) OTOMATIS
 // ==========================================
 async function deductProductQuotaOnSuccess(orderData, orderDbId) {
     if (deductedStockOrderIds.has(orderDbId) || orderData.stockQuotaDeducted) return;
@@ -834,7 +877,39 @@ async function deductProductQuotaOnSuccess(orderData, orderDbId) {
 }
 
 // ==========================================
-// AUTO-KIRIM STOK (MENDUKUNG MODE LINK BERULANG / REUSABLE TOOLS & MULTI-QTY)
+// FUNGSI PENGIRIM EMAIL OTOMATIS VIA WEBHOOK APPS SCRIPT
+// ==========================================
+async function triggerAutomatedEmailWebhook(orderData, replyMessage) {
+    const webhookUrl = (siteSettings.emailWebhookUrl || '').trim();
+    const buyerEmail = (orderData.userEmail || '').trim();
+    if (!webhookUrl || !buyerEmail || !buyerEmail.includes('@')) return false;
+
+    const itemTitle = orderData.items && orderData.items[0] ? orderData.items[0].name : 'Layanan Digital Vipercell';
+    const subject = `[Vipercell] Bukti & Data Pesanan #${orderData.id} - ${itemTitle}`;
+    const bodyText = `Halo Pelanggan Vipercell,\n\nTerima kasih telah berbelanja di Vipercell! Berikut adalah rincian pesanan Anda:\n\nNomor Invoice : #${orderData.id}\nTanggal       : ${new Date(orderData.date).toLocaleString('id-ID')}\nProduk        : ${itemTitle}\nTotal Bayar   : Rp${(orderData.finalTotal || 0).toLocaleString('id-ID')}\nStatus        : ${orderData.status}\n\n=== PESAN / DATA AKUN / LINK LAYANAN ===\n${replyMessage || 'Pesanan Anda sedang diproses.'}\n========================================\n\nTerima kasih atas kepercayaan Anda!\nSalam hangat,\nTim Vipercell`;
+
+    try {
+        await fetch(webhookUrl, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'SEND_EMAIL',
+                to: buyerEmail,
+                subject: subject,
+                body: bodyText,
+                invoiceId: orderData.id
+            })
+        });
+        return true;
+    } catch (e) {
+        console.warn("Webhook Email Warning:", e);
+        return false;
+    }
+}
+
+// ==========================================
+// AUTO-KIRIM STOK (REUSABLE LINK TOOLS & MULTI-QTY)
 // ==========================================
 window.autoProcessOrder = async function(orderData, orderDbId) {
     if (processingAutoOrderIds.has(orderDbId)) return;
@@ -859,20 +934,20 @@ window.autoProcessOrder = async function(orderData, orderDbId) {
         );
         const snap = await getDocs(q);
 
-        // 1. Cek apakah ada Stok Mode Kirim Berulang-ulang (Reusable Link/Tools)
+        // 1. Prioritaskan Stok Mode Kirim Berulang-ulang (Reusable Link/Tools)
         const reusableDoc = snap.docs.find(d => d.data().isReusable === true);
         if (reusableDoc) {
             const rData = reusableDoc.data();
             const parts = (rData.data || '').split('|');
             const replyText = `Terima kasih! Pembayaran Anda telah diverifikasi otomatis.\n\n[AKSES LAYANAN / TOOLS DIGITAL (x${neededQty})]\nLink / Akun : ${parts[0] || '-'}\nKode / Pin  : ${parts[1] || '-'}\nPanduan     : ${parts[2] || '-'}\n\nSilakan langsung diakses dan hubungi Live Chat jika ada kendala.`;
 
-            // Jangan ubah status menjadi 'Used' karena Reusable, cukup tambah penghitung sentCount!
             await updateDoc(doc(db, pathStocks, reusableDoc.id), {
                 sentCount: increment(neededQty),
                 lastSentAt: Date.now(),
                 lastOrderId: orderData.id
             });
             await updateDoc(doc(db, pathOrders, orderDbId), { adminReply: replyText });
+            triggerAutomatedEmailWebhook({ ...orderData, status: 'SUCCESS' }, replyText);
             window.showToast('Auto-Delivery (Reusable) Sukses', `Link/Stok berulang terkirim otomatis untuk ${orderData.id}`, 'success');
             return;
         }
@@ -901,6 +976,7 @@ window.autoProcessOrder = async function(orderData, orderDbId) {
 
             const replyText = `Terima kasih! Pembayaran Anda telah terverifikasi otomatis.\n\n${accountDetailsList.join('\n\n')}\n\nSilakan diamankan dan hubungi Live Chat jika ada kendala.`;
             await updateDoc(doc(db, pathOrders, orderDbId), { adminReply: replyText });
+            triggerAutomatedEmailWebhook({ ...orderData, status: 'SUCCESS' }, replyText);
             window.showToast('Auto-Delivery Sukses', `${neededQty} stok terkirim otomatis untuk ${orderData.id}`, 'success');
 
             const curView = document.getElementById('view-stock-category')?.value;
@@ -919,7 +995,7 @@ window.autoProcessOrder = async function(orderData, orderDbId) {
 };
 
 // ==========================================
-// KASIR SCANNER BARCODE TUNAI (ALA INDOMARET / ALFAMIDI)
+// KASIR SCANNER BARCODE TUNAI
 // ==========================================
 window.openBarcodeScannerModal = function() {
     document.getElementById('manual-barcode-input').value = '';
@@ -1019,7 +1095,6 @@ window.approveCashBarcodeDirectly = async function(dbId) {
 
     try {
         window.closeBarcodeScannerModal();
-        // Ubah status menjadi SUCCESS -> Listener otomatis memicu autoProcessOrder (untuk App/Tools Auto) & pengurangan kuota stok!
         const isGameOrManual = order.items && order.items.some(i => i.type === 'game' || i.processType === 'manual');
         if (isGameOrManual) {
             await updateDoc(doc(db, pathOrders, dbId), { status: 'SUCCESS' });
@@ -1035,99 +1110,135 @@ window.approveCashBarcodeDirectly = async function(dbId) {
 };
 
 // ==========================================
-// TAB DIREKTORI MEMBER TERDAFTAR (#tab-members)
+// TAB DIREKTORI MEMBER & ANONIM + HAPUS AKUN BERLAPIS (CASCADE CLEANUP)
 // ==========================================
+window.setAdminMemberFilter = function(filterType, btnEl) {
+    currentMemberFilter = filterType;
+    document.querySelectorAll('#tab-members .filter-pill').forEach(b => b.classList.remove('active'));
+    if (btnEl) btnEl.classList.add('active');
+    window.renderAdminMembers();
+};
+
 window.renderAdminMembers = function() {
     const grid = document.getElementById('admin-members-grid');
     if (!grid) return;
 
     const searchQ = (document.getElementById('admin-search-member')?.value || '').trim().toLowerCase();
 
-    // Hitung statistik belanja setiap member berdasarkan UID atau Email
-    const enrichedMembers = membersList.map(m => {
-        const mEmail = (m.email || '').toLowerCase();
-        const memberOrders = orders.filter(o => o.userId === m.uid || (mEmail && o.userEmail?.toLowerCase() === mEmail));
-        const successOrders = memberOrders.filter(o => o.status === 'SUCCESS');
+    const enrichedUsers = allUsersList.map(u => {
+        const isAnon = Boolean(u.isAnonymous || u.isGuest || u.role === 'anonymous');
+        const uEmail = (u.email || '').toLowerCase();
+        const userOrders = orders.filter(o => o.userId === u.uid || (uEmail && o.userEmail?.toLowerCase() === uEmail));
+        const successOrders = userOrders.filter(o => o.status === 'SUCCESS');
         const totalSpent = successOrders.reduce((sum, o) => sum + (o.finalTotal || 0), 0);
+
+        // Cari nomor telepon dari profil atau dari pesanan terakhirnya
+        const orderWithPhone = userOrders.find(o => o.userPhone && o.userPhone.trim() !== '');
+        const resolvedPhone = u.phone || u.whatsapp || (orderWithPhone ? orderWithPhone.userPhone : '');
+
         return {
-            ...m,
-            totalTrx: memberOrders.length,
+            ...u,
+            isAnon,
+            resolvedPhone,
+            totalTrx: userOrders.length,
             successTrx: successOrders.length,
             totalSpent
         };
     });
 
-    const totalEl = document.getElementById('member-stat-total');
+    const totalMemberEl = document.getElementById('member-stat-total');
+    const totalAnonEl = document.getElementById('member-stat-anon');
     const phoneEl = document.getElementById('member-stat-phone');
     const buyerEl = document.getElementById('member-stat-buyers');
-    if (totalEl) totalEl.innerText = enrichedMembers.length;
-    if (phoneEl) phoneEl.innerText = enrichedMembers.filter(m => m.phone && m.phone.trim() !== '').length;
-    if (buyerEl) buyerEl.innerText = enrichedMembers.filter(m => m.successTrx > 0).length;
 
-    let filtered = enrichedMembers;
+    if (totalMemberEl) totalMemberEl.innerText = enrichedUsers.filter(u => !u.isAnon).length;
+    if (totalAnonEl) totalAnonEl.innerText = enrichedUsers.filter(u => u.isAnon).length;
+    if (phoneEl) phoneEl.innerText = enrichedUsers.filter(u => u.resolvedPhone && u.resolvedPhone.trim() !== '').length;
+    if (buyerEl) buyerEl.innerText = enrichedUsers.filter(u => u.successTrx > 0).length;
+
+    let filtered = enrichedUsers.filter(u => {
+        if (currentMemberFilter === 'MEMBER') return !u.isAnon;
+        if (currentMemberFilter === 'ANONYMOUS') return u.isAnon;
+        return true;
+    });
+
     if (searchQ) {
-        filtered = enrichedMembers.filter(m =>
-            (m.name || '').toLowerCase().includes(searchQ) ||
-            (m.email || '').toLowerCase().includes(searchQ) ||
-            (m.phone || '').toLowerCase().includes(searchQ)
+        filtered = filtered.filter(u =>
+            (u.name || '').toLowerCase().includes(searchQ) ||
+            (u.email || '').toLowerCase().includes(searchQ) ||
+            (u.resolvedPhone || '').toLowerCase().includes(searchQ) ||
+            (u.deviceId || '').toLowerCase().includes(searchQ) ||
+            (u.uid || '').toLowerCase().includes(searchQ)
         );
     }
 
     if (filtered.length === 0) {
-        grid.innerHTML = `<div class="dashboard-panel text-center text-muted" style="grid-column: 1/-1; padding: 2.5rem;">Belum ada data member yang cocok dengan pencarian.</div>`;
+        grid.innerHTML = `<div class="dashboard-panel text-center text-muted" style="grid-column: 1/-1; padding: 2.5rem;">Tidak ada data akun pada filter/pencarian ini.</div>`;
         return;
     }
 
     let html = '';
-    filtered.forEach(m => {
-        const displayName = m.name || (m.email ? m.email.split('@')[0] : 'Member');
-        const initial = displayName.charAt(0).toUpperCase();
-        const joinDate = m.createdAt ? new Date(m.createdAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
-        const phoneStr = m.phone && m.phone.trim() !== '' ? m.phone.trim() : '';
+    filtered.forEach(u => {
+        const shortUid = (u.uid || '').slice(-4).toUpperCase();
+        const displayName = u.name || (u.isAnon ? `Tamu #${shortUid}` : (u.email ? u.email.split('@')[0] : 'Member'));
+        const initial = u.isAnon ? 'T' : displayName.charAt(0).toUpperCase();
+        const joinDate = u.createdAt ? new Date(u.createdAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
+        const phoneStr = u.resolvedPhone || '';
+
+        const statusRoleBadge = u.isAnon
+            ? `<span class="status-badge status-anon"><i class="fa-solid fa-user-secret"></i> ANONIM</span>`
+            : `<span class="status-badge status-success"><i class="fa-solid fa-circle-check"></i> MEMBER</span>`;
 
         let cleanWa = phoneStr.replace(/[^0-9]/g, '');
         if (cleanWa.startsWith('0')) cleanWa = '62' + cleanWa.substring(1);
         const waBtnHtml = cleanWa
-            ? `<a href="https://wa.me/${cleanWa}?text=${encodeURIComponent(`Halo kak ${displayName}, Admin Vipercell menghubungi terkait layanan...`)}" target="_blank" class="btn btn-success btn-sm flex-1" title="Hubungi via WhatsApp"><i class="fa-brands fa-whatsapp"></i> WA</a>`
-            : `<button class="btn btn-outline btn-sm flex-1" disabled title="Member belum mengisi nomor WA"><i class="fa-brands fa-whatsapp"></i> No WA</button>`;
+            ? `<a href="https://wa.me/${cleanWa}?text=${encodeURIComponent(`Halo kak ${displayName}, Admin Vipercell menghubungi terkait layanan...`)}" target="_blank" class="btn btn-success btn-sm" title="Hubungi via WhatsApp"><i class="fa-brands fa-whatsapp"></i> WA</a>`
+            : `<button class="btn btn-outline btn-sm" disabled title="Belum ada nomor WA"><i class="fa-brands fa-whatsapp"></i></button>`;
 
-        const emailBtnHtml = m.email
-            ? `<a href="mailto:${encodeURIComponent(m.email)}?subject=${encodeURIComponent('Informasi Akun Vipercell')}" class="btn btn-outline btn-sm" title="Kirim Email"><i class="fa-regular fa-envelope"></i></a>`
+        const emailBtnHtml = (u.email && u.email.includes('@'))
+            ? `<a href="mailto:${encodeURIComponent(u.email)}?subject=${encodeURIComponent('Informasi Akun Vipercell')}" class="btn btn-outline btn-sm" title="Kirim Email"><i class="fa-regular fa-envelope"></i></a>`
             : '';
 
         html += `
         <div class="member-card">
             <div>
                 <div class="member-card-head mb-2">
-                    <div class="member-avatar">${window.escapeHtml(initial)}</div>
+                    <div class="member-avatar ${u.isAnon ? 'anon-avatar' : ''}">${window.escapeHtml(initial)}</div>
                     <div style="flex:1; min-width:0;">
-                        <strong class="text-dark d-block" style="font-size:1rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${window.escapeHtml(displayName)}</strong>
-                        <span class="text-xs text-muted d-block" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"><i class="fa-regular fa-envelope"></i> ${window.escapeHtml(m.email || '-')}</span>
-                        <span class="text-xs text-success fw-bold d-block"><i class="fa-brands fa-whatsapp"></i> ${window.escapeHtml(phoneStr || 'Belum ada nomor HP')}</span>
+                        <div class="flex-between align-center mb-1">
+                            <strong class="text-dark" style="font-size:0.96rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${window.escapeHtml(displayName)}</strong>
+                            ${statusRoleBadge}
+                        </div>
+                        <span class="text-xs text-muted d-block" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"><i class="fa-regular fa-envelope"></i> ${window.escapeHtml(u.email || 'Tanpa Email')}</span>
+                        <span class="text-xs text-success fw-bold d-block"><i class="fa-brands fa-whatsapp"></i> ${window.escapeHtml(phoneStr || 'Belum ada No. WA')}</span>
                     </div>
                 </div>
 
                 <div class="member-meta-box">
                     <div class="member-meta-item">
                         <span>TRANSAKSI SUKSES</span>
-                        <strong>${m.successTrx}x (Total ${m.totalTrx}x)</strong>
+                        <strong>${u.successTrx}x (Total ${u.totalTrx}x)</strong>
                     </div>
                     <div class="member-meta-item">
                         <span>TOTAL BELANJA</span>
-                        <strong class="text-primary">Rp${m.totalSpent.toLocaleString('id-ID')}</strong>
+                        <strong class="text-primary">Rp${u.totalSpent.toLocaleString('id-ID')}</strong>
                     </div>
-                    <div class="member-meta-item" style="grid-column: 1 / -1; border-top: 1px dashed var(--border-subtle); padding-top: 6px;">
-                        <span>BERGABUNG SEJAK: <b>${joinDate}</b></span>
+                    <div class="member-meta-item" style="grid-column: 1 / -1; border-top: 1px dashed var(--border-subtle); padding-top: 6px; display:flex; justify-content:space-between;">
+                        <span>Bergabung: <b>${joinDate}</b></span>
+                        <span title="Device ID">${window.escapeHtml(u.deviceId ? u.deviceId.slice(0, 12) : '-')}</span>
                     </div>
                 </div>
             </div>
 
             <div class="member-actions-row">
-                <button class="btn btn-primary btn-sm flex-2" onclick="window.startChatWithMember('${escapeJsStr(m.uid)}', '${escapeJsStr(displayName)}', '${escapeJsStr(m.email || '')}')">
-                    <i class="fa-solid fa-comments"></i> Chat di Web
+                <button class="btn btn-primary btn-sm flex-1" onclick="window.startChatWithMember('${escapeJsStr(u.uid)}', '${escapeJsStr(displayName)}', '${escapeJsStr(u.email || '')}')">
+                    <i class="fa-solid fa-comments"></i> Chat Web
                 </button>
                 ${waBtnHtml}
                 ${emailBtnHtml}
+                <button class="btn btn-danger btn-sm" onclick="window.promptDeleteAccount('${escapeJsStr(u.uid)}')" title="Hapus Akun">
+                    <i class="fa-solid fa-trash-can"></i>
+                </button>
             </div>
         </div>`;
     });
@@ -1135,7 +1246,6 @@ window.renderAdminMembers = function() {
     grid.innerHTML = html;
 };
 
-// Fitur Hubungi Cepat Member via Live Chat Web Admin
 window.startChatWithMember = async function(uid, memberName, memberEmail) {
     if (!uid) return;
     try {
@@ -1144,7 +1254,7 @@ window.startChatWithMember = async function(uid, memberName, memberEmail) {
         if (!snap.exists()) {
             await setDoc(chatRef, {
                 uid: uid,
-                userInfo: memberName || memberEmail || 'Member',
+                userInfo: memberName || memberEmail || 'Pelanggan',
                 userEmail: memberEmail || '',
                 updatedAt: Date.now(),
                 messages: []
@@ -1155,8 +1265,132 @@ window.startChatWithMember = async function(uid, memberName, memberEmail) {
             window.openAdminChatDetailDesk(uid);
         }, 200);
     } catch (e) {
-        window.customAlert('Gagal', 'Tidak dapat membuka ruang chat dengan member ini.', 'error');
+        window.customAlert('Gagal', 'Tidak dapat membuka ruang chat dengan pengguna ini.', 'error');
     }
+};
+
+// Modal Konfirmasi Hapus Akun Berlapis (Cascade Cleanup)
+window.promptDeleteAccount = function(uid) {
+    const userObj = allUsersList.find(u => u.uid === uid);
+    if (!userObj) return;
+
+    const uEmail = (userObj.email || '').toLowerCase();
+    const userOrders = orders.filter(o => o.userId === uid || (uEmail && o.userEmail?.toLowerCase() === uEmail));
+
+    document.getElementById('del-acc-uid').value = uid;
+    document.getElementById('del-acc-device').value = userObj.deviceId || '';
+    document.getElementById('del-opt-devicelock').checked = true;
+    document.getElementById('del-opt-orders').checked = false;
+
+    const summaryEl = document.getElementById('del-acc-summary');
+    if (summaryEl) {
+        summaryEl.innerHTML = `
+            <div><b>Nama Akun:</b> ${window.escapeHtml(userObj.name || 'Tamu')} (${userObj.isAnonymous || userObj.isGuest ? 'Anonim' : 'Member'})</div>
+            <div><b>UID / Email:</b> ${window.escapeHtml(userObj.email || uid)}</div>
+            <div><b>Device ID:</b> ${window.escapeHtml(userObj.deviceId || '-')}</div>
+            <div><b>Riwayat Pesanan:</b> ${userOrders.length} Transaksi</div>
+        `;
+    }
+
+    window.openModal('modal-delete-account');
+};
+
+window.executeAccountDeletion = async function() {
+    const uid = document.getElementById('del-acc-uid').value;
+    const deviceId = document.getElementById('del-acc-device').value;
+    const removeDeviceLock = document.getElementById('del-opt-devicelock').checked;
+    const removeOrders = document.getElementById('del-opt-orders').checked;
+
+    if (!uid) return;
+
+    const btn = document.getElementById('btn-confirm-del-acc');
+    const ogHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Menghapus...</span>';
+
+    try {
+        // 1. Catat ke deleted_accounts/{uid} agar aplikasi user otomatis keluar & menghapus sesi auth dirinya
+        await setDoc(doc(db, pathDeletedAccounts, uid), {
+            deletedAt: Date.now(),
+            deletedBy: currentAdminUser?.email || 'admin'
+        });
+
+        // 2. Hapus profil users/{uid} dan sesi live chat chats/{uid}
+        await deleteDoc(doc(db, pathUsers, uid)).catch(() => {});
+        await deleteDoc(doc(db, pathChats, uid)).catch(() => {});
+
+        // 3. Penanganan Kunci Perangkat (device_locks/{deviceId})
+        if (deviceId) {
+            if (removeDeviceLock) {
+                await deleteDoc(doc(db, pathDeviceLocks, deviceId)).catch(() => {});
+            } else {
+                await setDoc(doc(db, pathDeviceLocks, deviceId), {
+                    uid: uid,
+                    isBlocked: true,
+                    status: 'blocked_by_admin',
+                    updatedAt: Date.now()
+                }, { merge: true }).catch(() => {});
+            }
+        }
+
+        // 4. Penanganan Transaksi Terkait
+        const relatedOrders = orders.filter(o => o.userId === uid);
+        for (const ord of relatedOrders) {
+            if (removeOrders) {
+                await deleteDoc(doc(db, pathOrders, ord.dbId)).catch(() => {});
+            } else {
+                await updateDoc(doc(db, pathOrders, ord.dbId), {
+                    userStatus: 'Deleted User'
+                }).catch(() => {});
+            }
+        }
+
+        window.closeModal('modal-delete-account');
+        window.showToast('Akun Dihapus', 'Pembersihan akun dan data terkait berhasil dijalankan.', 'success');
+    } catch (e) {
+        window.customAlert('Error', 'Gagal menyelesaikan penghapusan akun.', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = ogHtml;
+    }
+};
+
+// Hapus Massal Akun Tamu (Anonim) dengan 0 Transaksi
+window.bulkDeleteInactiveGuests = function() {
+    const emptyGuests = allUsersList.filter(u => {
+        const isAnon = Boolean(u.isAnonymous || u.isGuest || u.role === 'anonymous');
+        if (!isAnon) return false;
+        const hasOrder = orders.some(o => o.userId === u.uid);
+        return !hasOrder;
+    });
+
+    if (emptyGuests.length === 0) {
+        window.customAlert('Bersih!', 'Tidak ada akun Tamu (Anonim) dengan 0 transaksi saat ini.', 'info');
+        return;
+    }
+
+    window.openConfirm(
+        'Bersihkan Akun Tamu Kosong',
+        `Ditemukan <b>${emptyGuests.length} akun Tamu (Anonim)</b> yang belum pernah bertransaksi (0 Transaksi). Hapus semuanya sekarang?`,
+        async (confirmed) => {
+            if (!confirmed) return;
+            try {
+                let count = 0;
+                for (const g of emptyGuests) {
+                    await setDoc(doc(db, pathDeletedAccounts, g.uid), { deletedAt: Date.now(), deletedBy: 'bulk_cleanup' }).catch(() => {});
+                    await deleteDoc(doc(db, pathUsers, g.uid)).catch(() => {});
+                    if (g.deviceId) {
+                        await deleteDoc(doc(db, pathDeviceLocks, g.deviceId)).catch(() => {});
+                    }
+                    count++;
+                }
+                window.showToast('Selesai Dibersihkan', `${count} akun tamu tanpa transaksi telah dihapus.`, 'success');
+            } catch (e) {
+                window.customAlert('Gagal', 'Terjadi kesalahan saat menghapus akun tamu.', 'error');
+            }
+        },
+        'delete'
+    );
 };
 
 // ==========================================
@@ -1238,7 +1472,7 @@ window.generateAdminReports = function() {
 };
 
 // ==========================================
-// MANAJEMEN PESANAN MASUK & MODAL E-RECEIPT ADMIN
+// MANAJEMEN PESANAN MASUK + KIRIM PESAN KE EMAIL & WA PEMBELI
 // ==========================================
 window.setAdminOrderFilter = function(filterType, btnEl) {
     currentOrderFilter = filterType;
@@ -1269,8 +1503,9 @@ window.renderAdminOrders = function() {
         filteredOrders = filteredOrders.filter(o => {
             const matchId = o.id && o.id.toUpperCase().includes(queryText);
             const matchEmail = o.userEmail && o.userEmail.toUpperCase().includes(queryText);
+            const matchPhone = o.userPhone && o.userPhone.toUpperCase().includes(queryText);
             const matchItem = o.items && o.items.some(i => (i.name || '').toUpperCase().includes(queryText) || (i.playerInfo || '').toUpperCase().includes(queryText));
-            return matchId || matchEmail || matchItem;
+            return matchId || matchEmail || matchPhone || matchItem;
         });
     }
     
@@ -1300,11 +1535,15 @@ window.renderAdminOrders = function() {
         let promoDesc = o.promoCode ? `<br><small class="text-success text-xs fw-bold">Voucher: ${window.escapeHtml(o.promoCode)} (-Rp${o.promoDiscount})</small>` : '';
         let paymentMethodStr = o.paymentMethod === 'cash' ? '<span class="status-badge status-pending"><i class="fa-solid fa-barcode"></i> TUNAI</span>' : '<span class="status-badge status-unpaid"><i class="fa-solid fa-qrcode"></i> QRIS</span>';
         
+        // Cari nomor WA dari order atau dari profil member terkait
+        const memberMatch = allUsersList.find(u => u.uid === o.userId || (o.userEmail && u.email?.toLowerCase() === o.userEmail.toLowerCase()));
+        const buyerPhone = o.userPhone || (memberMatch ? (memberMatch.phone || memberMatch.whatsapp || '') : '');
+
         let actionBtn = '';
         if(o.status === 'PENDING' || o.status === 'UNPAID' || o.status === 'EXPIRED' || (o.status === 'SUCCESS' && !o.adminReply)) {
             actionBtn = `<button class="btn btn-primary btn-sm" onclick="window.promptProcessOrder('${o.dbId}')"><i class="fa-solid fa-bolt"></i> Proses</button>`;
         } else {
-            actionBtn = `<button class="btn btn-outline btn-sm" onclick="window.promptProcessOrder('${o.dbId}')" title="Lihat Rincian E-Receipt"><i class="fa-solid fa-file-invoice"></i> Struk</button>`;
+            actionBtn = `<button class="btn btn-outline btn-sm" onclick="window.promptProcessOrder('${o.dbId}')" title="Lihat Rincian & Kirim Email/WA"><i class="fa-solid fa-paper-plane"></i> Detail / Kirim</button>`;
         }
             
         let deleteBtn = `<button aria-label="Hapus Order" class="btn-icon-only text-danger" style="width:34px; height:34px;" title="Hapus Permanen" onclick="window.promptDeleteOrder('${o.dbId}', '${escapeJsStr(o.id)}')"><i class="fa-solid fa-trash"></i></button>`;
@@ -1318,7 +1557,10 @@ window.renderAdminOrders = function() {
                 <small class="text-muted text-xs">${new Date(o.date).toLocaleString('id-ID')}</small>
             </td>
             <td>${itemsDesc}${promoDesc}</td>
-            <td><span class="text-xs fw-bold">${window.escapeHtml(o.userEmail || '-')}</span></td>
+            <td>
+                <span class="text-xs fw-bold d-block">${window.escapeHtml(o.userEmail || '-')}</span>
+                ${buyerPhone ? `<small class="text-success fw-bold text-xs"><i class="fa-brands fa-whatsapp"></i> ${window.escapeHtml(buyerPhone)}</small>` : ''}
+            </td>
             <td>${paymentMethodStr}</td>
             <td class="text-primary fw-bold">Rp${(o.finalTotal || 0).toLocaleString('id-ID')}</td>
             <td>${sBadge}</td>
@@ -1333,7 +1575,7 @@ window.exportOrdersCSV = function() {
         window.customAlert('Data Kosong', 'Belum ada data pesanan untuk diekspor.', 'warning');
         return;
     }
-    const headers = ['Invoice ID', 'Tanggal', 'Email Pembeli', 'Produk', 'Tujuan/Info', 'Metode Bayar', 'Total Bayar (Rp)', 'Status'];
+    const headers = ['Invoice ID', 'Tanggal', 'Email Pembeli', 'No WA', 'Produk', 'Tujuan/Info', 'Metode Bayar', 'Total Bayar (Rp)', 'Status'];
     const rows = orders.map(o => {
         const itemStr = (o.items || []).map(i => i.name).join('; ');
         const infoStr = (o.items || []).map(i => i.playerInfo).join('; ');
@@ -1341,6 +1583,7 @@ window.exportOrdersCSV = function() {
             o.id,
             new Date(o.date).toLocaleString('id-ID'),
             o.userEmail || '-',
+            o.userPhone || '-',
             `"${(itemStr || '').replace(/"/g, '""')}"`,
             `"${(infoStr || '').replace(/"/g, '""')}"`,
             o.paymentMethod || 'qris',
@@ -1385,15 +1628,24 @@ window.promptProcessOrder = async function(dbId) {
     if(!order) return;
     
     document.getElementById('proc-order-id').value = dbId;
+
+    // Cari kontak pembeli dari order maupun profil member
+    const memberMatch = allUsersList.find(u => u.uid === order.userId || (order.userEmail && u.email?.toLowerCase() === order.userEmail.toLowerCase()));
+    const buyerEmail = order.userEmail || (memberMatch ? memberMatch.email : '');
+    const buyerPhone = order.userPhone || (memberMatch ? (memberMatch.phone || memberMatch.whatsapp || '') : '');
+
+    const emailInp = document.getElementById('proc-buyer-email');
+    const phoneInp = document.getElementById('proc-buyer-phone');
+    if (emailInp) emailInp.value = buyerEmail || '';
+    if (phoneInp) phoneInp.value = buyerPhone || '';
     
-    // Render Header Ringkasan E-Receipt Admin
     const summaryEl = document.getElementById('proc-ereceipt-summary');
     if (summaryEl) {
         const badgeCls = order.status === 'SUCCESS' ? 'status-success' : (order.status === 'PENDING' ? 'status-pending' : 'status-unpaid');
         summaryEl.innerHTML = `
             <div>
                 <span class="text-xs text-muted fw-bold d-block">INVOICE #${window.escapeHtml(order.id)} &bull; ${new Date(order.date).toLocaleString('id-ID')}</span>
-                <strong class="text-dark" style="font-size:0.95rem;"><i class="fa-regular fa-envelope"></i> ${window.escapeHtml(order.userEmail || '-')}</strong>
+                <strong class="text-dark" style="font-size:0.95rem;"><i class="fa-regular fa-envelope"></i> ${window.escapeHtml(buyerEmail || '-')}</strong>
             </div>
             <div style="text-align:right;">
                 <span class="status-badge ${badgeCls} mb-1">${order.status} (${(order.paymentMethod || 'qris').toUpperCase()})</span>
@@ -1402,7 +1654,7 @@ window.promptProcessOrder = async function(dbId) {
         `;
     }
 
-    let defaultReply = order.adminReply || `Pesanan Anda telah berhasil diproses! Silakan cek di dalam game/aplikasi. Terima kasih telah berbelanja di Vipercell!`;
+    let defaultReply = order.adminReply || `Terima kasih telah berbelanja di Vipercell! Pesanan #${order.id} Anda telah berhasil diproses.`;
     document.getElementById('proc-reply').value = defaultReply;
     
     const list = document.getElementById('proc-items-list');
@@ -1444,7 +1696,7 @@ window.promptProcessOrder = async function(dbId) {
                     const sData = window.tempProcessStocks.find(x => x.dbId === sId);
                     if(sData) {
                         const parts = sData.data.split('|');
-                        document.getElementById('proc-reply').value = `[DETAIL PESANAN ANDA]\nLink/Email : ${parts[0] || '-'}\nSandi/Kode : ${parts[1] || '-'}\nKeterangan : ${parts[2] || '-'}`;
+                        document.getElementById('proc-reply').value = `[DETAIL PESANAN #${order.id}]\nLink/Email : ${parts[0] || '-'}\nSandi/Kode : ${parts[1] || '-'}\nKeterangan : ${parts[2] || '-'}`;
                     }
                 };
                 if (!order.adminReply && window.tempProcessStocks.length > 0) {
@@ -1461,9 +1713,86 @@ window.promptProcessOrder = async function(dbId) {
     window.openModal('modal-process-order');
 };
 
+// 4 Template Pesan Siap Kirim untuk Pembeli
+window.applyOrderMessageTemplate = function(templateType) {
+    const dbId = document.getElementById('proc-order-id').value;
+    const order = orders.find(o => o.dbId === dbId);
+    const inv = order ? order.id : 'VP-XXXXXX';
+    const itemName = order && order.items && order.items[0] ? order.items[0].name : 'Layanan Vipercell';
+    const targetInfo = order && order.items && order.items[0] ? order.items[0].playerInfo : '-';
+    const totalRp = order ? (order.finalTotal || 0).toLocaleString('id-ID') : '0';
+
+    const replyBox = document.getElementById('proc-reply');
+    if (!replyBox) return;
+
+    if (templateType === 'game') {
+        replyBox.value = `[TOP UP GAME BERHASIL - #${inv}]\nProduk : ${itemName}\nTujuan : ${targetInfo}\nStatus : SUKSES TERKIRIM\n\nSilakan cek langsung di dalam akun game Anda. Terima kasih telah berbelanja di Vipercell!`;
+    } else if (templateType === 'app') {
+        replyBox.value = `[AKUN APLIKASI PREMIUM - #${inv}]\nProduk   : ${itemName}\nEmail/ID : \nPassword : \nDurasi   : Bergaransi Resmi Vipercell\n\nSilakan login dan jangan mengubah data profil yang telah ditentukan. Hubungi CS jika butuh bantuan.`;
+    } else if (templateType === 'tools') {
+        replyBox.value = `[AKSES TOOLS DIGITAL - #${inv}]\nProduk     : ${itemName}\nLink Akses : https://\nKode/Pin   : -\nPanduan    : Silakan buka tautan di atas untuk mengakses layanan.\n\nTerima kasih telah berbelanja di Vipercell!`;
+    } else if (templateType === 'remind') {
+        replyBox.value = `Halo kak, kami dari Admin Vipercell ingin menginformasikan bahwa pesanan #${inv} (${itemName}) sebesar Rp${totalRp} sedang menunggu konfirmasi pembayaran. Silakan selesaikan pembayaran atau hubungi Live Chat kami jika butuh bantuan.`;
+    }
+};
+
+// Kirim Pesan & Bukti Pesanan ke Email Pembeli (Otomatis via Webhook + Buka Aplikasi Email Siap Kirim)
+window.sendOrderNotificationToEmail = async function() {
+    const dbId = document.getElementById('proc-order-id').value;
+    const order = orders.find(o => o.dbId === dbId);
+    const targetEmail = document.getElementById('proc-buyer-email')?.value.trim() || '';
+    const replyText = document.getElementById('proc-reply')?.value.trim() || '';
+
+    if (!targetEmail || !targetEmail.includes('@')) {
+        window.customAlert('Email Kosong', 'Masukkan alamat email pembeli yang valid terlebih dahulu.', 'warning');
+        return;
+    }
+
+    const inv = order ? order.id : 'VP-XXXXXX';
+    const itemTitle = order && order.items && order.items[0] ? order.items[0].name : 'Pesanan Vipercell';
+    const totalRp = order ? (order.finalTotal || 0).toLocaleString('id-ID') : '0';
+
+    // Jika URL Webhook Google Apps Script diatur, kirim juga secara otomatis di latar belakang
+    if (siteSettings.emailWebhookUrl && order) {
+        triggerAutomatedEmailWebhook({ ...order, userEmail: targetEmail }, replyText);
+        window.showToast('Webhook Email Dikirim', `Mengirim email otomatis ke ${targetEmail}...`, 'success');
+    }
+
+    const subject = `Bukti & Data Pesanan Vipercell #${inv} - ${itemTitle}`;
+    const body = `Halo Pelanggan Vipercell,\n\nTerima kasih telah berbelanja di Vipercell! Berikut rincian transaksi Anda:\n\nNomor Invoice : #${inv}\nProduk        : ${itemTitle}\nTotal Tagihan : Rp${totalRp}\n\n=== RINCIAN PESANAN / DATA AKUN ===\n${replyText}\n===================================\n\nJika ada kendala atau pertanyaan, silakan balas pesan ini atau hubungi Live Chat di website Vipercell.\n\nSalam hangat,\nAdmin Vipercell`;
+
+    window.open(`mailto:${encodeURIComponent(targetEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
+};
+
+// Kirim Pesan & Bukti Pesanan Langsung ke WhatsApp Pembeli
+window.sendOrderNotificationToWA = function() {
+    const dbId = document.getElementById('proc-order-id').value;
+    const order = orders.find(o => o.dbId === dbId);
+    let rawPhone = document.getElementById('proc-buyer-phone')?.value.trim() || '';
+    const replyText = document.getElementById('proc-reply')?.value.trim() || '';
+
+    if (!rawPhone) {
+        window.customAlert('Nomor WA Kosong', 'Silakan ketik nomor WhatsApp pembeli pada kolom Nomor WhatsApp di atas.', 'warning');
+        return;
+    }
+
+    let cleanWa = rawPhone.replace(/[^0-9]/g, '');
+    if (cleanWa.startsWith('0')) cleanWa = '62' + cleanWa.substring(1);
+
+    const inv = order ? order.id : 'VP-XXXXXX';
+    const itemTitle = order && order.items && order.items[0] ? order.items[0].name : 'Pesanan Vipercell';
+    const totalRp = order ? (order.finalTotal || 0).toLocaleString('id-ID') : '0';
+
+    const waMessage = `*VIPERCELL OFFICIAL STORE*\nHalo kak, berikut rincian pesanan Anda:\n\n*No. Invoice :* #${inv}\n*Produk :* ${itemTitle}\n*Total :* Rp${totalRp}\n\n*DATA PESANAN / AKUN :*\n${replyText}\n\n_Terima kasih telah berbelanja di Vipercell!_`;
+
+    window.open(`https://wa.me/${cleanWa}?text=${encodeURIComponent(waMessage)}`, '_blank');
+};
+
 window.markOrderComplete = async function(statusType) {
     const dbId = document.getElementById('proc-order-id').value;
     const reply = document.getElementById('proc-reply').value.trim();
+    const buyerEmail = document.getElementById('proc-buyer-email')?.value.trim() || '';
+    const buyerPhone = document.getElementById('proc-buyer-phone')?.value.trim() || '';
     const order = orders.find(o => o.dbId === dbId);
     if (!order) return;
     
@@ -1499,8 +1828,15 @@ window.markOrderComplete = async function(statusType) {
         processingAutoOrderIds.add(dbId);
         await updateDoc(doc(db, pathOrders, dbId), {
             status: statusType,
+            userEmail: buyerEmail || order.userEmail || '',
+            userPhone: buyerPhone || order.userPhone || '',
             adminReply: statusType === 'SUCCESS' ? reply : ''
         });
+
+        if (statusType === 'SUCCESS') {
+            triggerAutomatedEmailWebhook({ ...order, userEmail: buyerEmail || order.userEmail, status: 'SUCCESS' }, reply);
+        }
+
         window.closeModal('modal-process-order');
         
         if(statusType === 'SUCCESS') window.showToast('Transaksi Selesai', `Invoice ${order.id} telah diselesaikan & dikirim.`, 'success');
@@ -1534,7 +1870,6 @@ window.updateAdminStockItemSelect = function() {
     
     const brand = groupedBrands.find(b => b.brandName === brandName);
     if(brand) {
-        // Jika produk kategori Tools, otomatis nyalakan sakelar Mode Kirim Berulang secara default agar memudahkan Admin
         if (reusableCheck) reusableCheck.checked = (brand.type === 'tools');
         brand.items.forEach(i => {
             html += `<option value="${window.escapeHtml(i.name)}">${window.escapeHtml(i.name)}</option>`;
@@ -2231,14 +2566,55 @@ if(manageProdImgEl) {
 }
 
 // ==========================================
-// STUDIO VOUCHER & PROMO (KARTU KUPON VISUAL)
+// STUDIO VOUCHER & PROMO (2-KOLOM + LIVE PREVIEW + PRESET CEPAT)
 // ==========================================
 window.generateRandomPromoCode = function() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let res = 'VIPER';
     for (let i = 0; i < 4; i++) res += chars.charAt(Math.floor(Math.random() * chars.length));
     const inp = document.getElementById('manage-promo-code');
-    if (inp) inp.value = res;
+    if (inp) {
+        inp.value = res;
+        window.updatePromoLivePreview();
+    }
+};
+
+window.setPromoQuickPreset = function(type, amountVal) {
+    const typeEl = document.getElementById('manage-promo-type');
+    const amtEl = document.getElementById('manage-promo-amount');
+    if (typeEl) typeEl.value = type;
+    if (amtEl) amtEl.value = amountVal;
+    window.updatePromoLivePreview();
+};
+
+window.updatePromoLivePreview = function() {
+    const code = (document.getElementById('manage-promo-code')?.value || 'KODEPROMO').trim().toUpperCase();
+    const type = document.getElementById('manage-promo-type')?.value || 'nominal';
+    const amount = parseInt(document.getElementById('manage-promo-amount')?.value) || 0;
+    const target = document.getElementById('manage-promo-target')?.value || 'all';
+    const userTgt = document.getElementById('manage-promo-user')?.value || 'all';
+    const minOrder = parseInt(document.getElementById('manage-promo-min-order')?.value) || 0;
+    const maxUses = parseInt(document.getElementById('manage-promo-max')?.value) || 50;
+    const expiry = document.getElementById('manage-promo-expiry')?.value || '';
+
+    const prevCode = document.getElementById('prev-promo-code');
+    const prevAmt = document.getElementById('prev-promo-amount');
+    const prevUser = document.getElementById('prev-promo-user-badge');
+    const prevMeta = document.getElementById('prev-promo-meta');
+
+    if (prevCode) prevCode.innerText = code || 'KODEPROMO';
+    if (prevAmt) {
+        prevAmt.innerText = type === 'percent' ? `Diskon ${amount}%` : `Potongan Rp${amount.toLocaleString('id-ID')}`;
+    }
+    if (prevUser) {
+        prevUser.innerText = userTgt === 'new' ? 'KHUSUS TRANSAKSI PERTAMA' : 'SEMUA PELANGGAN';
+    }
+    if (prevMeta) {
+        const tgtStr = target === 'all' ? 'Semua Produk' : target;
+        const minStr = minOrder > 0 ? ` • Min. Rp${minOrder.toLocaleString('id-ID')}` : '';
+        const expStr = expiry ? ` • s/d ${expiry}` : '';
+        prevMeta.innerText = `Produk: ${tgtStr} • Kuota ${maxUses}x${minStr}${expStr}`;
+    }
 };
 
 window.renderAdminPromos = function() {
@@ -2254,7 +2630,9 @@ window.renderAdminPromos = function() {
     promos.forEach(p => {
         const typeStr = p.type === 'percent' ? `Diskon ${p.amount}%` : `Potongan Rp${p.amount.toLocaleString('id-ID')}`;
         const targetStr = p.targetBrand === 'all' ? 'Semua Produk' : (p.targetBrand || 'Semua');
-        const userTgt = p.targetUser === 'new' ? 'Khusus Pembeli Baru' : 'Semua Pelanggan';
+        const userTgt = p.targetUser === 'new' ? 'Pembeli Baru' : 'Semua User';
+        const minOrderStr = p.minOrder > 0 ? ` &bull; Min. Rp${p.minOrder.toLocaleString('id-ID')}` : '';
+        const expStr = p.expiryDate ? `<div class="text-xs text-muted mt-1"><i class="fa-regular fa-calendar"></i> Berlaku s/d: <b>${window.escapeHtml(p.expiryDate)}</b></div>` : '';
         const used = p.usedCount || 0;
         const max = p.maxUses || 1;
         const pct = Math.min(100, Math.round((used / max) * 100));
@@ -2272,9 +2650,10 @@ window.renderAdminPromos = function() {
 
                 <div class="promo-coupon-body">
                     <div class="promo-discount-val">${typeStr}</div>
-                    <div class="text-xs text-muted fw-bold mb-2">
-                        <i class="fa-solid fa-layer-group text-primary"></i> ${window.escapeHtml(targetStr)} &bull; <i class="fa-solid fa-user-tag text-warning"></i> ${userTgt}
+                    <div class="text-xs text-muted fw-bold mb-1">
+                        <i class="fa-solid fa-layer-group text-primary"></i> ${window.escapeHtml(targetStr)} &bull; <i class="fa-solid fa-user-tag text-warning"></i> ${userTgt}${minOrderStr}
                     </div>
+                    ${expStr}
                     <div class="promo-quota-bar">
                         <div class="promo-quota-fill" style="width: ${pct}%;"></div>
                     </div>
@@ -2314,20 +2693,25 @@ window.openPromoModal = function(dbId = null) {
         document.getElementById('manage-promo-type').value = p.type || 'nominal';
         document.getElementById('manage-promo-amount').value = p.amount;
         document.getElementById('manage-promo-max').value = p.maxUses;
+        if(document.getElementById('manage-promo-min-order')) document.getElementById('manage-promo-min-order').value = p.minOrder || 0;
+        if(document.getElementById('manage-promo-expiry')) document.getElementById('manage-promo-expiry').value = p.expiryDate || '';
         if(targetSelect) document.getElementById('manage-promo-target').value = p.targetBrand || 'all';
         if(document.getElementById('manage-promo-user')) document.getElementById('manage-promo-user').value = p.targetUser || 'all';
         document.getElementById('manage-promo-active').checked = p.active;
     } else {
-        document.getElementById('modal-promo-title').innerHTML = '<i class="fa-solid fa-ticket text-primary"></i> Buat Voucher Promo Baru';
+        document.getElementById('modal-promo-title').innerHTML = '<i class="fa-solid fa-ticket text-primary"></i> Studio Pembuat Kode Promo';
         document.getElementById('manage-promo-id').value = '';
         document.getElementById('manage-promo-code').value = '';
         document.getElementById('manage-promo-type').value = 'nominal';
         document.getElementById('manage-promo-amount').value = '';
         document.getElementById('manage-promo-max').value = '50';
+        if(document.getElementById('manage-promo-min-order')) document.getElementById('manage-promo-min-order').value = '0';
+        if(document.getElementById('manage-promo-expiry')) document.getElementById('manage-promo-expiry').value = '';
         if(targetSelect) document.getElementById('manage-promo-target').value = 'all';
         if(document.getElementById('manage-promo-user')) document.getElementById('manage-promo-user').value = 'all';
         document.getElementById('manage-promo-active').checked = true;
     }
+    window.updatePromoLivePreview();
     window.openModal('modal-manage-promo');
 };
 
@@ -2339,6 +2723,8 @@ window.savePromo = async function() {
         amount: parseInt(document.getElementById('manage-promo-amount').value) || 0,
         targetBrand: document.getElementById('manage-promo-target') ? document.getElementById('manage-promo-target').value : 'all',
         targetUser: document.getElementById('manage-promo-user') ? document.getElementById('manage-promo-user').value : 'all',
+        minOrder: parseInt(document.getElementById('manage-promo-min-order')?.value) || 0,
+        expiryDate: document.getElementById('manage-promo-expiry')?.value || '',
         maxUses: parseInt(document.getElementById('manage-promo-max').value) || 0,
         active: document.getElementById('manage-promo-active').checked,
         usedCount: 0 
@@ -2378,8 +2764,26 @@ window.deletePromo = function(dbId) {
 };
 
 // ==========================================
-// BERITA & KOMUNITAS WEB
+// BERITA & KOMUNITAS WEB (DENGAN CENTANG TOMBOL PRODUK TERKAIT)
 // ==========================================
+function populateNewsBrandDropdown() {
+    const sel = document.getElementById('manage-news-linked-brand');
+    if (!sel) return;
+    const curVal = sel.value;
+    let html = '<option value="">-- Pilih Produk yang Ditampilkan di Berita --</option>';
+    groupedBrands.forEach(b => {
+        html += `<option value="${window.escapeHtml(b.brandName)}">${window.escapeHtml(b.brandName)}</option>`;
+    });
+    sel.innerHTML = html;
+    if (curVal) sel.value = curVal;
+}
+
+window.toggleNewsProductSelect = function() {
+    const chk = document.getElementById('manage-news-enable-btn');
+    const box = document.getElementById('manage-news-product-box');
+    if (box) box.style.display = (chk && chk.checked) ? 'block' : 'none';
+};
+
 window.renderAdminNews = function() {
     const list = document.getElementById('admin-news-list');
     if(!list) return;
@@ -2395,13 +2799,18 @@ window.renderAdminNews = function() {
             ? `<img src="${t.imageUrl}" class="admin-news-thumb" alt="Thumb">`
             : `<div class="admin-news-thumb" style="background:linear-gradient(135deg, var(--primary), #1e3a8a); display:flex; align-items:center; justify-content:center; color:#fff; font-size:2rem;"><i class="fa-solid fa-newspaper"></i></div>`;
 
+        const linkedTagHtml = (t.enableProductBtn && t.linkedBrand)
+            ? `<span class="status-badge status-success mt-1"><i class="fa-solid fa-cart-shopping"></i> Tombol: ${window.escapeHtml(t.linkedBrand)}</span>`
+            : '';
+
         html += `
         <div class="admin-news-card">
             <div>
                 ${thumbHtml}
                 <div style="padding: 12px;">
                     <strong class="text-dark d-block mb-1" style="font-size:0.92rem;">${window.escapeHtml(t.title)}</strong>
-                    <p class="text-muted text-xs mb-0" style="display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">${window.escapeHtml(t.desc)}</p>
+                    <p class="text-muted text-xs mb-1" style="display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">${window.escapeHtml(t.desc)}</p>
+                    ${linkedTagHtml}
                 </div>
             </div>
             <div class="flex-between align-center" style="padding: 10px 12px; border-top: 1.5px dashed var(--border-subtle);">
@@ -2414,13 +2823,20 @@ window.renderAdminNews = function() {
 };
 
 window.openNewsModal = function(index = -1) {
+    populateNewsBrandDropdown();
     document.getElementById('manage-news-index').value = index;
     const prevImg = document.getElementById('manage-news-preview');
+    const chkBtn = document.getElementById('manage-news-enable-btn');
+    const brandSel = document.getElementById('manage-news-linked-brand');
+
     if (index > -1 && siteSettings.newsList && siteSettings.newsList[index]) {
         const news = siteSettings.newsList[index];
         document.getElementById('manage-news-title').value = news.title || '';
         document.getElementById('manage-news-image').value = news.imageUrl || '';
         document.getElementById('manage-news-desc').value = news.desc || '';
+        if (chkBtn) chkBtn.checked = Boolean(news.enableProductBtn);
+        if (brandSel) brandSel.value = news.linkedBrand || '';
+        window.toggleNewsProductSelect();
         document.getElementById('modal-news-title').innerHTML = '<i class="fa-solid fa-pen text-primary"></i> Edit Artikel Berita';
         if (news.imageUrl && prevImg) { prevImg.src = news.imageUrl; prevImg.style.display = 'block'; }
         else if (prevImg) { prevImg.style.display = 'none'; }
@@ -2428,6 +2844,9 @@ window.openNewsModal = function(index = -1) {
         document.getElementById('manage-news-title').value = '';
         document.getElementById('manage-news-image').value = '';
         document.getElementById('manage-news-desc').value = '';
+        if (chkBtn) chkBtn.checked = false;
+        if (brandSel) brandSel.value = '';
+        window.toggleNewsProductSelect();
         document.getElementById('modal-news-title').innerHTML = '<i class="fa-solid fa-newspaper text-primary"></i> Buat Artikel Berita Baru';
         if (prevImg) prevImg.style.display = 'none';
     }
@@ -2456,7 +2875,14 @@ window.saveNews = async function() {
     const title = document.getElementById('manage-news-title').value.trim();
     const imageUrl = document.getElementById('manage-news-image').value.trim();
     const desc = document.getElementById('manage-news-desc').value.trim();
+    const enableProductBtn = Boolean(document.getElementById('manage-news-enable-btn')?.checked);
+    const linkedBrand = document.getElementById('manage-news-linked-brand')?.value || '';
+
     if(!title || !desc) { window.customAlert('Error', 'Judul dan Isi Artikel wajib diisi.', 'error'); return; }
+    if(enableProductBtn && !linkedBrand) {
+        window.customAlert('Pilih Produk', 'Silakan pilih produk yang ingin dihubungkan pada berita ini.', 'warning');
+        return;
+    }
     
     const btn = document.getElementById('btn-save-news');
     const ogHtml = btn.innerHTML;
@@ -2464,8 +2890,16 @@ window.saveNews = async function() {
     btn.disabled = true;
     try {
         const newsList = siteSettings.newsList ? [...siteSettings.newsList] : [];
-        if (idx > -1) newsList[idx] = { title, imageUrl, desc, isHidden: false };
-        else newsList.push({ title, imageUrl, desc, isHidden: false });
+        const newsObj = {
+            title,
+            imageUrl,
+            desc,
+            enableProductBtn,
+            linkedBrand: enableProductBtn ? linkedBrand : '',
+            isHidden: false
+        };
+        if (idx > -1) newsList[idx] = newsObj;
+        else newsList.push(newsObj);
         
         await setDoc(doc(db, pathSettings, 'mainConfig'), { newsList: newsList }, { merge: true });
         window.closeModal('modal-manage-news');
@@ -2489,7 +2923,7 @@ window.deleteNews = async function(index) {
 };
 
 // ==========================================
-// PENGATURAN WEB & IKON PWA (TANPA GEMINI API)
+// PENGATURAN WEB, IKON PWA & WEBHOOK EMAIL
 // ==========================================
 window.quickToggleStoreStatus = async function() {
     if (!isSettingsLoaded) return;
@@ -2522,6 +2956,7 @@ window.saveSettingsManual = async function(showNotification = false) {
         igLink: document.getElementById('set-ig').value.trim(),
         ttLink: document.getElementById('set-tt').value.trim(),
         qrisStringData: document.getElementById('set-qris-string').value.trim() || siteSettings.qrisStringData || '',
+        emailWebhookUrl: document.getElementById('set-email-webhook') ? document.getElementById('set-email-webhook').value.trim() : (siteSettings.emailWebhookUrl || ''),
         waChannelLink: document.getElementById('set-wa-channel') ? document.getElementById('set-wa-channel').value.trim() : (siteSettings.waChannelLink || ''),
         isStoreOpen: document.getElementById('set-store-status') ? document.getElementById('set-store-status').checked : true
     };
@@ -2547,8 +2982,8 @@ window.populateAdminSettings = function() {
     document.getElementById('set-ig').value = siteSettings.igLink || '';
     document.getElementById('set-tt').value = siteSettings.ttLink || '';
     document.getElementById('set-qris-string').value = siteSettings.qrisStringData || '';
-    
-    if(document.getElementById('set-wa-channel')) document.getElementById('set-wa-channel').value = siteSettings.waChannelLink || '';
+    if (document.getElementById('set-email-webhook')) document.getElementById('set-email-webhook').value = siteSettings.emailWebhookUrl || '';
+    if (document.getElementById('set-wa-channel')) document.getElementById('set-wa-channel').value = siteSettings.waChannelLink || '';
 
     const isOpen = siteSettings.isStoreOpen !== false;
     const storeStatusEl = document.getElementById('set-store-status');
