@@ -54,7 +54,10 @@ let siteSettings = {
     newsList: [],
     banners: [],
     isStoreOpen: true,
-    waChannelLink: ''
+    waChannelLink: '',
+    deletedUids: [],
+    blockedUids: [],
+    blockedDevices: []
 };
 
 let currentAdminUser = null;
@@ -88,7 +91,7 @@ function hideAdminPreloader() {
     document.body.classList.remove('no-scroll');
 }
 
-// Safety Timeout: Jaminan mutlak preloader tidak akan pernah nyangkut lebih dari 2 detik
+// Safety Timeout: Jaminan mutlak layar loading tidak akan pernah nyangkut lebih dari 2 detik
 setTimeout(hideAdminPreloader, 2000);
 
 // ==========================================
@@ -689,6 +692,7 @@ function listenAdminData() {
         window.populateAdminSettings();
         window.renderAdminBanners();
         window.renderAdminNews();
+        window.renderAdminMembers();
         applyAdminCustomPwaIcon();
     });
 
@@ -765,7 +769,7 @@ function listenAdminData() {
             deviceLocksMap[docSnap.id] = { lockId: docSnap.id, ...docSnap.data() };
         });
         window.renderAdminMembers();
-    });
+    }, () => {});
 
     onSnapshot(collection(db, pathUsers), (snapshot) => {
         allUsersList = [];
@@ -1110,7 +1114,7 @@ window.approveCashBarcodeDirectly = async function(dbId) {
 };
 
 // ==========================================
-// TAB DIREKTORI MEMBER & ANONIM + HAPUS AKUN BERLAPIS (CASCADE CLEANUP)
+// DIREKTORI MEMBER & ANONIM + FITUR BLOCK & HAPUS ANTI-GAGAL
 // ==========================================
 window.setAdminMemberFilter = function(filterType, btnEl) {
     currentMemberFilter = filterType;
@@ -1124,21 +1128,57 @@ window.renderAdminMembers = function() {
     if (!grid) return;
 
     const searchQ = (document.getElementById('admin-search-member')?.value || '').trim().toLowerCase();
+    const deletedList = Array.isArray(siteSettings.deletedUids) ? siteSettings.deletedUids : [];
+    const blockedUidList = Array.isArray(siteSettings.blockedUids) ? siteSettings.blockedUids : [];
+    const blockedDevList = Array.isArray(siteSettings.blockedDevices) ? siteSettings.blockedDevices : [];
 
-    const enrichedUsers = allUsersList.map(u => {
+    const combinedUsersMap = new Map();
+
+    allUsersList.forEach(u => {
+        if (!u.uid) return;
+        if (u.isDeleted === true || deletedList.includes(u.uid)) return;
+        combinedUsersMap.set(u.uid, { ...u });
+    });
+
+    allLiveChats.forEach(c => {
+        if (c.id && !combinedUsersMap.has(c.id) && !deletedList.includes(c.id)) {
+            combinedUsersMap.set(c.id, {
+                uid: c.id,
+                name: c.userInfo || `Tamu #${c.id.slice(-4).toUpperCase()}`,
+                email: c.userEmail || '',
+                deviceId: c.deviceId || '',
+                role: 'anonymous',
+                isAnonymous: true,
+                isGuest: true,
+                createdAt: c.updatedAt || Date.now()
+            });
+        }
+    });
+
+    const activeUsersArray = Array.from(combinedUsersMap.values());
+
+    const enrichedUsers = activeUsersArray.map(u => {
         const isAnon = Boolean(u.isAnonymous || u.isGuest || u.role === 'anonymous');
         const uEmail = (u.email || '').toLowerCase();
         const userOrders = orders.filter(o => o.userId === u.uid || (uEmail && o.userEmail?.toLowerCase() === uEmail));
         const successOrders = userOrders.filter(o => o.status === 'SUCCESS');
         const totalSpent = successOrders.reduce((sum, o) => sum + (o.finalTotal || 0), 0);
 
-        // Cari nomor telepon dari profil atau dari pesanan terakhirnya
         const orderWithPhone = userOrders.find(o => o.userPhone && o.userPhone.trim() !== '');
         const resolvedPhone = u.phone || u.whatsapp || (orderWithPhone ? orderWithPhone.userPhone : '');
+        const resolvedDevice = u.deviceId || (userOrders[0]?.deviceId || '');
+
+        const isBlocked = Boolean(
+            u.isBlocked === true ||
+            blockedUidList.includes(u.uid) ||
+            (resolvedDevice && blockedDevList.includes(resolvedDevice))
+        );
 
         return {
             ...u,
             isAnon,
+            isBlocked,
+            deviceId: resolvedDevice,
             resolvedPhone,
             totalTrx: userOrders.length,
             successTrx: successOrders.length,
@@ -1185,25 +1225,37 @@ window.renderAdminMembers = function() {
         const joinDate = u.createdAt ? new Date(u.createdAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
         const phoneStr = u.resolvedPhone || '';
 
-        const statusRoleBadge = u.isAnon
+        let statusRoleBadge = u.isAnon
             ? `<span class="status-badge status-anon"><i class="fa-solid fa-user-secret"></i> ANONIM</span>`
             : `<span class="status-badge status-success"><i class="fa-solid fa-circle-check"></i> MEMBER</span>`;
+
+        if (u.isBlocked) {
+            statusRoleBadge = `<span class="status-badge status-failed"><i class="fa-solid fa-ban"></i> DIBLOKIR</span>`;
+        }
 
         let cleanWa = phoneStr.replace(/[^0-9]/g, '');
         if (cleanWa.startsWith('0')) cleanWa = '62' + cleanWa.substring(1);
         const waBtnHtml = cleanWa
-            ? `<a href="https://wa.me/${cleanWa}?text=${encodeURIComponent(`Halo kak ${displayName}, Admin Vipercell menghubungi terkait layanan...`)}" target="_blank" class="btn btn-success btn-sm" title="Hubungi via WhatsApp"><i class="fa-brands fa-whatsapp"></i> WA</a>`
+            ? `<a href="https://wa.me/${cleanWa}?text=${encodeURIComponent(`Halo kak ${displayName}, Admin Vipercell menghubungi terkait layanan...`)}" target="_blank" class="btn btn-success btn-sm" title="Hubungi via WhatsApp"><i class="fa-brands fa-whatsapp"></i></a>`
             : `<button class="btn btn-outline btn-sm" disabled title="Belum ada nomor WA"><i class="fa-brands fa-whatsapp"></i></button>`;
 
         const emailBtnHtml = (u.email && u.email.includes('@'))
             ? `<a href="mailto:${encodeURIComponent(u.email)}?subject=${encodeURIComponent('Informasi Akun Vipercell')}" class="btn btn-outline btn-sm" title="Kirim Email"><i class="fa-regular fa-envelope"></i></a>`
             : '';
 
+        const blockBtnHtml = u.isBlocked
+            ? `<button class="btn btn-warning btn-sm" onclick="window.toggleBlockUserAccount('${escapeJsStr(u.uid)}', '${escapeJsStr(u.deviceId || '')}', false)" title="Buka Blokir Akun & Perangkat">
+                   <i class="fa-solid fa-unlock"></i> Buka Blokir
+               </button>`
+            : `<button class="btn btn-outline btn-sm text-warning border-warning" onclick="window.toggleBlockUserAccount('${escapeJsStr(u.uid)}', '${escapeJsStr(u.deviceId || '')}', true)" title="Blokir Akun & Perangkat Ini">
+                   <i class="fa-solid fa-ban"></i> Blokir
+               </button>`;
+
         html += `
-        <div class="member-card">
+        <div class="member-card" style="${u.isBlocked ? 'border-color: var(--danger); opacity: 0.88;' : ''}">
             <div>
                 <div class="member-card-head mb-2">
-                    <div class="member-avatar ${u.isAnon ? 'anon-avatar' : ''}">${window.escapeHtml(initial)}</div>
+                    <div class="member-avatar ${u.isAnon ? 'anon-avatar' : ''}" style="${u.isBlocked ? 'background: var(--danger); color: #fff;' : ''}">${window.escapeHtml(initial)}</div>
                     <div style="flex:1; min-width:0;">
                         <div class="flex-between align-center mb-1">
                             <strong class="text-dark" style="font-size:0.96rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${window.escapeHtml(displayName)}</strong>
@@ -1225,18 +1277,19 @@ window.renderAdminMembers = function() {
                     </div>
                     <div class="member-meta-item" style="grid-column: 1 / -1; border-top: 1px dashed var(--border-subtle); padding-top: 6px; display:flex; justify-content:space-between;">
                         <span>Bergabung: <b>${joinDate}</b></span>
-                        <span title="Device ID">${window.escapeHtml(u.deviceId ? u.deviceId.slice(0, 12) : '-')}</span>
+                        <span>UID: <b>#${window.escapeHtml(shortUid)}</b></span>
                     </div>
                 </div>
             </div>
 
             <div class="member-actions-row">
                 <button class="btn btn-primary btn-sm flex-1" onclick="window.startChatWithMember('${escapeJsStr(u.uid)}', '${escapeJsStr(displayName)}', '${escapeJsStr(u.email || '')}')">
-                    <i class="fa-solid fa-comments"></i> Chat Web
+                    <i class="fa-solid fa-comments"></i> Chat
                 </button>
                 ${waBtnHtml}
                 ${emailBtnHtml}
-                <button class="btn btn-danger btn-sm" onclick="window.promptDeleteAccount('${escapeJsStr(u.uid)}')" title="Hapus Akun">
+                ${blockBtnHtml}
+                <button class="btn btn-danger btn-sm" onclick="window.promptDeleteAccount('${escapeJsStr(u.uid)}')" title="Hapus Permanen">
                     <i class="fa-solid fa-trash-can"></i>
                 </button>
             </div>
@@ -1269,11 +1322,59 @@ window.startChatWithMember = async function(uid, memberName, memberEmail) {
     }
 };
 
-// Modal Konfirmasi Hapus Akun Berlapis (Cascade Cleanup)
-window.promptDeleteAccount = function(uid) {
-    const userObj = allUsersList.find(u => u.uid === uid);
-    if (!userObj) return;
+window.toggleBlockUserAccount = async function(uid, deviceId, shouldBlock) {
+    if (!uid) return;
+    const actionLabel = shouldBlock ? 'Blokir' : 'Buka Blokir';
 
+    window.openConfirm(
+        `${actionLabel} Pengguna`,
+        shouldBlock
+            ? `Blokir akun dan perangkat pengguna ini? Pengguna akan langsung dikeluarkan dari toko dan tidak bisa masuk kembali.`
+            : `Buka kembali akses untuk akun dan perangkat pengguna ini?`,
+        async (confirmed) => {
+            if (!confirmed) return;
+            try {
+                let blockedUids = Array.isArray(siteSettings.blockedUids) ? [...siteSettings.blockedUids] : [];
+                let blockedDevices = Array.isArray(siteSettings.blockedDevices) ? [...siteSettings.blockedDevices] : [];
+
+                if (shouldBlock) {
+                    if (!blockedUids.includes(uid)) blockedUids.push(uid);
+                    if (deviceId && !blockedDevices.includes(deviceId)) blockedDevices.push(deviceId);
+                } else {
+                    blockedUids = blockedUids.filter(id => id !== uid);
+                    if (deviceId) blockedDevices = blockedDevices.filter(d => d !== deviceId);
+                }
+
+                await setDoc(doc(db, pathSettings, 'mainConfig'), {
+                    blockedUids: blockedUids,
+                    blockedDevices: blockedDevices
+                }, { merge: true });
+
+                siteSettings.blockedUids = blockedUids;
+                siteSettings.blockedDevices = blockedDevices;
+
+                await setDoc(doc(db, pathUsers, uid), { isBlocked: shouldBlock, updatedAt: Date.now() }, { merge: true }).catch(() => {});
+                if (deviceId) {
+                    await setDoc(doc(db, pathDeviceLocks, deviceId), { isBlocked: shouldBlock, updatedAt: Date.now() }, { merge: true }).catch(() => {});
+                }
+
+                window.renderAdminMembers();
+                window.showToast(
+                    shouldBlock ? 'Akun Diblokir' : 'Blokir Dibuka',
+                    shouldBlock ? 'Pengguna & perangkat telah diblokir secara real-time.' : 'Akses pengguna telah dipulihkan.',
+                    shouldBlock ? 'warning' : 'success'
+                );
+            } catch (err) {
+                console.error("Block Toggle Error:", err);
+                window.customAlert('Error', 'Gagal mengubah status blokir pengguna.', 'error');
+            }
+        },
+        shouldBlock ? 'delete' : 'success'
+    );
+};
+
+window.promptDeleteAccount = function(uid) {
+    const userObj = allUsersList.find(u => u.uid === uid) || { uid: uid, name: `Tamu #${uid.slice(-4).toUpperCase()}`, isAnonymous: true };
     const uEmail = (userObj.email || '').toLowerCase();
     const userOrders = orders.filter(o => o.userId === uid || (uEmail && o.userEmail?.toLowerCase() === uEmail));
 
@@ -1287,7 +1388,6 @@ window.promptDeleteAccount = function(uid) {
         summaryEl.innerHTML = `
             <div><b>Nama Akun:</b> ${window.escapeHtml(userObj.name || 'Tamu')} (${userObj.isAnonymous || userObj.isGuest ? 'Anonim' : 'Member'})</div>
             <div><b>UID / Email:</b> ${window.escapeHtml(userObj.email || uid)}</div>
-            <div><b>Device ID:</b> ${window.escapeHtml(userObj.deviceId || '-')}</div>
             <div><b>Riwayat Pesanan:</b> ${userOrders.length} Transaksi</div>
         `;
     }
@@ -1298,7 +1398,7 @@ window.promptDeleteAccount = function(uid) {
 window.executeAccountDeletion = async function() {
     const uid = document.getElementById('del-acc-uid').value;
     const deviceId = document.getElementById('del-acc-device').value;
-    const removeDeviceLock = document.getElementById('del-opt-devicelock').checked;
+    const releaseDeviceLock = document.getElementById('del-opt-devicelock').checked;
     const removeOrders = document.getElementById('del-opt-orders').checked;
 
     if (!uid) return;
@@ -1309,45 +1409,59 @@ window.executeAccountDeletion = async function() {
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Menghapus...</span>';
 
     try {
-        // 1. Catat ke deleted_accounts/{uid} agar aplikasi user otomatis keluar & menghapus sesi auth dirinya
-        await setDoc(doc(db, pathDeletedAccounts, uid), {
-            deletedAt: Date.now(),
-            deletedBy: currentAdminUser?.email || 'admin'
-        });
+        let deletedUids = Array.isArray(siteSettings.deletedUids) ? [...siteSettings.deletedUids] : [];
+        let blockedUids = Array.isArray(siteSettings.blockedUids) ? [...siteSettings.blockedUids] : [];
+        let blockedDevices = Array.isArray(siteSettings.blockedDevices) ? [...siteSettings.blockedDevices] : [];
 
-        // 2. Hapus profil users/{uid} dan sesi live chat chats/{uid}
+        if (!deletedUids.includes(uid)) deletedUids.push(uid);
+
+        if (!releaseDeviceLock) {
+            if (!blockedUids.includes(uid)) blockedUids.push(uid);
+            if (deviceId && !blockedDevices.includes(deviceId)) blockedDevices.push(deviceId);
+        } else {
+            blockedUids = blockedUids.filter(id => id !== uid);
+            if (deviceId) blockedDevices = blockedDevices.filter(d => d !== deviceId);
+        }
+
+        await setDoc(doc(db, pathSettings, 'mainConfig'), {
+            deletedUids: deletedUids,
+            blockedUids: blockedUids,
+            blockedDevices: blockedDevices
+        }, { merge: true });
+
+        siteSettings.deletedUids = deletedUids;
+        siteSettings.blockedUids = blockedUids;
+        siteSettings.blockedDevices = blockedDevices;
+
+        await setDoc(doc(db, pathUsers, uid), { isDeleted: true, updatedAt: Date.now() }, { merge: true }).catch(() => {});
         await deleteDoc(doc(db, pathUsers, uid)).catch(() => {});
         await deleteDoc(doc(db, pathChats, uid)).catch(() => {});
 
-        // 3. Penanganan Kunci Perangkat (device_locks/{deviceId})
+        setDoc(doc(db, pathDeletedAccounts, uid), { deletedAt: Date.now(), deletedBy: currentAdminUser?.email || 'admin' }).catch(() => {});
         if (deviceId) {
-            if (removeDeviceLock) {
-                await deleteDoc(doc(db, pathDeviceLocks, deviceId)).catch(() => {});
+            if (releaseDeviceLock) {
+                deleteDoc(doc(db, pathDeviceLocks, deviceId)).catch(() => {});
             } else {
-                await setDoc(doc(db, pathDeviceLocks, deviceId), {
-                    uid: uid,
-                    isBlocked: true,
-                    status: 'blocked_by_admin',
-                    updatedAt: Date.now()
-                }, { merge: true }).catch(() => {});
+                setDoc(doc(db, pathDeviceLocks, deviceId), { uid: uid, isBlocked: true, status: 'blocked_by_admin' }, { merge: true }).catch(() => {});
             }
         }
 
-        // 4. Penanganan Transaksi Terkait
         const relatedOrders = orders.filter(o => o.userId === uid);
         for (const ord of relatedOrders) {
             if (removeOrders) {
                 await deleteDoc(doc(db, pathOrders, ord.dbId)).catch(() => {});
             } else {
-                await updateDoc(doc(db, pathOrders, ord.dbId), {
-                    userStatus: 'Deleted User'
-                }).catch(() => {});
+                await updateDoc(doc(db, pathOrders, ord.dbId), { userStatus: 'Deleted User' }).catch(() => {});
             }
         }
 
+        allUsersList = allUsersList.filter(u => u.uid !== uid);
+        window.renderAdminMembers();
+
         window.closeModal('modal-delete-account');
-        window.showToast('Akun Dihapus', 'Pembersihan akun dan data terkait berhasil dijalankan.', 'success');
+        window.showToast('Akun Dihapus', 'Akun pengguna berhasil dihapus secara permanen.', 'success');
     } catch (e) {
+        console.error("Delete Account Error:", e);
         window.customAlert('Error', 'Gagal menyelesaikan penghapusan akun.', 'error');
     } finally {
         btn.disabled = false;
@@ -1355,9 +1469,10 @@ window.executeAccountDeletion = async function() {
     }
 };
 
-// Hapus Massal Akun Tamu (Anonim) dengan 0 Transaksi
 window.bulkDeleteInactiveGuests = function() {
+    const deletedList = Array.isArray(siteSettings.deletedUids) ? siteSettings.deletedUids : [];
     const emptyGuests = allUsersList.filter(u => {
+        if (!u.uid || u.isDeleted || deletedList.includes(u.uid)) return false;
         const isAnon = Boolean(u.isAnonymous || u.isGuest || u.role === 'anonymous');
         if (!isAnon) return false;
         const hasOrder = orders.some(o => o.userId === u.uid);
@@ -1375,15 +1490,27 @@ window.bulkDeleteInactiveGuests = function() {
         async (confirmed) => {
             if (!confirmed) return;
             try {
+                let updatedDeletedUids = Array.isArray(siteSettings.deletedUids) ? [...siteSettings.deletedUids] : [];
                 let count = 0;
+
                 for (const g of emptyGuests) {
-                    await setDoc(doc(db, pathDeletedAccounts, g.uid), { deletedAt: Date.now(), deletedBy: 'bulk_cleanup' }).catch(() => {});
+                    if (!updatedDeletedUids.includes(g.uid)) updatedDeletedUids.push(g.uid);
+                    await setDoc(doc(db, pathUsers, g.uid), { isDeleted: true }, { merge: true }).catch(() => {});
                     await deleteDoc(doc(db, pathUsers, g.uid)).catch(() => {});
                     if (g.deviceId) {
-                        await deleteDoc(doc(db, pathDeviceLocks, g.deviceId)).catch(() => {});
+                        deleteDoc(doc(db, pathDeviceLocks, g.deviceId)).catch(() => {});
                     }
                     count++;
                 }
+
+                await setDoc(doc(db, pathSettings, 'mainConfig'), {
+                    deletedUids: updatedDeletedUids
+                }, { merge: true });
+
+                siteSettings.deletedUids = updatedDeletedUids;
+                allUsersList = allUsersList.filter(u => !updatedDeletedUids.includes(u.uid));
+                window.renderAdminMembers();
+
                 window.showToast('Selesai Dibersihkan', `${count} akun tamu tanpa transaksi telah dihapus.`, 'success');
             } catch (e) {
                 window.customAlert('Gagal', 'Terjadi kesalahan saat menghapus akun tamu.', 'error');
@@ -1535,7 +1662,6 @@ window.renderAdminOrders = function() {
         let promoDesc = o.promoCode ? `<br><small class="text-success text-xs fw-bold">Voucher: ${window.escapeHtml(o.promoCode)} (-Rp${o.promoDiscount})</small>` : '';
         let paymentMethodStr = o.paymentMethod === 'cash' ? '<span class="status-badge status-pending"><i class="fa-solid fa-barcode"></i> TUNAI</span>' : '<span class="status-badge status-unpaid"><i class="fa-solid fa-qrcode"></i> QRIS</span>';
         
-        // Cari nomor WA dari order atau dari profil member terkait
         const memberMatch = allUsersList.find(u => u.uid === o.userId || (o.userEmail && u.email?.toLowerCase() === o.userEmail.toLowerCase()));
         const buyerPhone = o.userPhone || (memberMatch ? (memberMatch.phone || memberMatch.whatsapp || '') : '');
 
@@ -1629,7 +1755,6 @@ window.promptProcessOrder = async function(dbId) {
     
     document.getElementById('proc-order-id').value = dbId;
 
-    // Cari kontak pembeli dari order maupun profil member
     const memberMatch = allUsersList.find(u => u.uid === order.userId || (order.userEmail && u.email?.toLowerCase() === order.userEmail.toLowerCase()));
     const buyerEmail = order.userEmail || (memberMatch ? memberMatch.email : '');
     const buyerPhone = order.userPhone || (memberMatch ? (memberMatch.phone || memberMatch.whatsapp || '') : '');
@@ -1713,7 +1838,6 @@ window.promptProcessOrder = async function(dbId) {
     window.openModal('modal-process-order');
 };
 
-// 4 Template Pesan Siap Kirim untuk Pembeli
 window.applyOrderMessageTemplate = function(templateType) {
     const dbId = document.getElementById('proc-order-id').value;
     const order = orders.find(o => o.dbId === dbId);
@@ -1736,7 +1860,6 @@ window.applyOrderMessageTemplate = function(templateType) {
     }
 };
 
-// Kirim Pesan & Bukti Pesanan ke Email Pembeli (Otomatis via Webhook + Buka Aplikasi Email Siap Kirim)
 window.sendOrderNotificationToEmail = async function() {
     const dbId = document.getElementById('proc-order-id').value;
     const order = orders.find(o => o.dbId === dbId);
@@ -1752,7 +1875,6 @@ window.sendOrderNotificationToEmail = async function() {
     const itemTitle = order && order.items && order.items[0] ? order.items[0].name : 'Pesanan Vipercell';
     const totalRp = order ? (order.finalTotal || 0).toLocaleString('id-ID') : '0';
 
-    // Jika URL Webhook Google Apps Script diatur, kirim juga secara otomatis di latar belakang
     if (siteSettings.emailWebhookUrl && order) {
         triggerAutomatedEmailWebhook({ ...order, userEmail: targetEmail }, replyText);
         window.showToast('Webhook Email Dikirim', `Mengirim email otomatis ke ${targetEmail}...`, 'success');
@@ -1764,7 +1886,6 @@ window.sendOrderNotificationToEmail = async function() {
     window.open(`mailto:${encodeURIComponent(targetEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
 };
 
-// Kirim Pesan & Bukti Pesanan Langsung ke WhatsApp Pembeli
 window.sendOrderNotificationToWA = function() {
     const dbId = document.getElementById('proc-order-id').value;
     const order = orders.find(o => o.dbId === dbId);
@@ -3148,6 +3269,7 @@ function listenAdminLiveChat() {
         
         allLiveChats = newChats.sort((a,b) => (b.updatedAt || 0) - (a.updatedAt || 0));
         window.renderAdminChatList();
+        window.renderAdminMembers();
         
         const hasUnreadAny = allLiveChats.some(c => {
             const msgs = c.messages || [];
