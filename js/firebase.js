@@ -1,7 +1,7 @@
-// ========================================================
-// VIPERCELL V24.5 - UNIVERSAL FIREBASE CORE MODULE
-// Menyokong Web User (store.js) & Web Admin (admin.js)
-// ========================================================
+/* ============================================================================
+ * VIPERCELL V25.0 - UNIVERSAL FIREBASE CORE MODULE
+ * [FEATURE-01 & FEATURE-08] AUTH PERSISTENCE & ATOMIC TRANSACTION ENGINE
+ * ============================================================================ */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 
@@ -50,7 +50,6 @@ import {
   runTransaction
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-// Konfigurasi Rasmi Projek Firebase Vipercell
 const firebaseConfig = {
   apiKey: "AIzaSyBQGZjl7uj5CRiLWCvPQKjiK4HvIYnXSJg",
   authDomain: "vipercell-fc50e.firebaseapp.com",
@@ -60,12 +59,10 @@ const firebaseConfig = {
   appId: "1:710483059781:web:b4c27b14ab34c45c892f2c"
 };
 
-// Inisialisasi Aplikasi Utama, Firestore Database, dan Authentication
 export const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const auth = getAuth(app);
 
-// Inisialisasi Penyimpanan Sesi Permanen (Anti-Hilang Sesi Semasa Refresh di Web & PWA)
 export const persistenceReady = (async () => {
   try {
     await setPersistence(auth, browserLocalPersistence);
@@ -73,14 +70,12 @@ export const persistenceReady = (async () => {
     try {
       await setPersistence(auth, indexedDBLocalPersistence);
     } catch (fallbackErr) {
-      console.warn("Peringatan Persistence Firebase:", fallbackErr);
+      console.warn("Firebase Persistence Warning:", fallbackErr);
     }
   }
 })();
 
-// Eksport semua fungsi Authentication & Firestore supaya boleh dipanggil terus oleh store.js dan admin.js
 export {
-  // Fungsi & Provider Firebase Authentication
   signInAnonymously,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -99,8 +94,6 @@ export {
   setPersistence,
   browserLocalPersistence,
   indexedDBLocalPersistence,
-  
-  // Fungsi & Utiliti Cloud Firestore
   doc,
   setDoc,
   getDoc,
@@ -121,3 +114,4 @@ export {
   writeBatch,
   runTransaction
 };
+/* ======================== END OF [FEATURE-01] ============================= */

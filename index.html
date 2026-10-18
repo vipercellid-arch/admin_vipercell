@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
-    <title>Vipercell - Admin Command Center V24.5</title>
+    <title>Vipercell - Admin Command Center V25.0</title>
     <meta name="robots" content="noindex, nofollow">
     
     <!-- Optimisasi PWA Admin & Rotasi Penuh -->
@@ -24,7 +24,7 @@
     <!-- HTML5-QRCode & Barcode Scanner Library untuk Kasir Tunai Admin -->
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     
-    <!-- CSS Modular Admin V24.5 -->
+    <!-- CSS Modular Admin V25.0 (Neo-Brutalism V2) -->
     <link rel="stylesheet" href="css/admin.css">
     
     <script>
@@ -33,16 +33,35 @@
         document.getElementById('meta-theme-color').setAttribute('content', savedTheme === 'dark' ? '#090d16' : '#ffffff');
     </script>
 </head>
-<body class="no-scroll">
-    <!-- PRE-LOADER BULAT BERPUTAR ANTI-KEDIP LOGIN -->
+<body class="no-scroll preloader-locked">
+
+    <!-- ==========================================================================
+         [FEATURE-01] ZERO-LEAK PRE-LOADER GATEKEEPER (ADMIN COMMAND CENTER)
+         ID Elemen : #app-preloader-overlay, #preloader-bar-fill, #preloader-retry-box
+         ========================================================================== -->
     <div id="app-preloader-overlay" class="preloader-overlay">
         <div class="preloader-simple-box">
-            <div class="preloader-circle-spinner"></div>
+            <div class="preloader-circle-spinner" id="preloader-spinner"></div>
             <p id="preloader-status-text" class="preloader-simple-text">Sedang memuat data...</p>
+            <div class="preloader-stage-bar-wrap">
+                <div id="preloader-bar-fill" class="preloader-stage-bar-fill" style="width: 20%;"></div>
+            </div>
+            <span id="preloader-stage-sub" class="preloader-stage-sub">Memverifikasi otoritas & sinkronisasi cloud...</span>
+
+            <div id="preloader-retry-box" style="display:none; margin-top: 12px; width: 100%;">
+                <p style="font-size:0.76rem; color:var(--danger); font-weight:700; margin-bottom:8px;">
+                    Koneksi jaringan melambat atau terputus.
+                </p>
+                <button type="button" class="btn btn-primary btn-sm" style="width:100%;" onclick="window.retryAdminPreloader()">
+                    <i class="fa-solid fa-rotate-right"></i> Muat Ulang Jaringan
+                </button>
+            </div>
         </div>
     </div>
 
-    <!-- WADAH NOTIFIKASI TOAST (TENGAH ATAS + SWIPE LEFT/RIGHT TO DISMISS) -->
+    <!-- ==========================================================================
+         [FEATURE-10] WADAH NOTIFIKASI TOAST (TENGAH ATAS + SWIPE TO DISMISS)
+         ========================================================================== -->
     <div id="toast-container" class="toast-container"></div>
 
     <!-- BANNER INSTALASI PWA ADMIN -->
@@ -57,15 +76,17 @@
         <button id="btn-close-pwa" class="close-btn" style="width:30px; height:30px;"><i class="fa-solid fa-xmark"></i></button>
     </div>
     
-    <!-- LAYAR LOGIN ADMIN (KHUSUS EMAIL & PASSWORD) -->
+    <!-- ==========================================================================
+         [FEATURE-02] LAYAR LOGIN ADMINISTRATOR (EMAIL & PASSWORD ONLY)
+         ========================================================================== -->
     <div id="admin-login-screen" class="login-wrapper" style="display:none;">
         <div class="login-container">
             <div class="login-left-panel hide-mobile">
                 <div class="login-branding">
-                    <div class="login-badge">COMMAND CENTER V24.5</div>
+                    <div class="login-badge">COMMAND CENTER V25.0</div>
                     <i class="fa-solid fa-shield-halved"></i>
                     <h2>Vipercell Admin</h2>
-                    <p>Pusat kendali toko otomatis, Scanner Kasir Barcode Tunai, Manajemen Siklus Member & Anonim, serta Pengiriman Pesan Pembeli Terpadu.</p>
+                    <p>Pusat kendali toko otomatis, Gudang Stok Sharing Multi-Kuota, Pemantau Durasi Langganan (Auto-Kick), Scanner Barcode Tunai, dan Unified Webhook MacroDroid.</p>
                 </div>
             </div>
             <div class="login-right-panel">
@@ -97,7 +118,9 @@
         </div>
     </div>
 
-    <!-- DASHBOARD ADMIN -->
+    <!-- ==========================================================================
+         DASHBOARD UTAMA ADMIN COMMAND CENTER V25.0
+         ========================================================================== -->
     <div id="admin-dashboard" class="admin-layout" style="display:none;">
         
         <aside class="admin-sidebar" id="admin-sidebar">
@@ -116,7 +139,7 @@
                     <i class="fa-solid fa-chart-pie"></i> <span>Dashboard & Analitik</span>
                 </button>
                 <button class="admin-tab" data-tab="tab-orders" onclick="window.switchAdminTab('tab-orders', this)">
-                    <i class="fa-solid fa-receipt"></i> <span>Pesanan Masuk</span> 
+                    <i class="fa-solid fa-receipt"></i> <span>Pesanan & Durasi</span> 
                     <span id="admin-tab-order-badge" class="notif-dot badge-right"></span>
                 </button>
                 <button class="admin-tab" data-tab="tab-livechat" onclick="window.switchAdminTab('tab-livechat', this)">
@@ -129,10 +152,10 @@
 
                 <span class="menu-label" style="margin-top: 14px;">MANAJEMEN TOKO</span>
                 <button class="admin-tab" data-tab="tab-products" onclick="window.switchAdminTab('tab-products', this)">
-                    <i class="fa-solid fa-boxes-stacked"></i> <span>Katalog & Harga</span>
+                    <i class="fa-solid fa-boxes-stacked"></i> <span>Katalog & Varian</span>
                 </button>
                 <button class="admin-tab" data-tab="tab-stocks" onclick="window.switchAdminTab('tab-stocks', this)">
-                    <i class="fa-solid fa-key"></i> <span>Gudang Stok & Tools</span>
+                    <i class="fa-solid fa-key"></i> <span>Vault Stok & Sharing</span>
                 </button>
                 <button class="admin-tab" data-tab="tab-promos" onclick="window.switchAdminTab('tab-promos', this)">
                     <i class="fa-solid fa-ticket"></i> <span>Studio Voucher Promo</span>
@@ -146,7 +169,7 @@
                 
                 <span class="menu-label" style="margin-top: 14px;">KONFIGURASI SISTEM</span>
                 <button class="admin-tab" data-tab="tab-settings" onclick="window.switchAdminTab('tab-settings', this)">
-                    <i class="fa-solid fa-sliders"></i> <span>Pengaturan Web</span>
+                    <i class="fa-solid fa-sliders"></i> <span>Pengaturan & Webhook</span>
                 </button>
             </div>
             
@@ -172,11 +195,15 @@
                     </button>
                     <div>
                         <h2 id="admin-page-title" class="page-title">Dashboard & Analitik</h2>
-                        <span class="page-subtitle" id="admin-page-subtitle">Pantau performa toko dan antrean transaksi secara real-time</span>
+                        <span class="page-subtitle" id="admin-page-subtitle">Pantau performa toko, durasi langganan, dan mutasi QRIS secara real-time</span>
                     </div>
                 </div>
                 
                 <div class="header-right">
+                    <!-- Pintasan Cek Durasi Habis (Wajib Kick) -->
+                    <button id="btn-header-kick-alert" class="btn btn-danger btn-sm" style="display:none;" onclick="window.jumpToExpiredSubscriptions()" title="Ada langganan aplikasi yang sudah habis durasinya!">
+                        <i class="fa-solid fa-bell-concierge"></i> <span id="header-kick-count">0</span> <span class="hide-mobile">Wajib Kick!</span>
+                    </button>
                     <!-- Tombol Kasir Scan Barcode Tunai -->
                     <button class="btn btn-warning btn-sm" onclick="window.openBarcodeScannerModal()" title="Scan Barcode Pembayaran Tunai">
                         <i class="fa-solid fa-barcode"></i> <span class="hide-mobile">Scan Kasir</span>
@@ -202,7 +229,9 @@
 
             <div class="admin-body">
                 
-                <!-- TAB 1: DASHBOARD & ANALITIK -->
+                <!-- ==================================================================
+                     TAB 1: DASHBOARD & ANALITIK REAL-TIME
+                     ================================================================== -->
                 <div id="tab-ringkasan" class="admin-tab-content active" style="display: block;">
                     <div class="stats-grid" style="margin-bottom: 1.6rem;">
                         <div class="stat-card">
@@ -229,7 +258,7 @@
                         <div class="stat-card pointer" onclick="window.jumpToPendingOrders()">
                             <div class="stat-icon bg-accent-purple"><i class="fa-solid fa-bell"></i></div>
                             <div class="stat-details">
-                                <p class="stat-title">Butuh Tindakan</p>
+                                <p class="stat-title">Butuh Tindakan / Kick</p>
                                 <h3 class="stat-value" id="report-pending">0</h3>
                             </div>
                         </div>
@@ -263,12 +292,15 @@
                     </div>
                 </div>
                 
-                <!-- TAB 2: MANAJEMEN PESANAN MASUK (DENGAN KIRIM EMAIL & WA PEMBELI) -->
+                <!-- ==================================================================
+                     [FEATURE-09 & FEATURE-11] TAB 2: MANAJEMEN PESANAN MASUK &
+                     SISTEM HITUNG MUNDUR DURASI LANGGANAN APP (KICK MANAGER)
+                     ================================================================== -->
                 <div id="tab-orders" class="admin-tab-content" style="display: none;">
                     <div class="panel-toolbar highlight-toolbar">
                         <div class="toolbar-title">
-                            <h3><i class="fa-solid fa-receipt text-primary"></i> Manajemen Pesanan Masuk</h3>
-                            <p>Proses pesanan, scan tiket barcode pembayaran tunai, atau kirim struk/data akun langsung ke Email & WhatsApp pembeli.</p>
+                            <h3><i class="fa-solid fa-receipt text-primary"></i> Manajemen Pesanan & Pantauan Durasi Langganan</h3>
+                            <p>Proses pesanan masuk, pantau hitung mundur sewa aplikasi berdurasi, dan kelola pengeluaran (*kick*) akun saat masa aktif berakhir.</p>
                         </div>
                         <div class="flex-wrap-gap w-mobile-100">
                             <button class="btn btn-warning btn-sm" onclick="window.openBarcodeScannerModal()">
@@ -285,16 +317,22 @@
 
                     <div class="order-filter-bar mb-3">
                         <div class="filter-pills">
-                            <button class="filter-pill active" onclick="window.setAdminOrderFilter('ALL', this)">Semua</button>
-                            <button class="filter-pill" onclick="window.setAdminOrderFilter('NEED_ACTION', this)">⚡ Butuh Proses</button>
-                            <button class="filter-pill" onclick="window.setAdminOrderFilter('CASH_ONLY', this)">🏷️ Tunai / Barcode</button>
-                            <button class="filter-pill" onclick="window.setAdminOrderFilter('UNPAID', this)">Belum Bayar</button>
-                            <button class="filter-pill" onclick="window.setAdminOrderFilter('SUCCESS', this)">Selesai</button>
-                            <button class="filter-pill" onclick="window.setAdminOrderFilter('FAILED', this)">Gagal / Expired</button>
+                            <button class="filter-pill active" data-ofilter="ALL" onclick="window.setAdminOrderFilter('ALL', this)">Semua</button>
+                            <button class="filter-pill" data-ofilter="NEED_ACTION" onclick="window.setAdminOrderFilter('NEED_ACTION', this)">⚡ Butuh Proses</button>
+                            <button class="filter-pill" data-ofilter="SUB_ACTIVE" onclick="window.setAdminOrderFilter('SUB_ACTIVE', this)">
+                                ⏱️ Durasi Aktif <span id="badge-sub-active-count" class="pill-count-badge">0</span>
+                            </button>
+                            <button class="filter-pill pill-danger-alert" data-ofilter="SUB_EXPIRED" onclick="window.setAdminOrderFilter('SUB_EXPIRED', this)">
+                                🚨 Durasi Habis (Wajib Kick!) <span id="badge-sub-expired-count" class="pill-count-badge danger-blink">0</span>
+                            </button>
+                            <button class="filter-pill" data-ofilter="CASH_ONLY" onclick="window.setAdminOrderFilter('CASH_ONLY', this)">🏷️ Tunai / Barcode</button>
+                            <button class="filter-pill" data-ofilter="UNPAID" onclick="window.setAdminOrderFilter('UNPAID', this)">Belum Bayar</button>
+                            <button class="filter-pill" data-ofilter="SUCCESS" onclick="window.setAdminOrderFilter('SUCCESS', this)">Selesai</button>
+                            <button class="filter-pill" data-ofilter="FAILED" onclick="window.setAdminOrderFilter('FAILED', this)">Gagal / Expired</button>
                         </div>
                         <div class="search-box" style="max-width: 340px;">
                             <i class="fa-solid fa-magnifying-glass"></i>
-                            <input aria-label="Cari Invoice" type="text" id="admin-search-order" class="form-control" placeholder="Cari Invoice / Email / Item..." oninput="window.renderAdminOrders()">
+                            <input aria-label="Cari Invoice" type="text" id="admin-search-order" class="form-control" placeholder="Cari Invoice / Email / Akun / Tujuan..." oninput="window.renderAdminOrders()">
                         </div>
                     </div>
 
@@ -304,12 +342,12 @@
                                 <thead>
                                     <tr>
                                         <th>Invoice & Waktu</th>
-                                        <th>Produk & Target Tujuan</th>
+                                        <th>Produk, Tujuan & Sisa Durasi</th>
                                         <th>Kontak Pembeli</th>
                                         <th>Metode</th>
                                         <th>Total Tagihan</th>
                                         <th>Status</th>
-                                        <th>Tindakan & Kirim Pesan</th>
+                                        <th>Tindakan & Kontrol Kick</th>
                                     </tr>
                                 </thead>
                                 <tbody id="admin-order-list"><tr><td colspan="7" class="text-center text-muted" style="padding: 2rem;">Memuat data pesanan...</td></tr></tbody>
@@ -318,12 +356,14 @@
                     </div>
                 </div>
 
-                <!-- TAB 3: DIREKTORI MEMBER & AKUN ANONIM (DENGAN FILTER & HAPUS AKUN BERLAPIS) -->
+                <!-- ==================================================================
+                     [FEATURE-12] TAB 3: DIREKTORI MEMBER & ANONIM (CASCADE CLEANUP)
+                     ================================================================== -->
                 <div id="tab-members" class="admin-tab-content" style="display: none;">
                     <div class="panel-toolbar highlight-toolbar">
                         <div class="toolbar-title">
                             <h3><i class="fa-solid fa-users text-primary"></i> Direktori Member & Sesi Anonim</h3>
-                            <p>Pantau seluruh pengguna terdaftar maupun sesi tamu (1 HP 1 Akun), hubungi cepat, atau lakukan pembersihan akun.</p>
+                            <p>Pantau seluruh pengguna terdaftar maupun sesi tamu (1 HP 1 Akun), hubungi cepat, blokir perangkat, atau lakukan pembersihan akun.</p>
                         </div>
                         <div class="flex-wrap-gap w-mobile-100">
                             <button class="btn btn-danger btn-sm" onclick="window.bulkDeleteInactiveGuests()">
@@ -383,12 +423,14 @@
                     </div>
                 </div>
                 
-                <!-- TAB 4: GUDANG STOK AKUN & LINK BERULANG TOOLS -->
+                <!-- ==================================================================
+                     [FEATURE-08] TAB 4: GUDANG STOK VAULT & SHARING MULTI-KUOTA (1 AKUN = N PEMBELI)
+                     ================================================================== -->
                 <div id="tab-stocks" class="admin-tab-content" style="display: none;">
                     <div class="stock-layout-grid">
                         <div class="dashboard-panel" style="height: fit-content;">
                             <div class="panel-header">
-                                <h3><i class="fa-solid fa-folder-plus text-primary"></i> Input Stok Akun / Link Tools</h3>
+                                <h3><i class="fa-solid fa-folder-plus text-primary"></i> Input Vault Stok (Private / Sharing / Tools)</h3>
                             </div>
                             <div class="form-group">
                                 <label for="stock-brand-select">1. Pilih Brand (Aplikasi / Tools):</label>
@@ -403,40 +445,60 @@
                                 </select>
                             </div>
 
-                            <div class="toggle-box info-box bg-accent-purple border-primary mb-3">
-                                <div style="flex:1;">
-                                    <label for="stock-reusable-toggle" class="fw-bold text-dark mb-0 pointer d-block" style="font-size:0.82rem;">
-                                        <i class="fa-solid fa-infinity text-primary"></i> Mode Kirim Berulang-ulang (Reusable Link/Tools)
-                                    </label>
-                                    <small class="text-muted text-xs">Jika aktif, link/data di bawah tidak akan habis (bisa terkirim otomatis berkali-kali ke setiap pembeli baru).</small>
-                                </div>
-                                <input type="checkbox" id="stock-reusable-toggle" class="large-checkbox">
+                            <!-- PILIHAN MODE STOK: PRIVATE (1X PAKAI) VS SHARING MULTI-KUOTA (1 AKUN = N PEMBELI) -->
+                            <div class="form-group">
+                                <label for="stock-mode-select">3. Mode Pengiriman Akun:</label>
+                                <select id="stock-mode-select" class="form-control" onchange="window.toggleStockQuotaInput()">
+                                    <option value="PRIVATE">🔒 PRIVATE (1 Akun = 1 Pembeli Lalu Habis)</option>
+                                    <option value="SHARING">👥 SHARING MULTI-KUOTA (1 Akun = N Pembeli)</option>
+                                    <option value="REUSABLE">♾️ REUSABLE TOOLS (Kirim Berulang Tanpa Batas)</option>
+                                </select>
                             </div>
 
+                            <div id="stock-sharing-quota-box" class="info-box bg-primary-light border-primary mb-3" style="display:none;">
+                                <label for="stock-sharing-quota" class="fw-bold text-dark text-xs d-block mb-1">
+                                    <i class="fa-solid fa-users text-primary"></i> Kuota Maksimal Pembeli per 1 Baris Akun:
+                                </label>
+                                <div class="flex-gap align-center">
+                                    <input type="number" id="stock-sharing-quota" class="form-control" value="5" min="1" max="500" style="max-width: 110px; font-weight: 900;">
+                                    <span class="text-xs text-muted fw-bold">Orang / Pembeli per Akun</span>
+                                </div>
+                                <small class="text-muted text-xs d-block mt-1">
+                                    Contoh: Jika diisi <b>5</b>, maka 1 baris akun yang sama akan dikirim ke 5 pembeli berbeda sebelum statusnya berubah menjadi Habis (Terjual 5/5).
+                                </small>
+                            </div>
+
+                            <!-- Checkbox tersembunyi untuk kompatibilitas reusable -->
+                            <input type="checkbox" id="stock-reusable-toggle" style="display:none;">
+
                             <div class="form-group">
-                                <label for="stock-bulk-input">3. Data Stok / Link Tools (1 Baris = 1 Stok):</label>
-                                <textarea id="stock-bulk-input" class="form-control code-input" rows="5" placeholder="Format Akun: Email|Password|Keterangan&#10;Format Link Tools: https://link-tools.com/akses|KodeAkses|Panduan Singkat"></textarea>
+                                <label for="stock-bulk-input">4. Data Stok / Link Tools (1 Baris = 1 Akun):</label>
+                                <textarea id="stock-bulk-input" class="form-control code-input" rows="5" placeholder="Format Standar: Email|Password|Profil/Pin&#10;Format Kustom Kuota Sharing: email@domain.com|Pass123|Profil Bebas || 5"></textarea>
+                                <small class="text-muted text-xs d-block mt-1">
+                                    💡 <b>Tip Cepat:</b> Tambahkan <code>|| 5</code> di ujung baris jika ingin mengatur kuota khusus (misal 5 pembeli) pada baris tersebut.
+                                </small>
                             </div>
                             <button id="btn-add-stock" class="btn btn-primary btn-block" onclick="window.addStockMassal()">
-                                <i class="fa-solid fa-plus"></i> <span>Simpan ke Gudang Stok</span>
+                                <i class="fa-solid fa-plus"></i> <span>Simpan ke Gudang Stok Vault</span>
                             </button>
                         </div>
                         
                         <div class="dashboard-panel">
                             <div class="panel-header flex-between align-start-mobile" style="gap: 12px;">
                                 <div>
-                                    <h3><i class="fa-solid fa-database text-primary"></i> Gudang Data Stok</h3>
+                                    <h3><i class="fa-solid fa-database text-primary"></i> Gudang Data Stok Vault</h3>
                                     <div id="stock-counter-badges" class="mt-1" style="display:flex; flex-wrap:wrap; gap:8px;">
-                                        <span class="status-badge status-success">Ready: <b id="stock-ready-count">0</b></span>
+                                        <span class="status-badge status-success">Slot Ready: <b id="stock-ready-count">0</b></span>
+                                        <span class="status-badge status-primary" style="background:rgba(37,99,235,0.15); color:var(--primary-light);">Sharing Aktif: <b id="stock-sharing-count">0</b></span>
                                         <span class="status-badge status-tools">Reusable: <b id="stock-reusable-count">0</b></span>
-                                        <span class="status-badge status-failed">Terjual: <b id="stock-used-count">0</b></span>
+                                        <span class="status-badge status-failed">Habis/Terjual: <b id="stock-used-count">0</b></span>
                                     </div>
                                 </div>
                                 <div class="flex-wrap-gap w-mobile-100">
                                     <select id="view-stock-category" class="form-control select-compact flex-1" onchange="window.renderAdminStocksByCategory()">
                                         <option value="">-- Pilih Brand Untuk Dilihat --</option>
                                     </select>
-                                    <button class="btn btn-danger btn-sm" onclick="window.deleteUsedStocksByCategory()" title="Bersihkan stok sekali pakai yang sudah terjual">
+                                    <button class="btn btn-danger btn-sm" onclick="window.deleteUsedStocksByCategory()" title="Bersihkan stok yang kuotanya sudah habis terjual">
                                         <i class="fa-solid fa-trash-can"></i> Hapus Terjual
                                     </button>
                                 </div>
@@ -444,7 +506,7 @@
 
                             <div class="table-responsive hide-mobile">
                                 <table class="modern-table" style="min-width: 100%;">
-                                    <thead><tr><th>No</th><th>Varian Item</th><th>Data Akun / Link Tools</th><th>Info Tambahan</th><th>Tipe & Status</th><th>Aksi</th></tr></thead>
+                                    <thead><tr><th>No</th><th>Varian Item</th><th>Data Akun / Link Tools</th><th>Info / Profil</th><th>Kuota & Status</th><th>Aksi</th></tr></thead>
                                     <tbody id="admin-stock-list">
                                         <tr><td colspan="6" class="text-center text-muted" style="padding: 3rem;">Pilih kategori brand di atas untuk menampilkan daftar stok.</td></tr>
                                     </tbody>
@@ -458,12 +520,14 @@
                     </div>
                 </div>
                 
-                <!-- TAB 5: KATALOG & HARGA PRODUK -->
+                <!-- ==================================================================
+                     [FEATURE-04 & FEATURE-05] TAB 5: KATALOG & HARGA PRODUK
+                     ================================================================== -->
                 <div id="tab-products" class="admin-tab-content" style="display: none;">
                     <div class="panel-toolbar highlight-toolbar">
                         <div class="toolbar-title">
-                            <h3><i class="fa-solid fa-boxes-stacked text-primary"></i> Pusat Manajemen Katalog & Harga</h3>
-                            <p>Kelola produk Aplikasi Premium, Top Up Game, dan Tools Digital (dilengkapi pengatur jumlah kuota stok).</p>
+                            <h3><i class="fa-solid fa-boxes-stacked text-primary"></i> Pusat Manajemen Katalog, Varian & Durasi</h3>
+                            <p>Kelola produk Aplikasi Premium (dengan opsi Input Email Tujuan & Durasi Sewa), Top Up Game, dan Tools Digital.</p>
                         </div>
                         <div class="toolbar-action w-mobile-100">
                             <button class="btn btn-primary btn-block" onclick="window.openProductGroupModal()">
@@ -490,7 +554,9 @@
                     </div>
                 </div>
                 
-                <!-- TAB 6: STUDIO VOUCHER & PROMO -->
+                <!-- ==================================================================
+                     [FEATURE-06] TAB 6: STUDIO VOUCHER & PROMO
+                     ================================================================== -->
                 <div id="tab-promos" class="admin-tab-content" style="display: none;">
                     <div class="panel-toolbar highlight-toolbar">
                         <div class="toolbar-title">
@@ -506,7 +572,9 @@
                     <div id="admin-promo-list" class="promo-cards-grid"></div>
                 </div>
                 
-                <!-- TAB 7: ULASAN PEMBELI -->
+                <!-- ==================================================================
+                     TAB 7: ULASAN PEMBELI
+                     ================================================================== -->
                 <div id="tab-reviews" class="admin-tab-content" style="display: none;">
                     <div class="panel-toolbar highlight-toolbar">
                         <div class="toolbar-title">
@@ -519,7 +587,9 @@
                     </div>
                 </div>
                 
-                <!-- TAB 8: BERITA & KOMUNITAS (DENGAN FITUR TOMBOL PRODUK TERKAIT) -->
+                <!-- ==================================================================
+                     TAB 8: BERITA & KOMUNITAS
+                     ================================================================== -->
                 <div id="tab-news" class="admin-tab-content" style="display: none;">
                     <div class="grid-2col" style="grid-template-columns: 1.5fr 1fr;">
                         <div class="dashboard-panel">
@@ -545,7 +615,9 @@
                     </div>
                 </div>
                 
-                <!-- TAB 9: LIVE CHAT ADMIN -->
+                <!-- ==================================================================
+                     TAB 9: LIVE CHAT ADMIN
+                     ================================================================== -->
                 <div id="tab-livechat" class="admin-tab-content" style="display: none; padding: 0;">
                     <div class="chat-dashboard-wrapper">
                         <div class="chat-sidebar-panel" id="admin-chat-sidebar-panel">
@@ -597,7 +669,10 @@
                     </div>
                 </div>
                 
-                <!-- TAB 10: PENGATURAN WEB, IKON PWA & WEBHOOK EMAIL OTOMATIS -->
+                <!-- ==================================================================
+                     [FEATURE-07 & FEATURE-13] TAB 10: PENGATURAN WEB, EKSTRAKSI NAMA
+                     MERCHANT QRIS TAG 59, & SIMULATOR UNIFIED WEBHOOK MACRODROID/EMAIL
+                     ================================================================== -->
                 <div id="tab-settings" class="admin-tab-content" style="display: none;">
                     <div class="grid-2col">
                         
@@ -666,23 +741,38 @@
                             <button class="btn btn-primary btn-block mt-3" onclick="window.saveSettingsManual(true)">
                                 <i class="fa-solid fa-floppy-disk"></i> Simpan Identitas & PWA
                             </button>
+
+                            <hr style="border:none; border-top:1.5px dashed var(--border-subtle); margin:1.3rem 0;">
+
+                            <!-- Panel Banner Slider Utama -->
+                            <div class="flex-between align-center mb-2">
+                                <h4 style="margin:0; font-size:0.95rem;"><i class="fa-solid fa-images text-primary"></i> Spanduk / Banner Promo</h4>
+                                <button class="btn btn-outline btn-sm" onclick="document.getElementById('banner-upload').click()">
+                                    <i class="fa-solid fa-plus"></i> Upload Banner
+                                </button>
+                            </div>
+                            <input type="file" id="banner-upload" accept="image/*" style="display: none;">
+                            <div id="admin-banner-list" class="mt-2"></div>
                         </div>
 
-                        <!-- 2. PEMBAYARAN QRIS, WEBHOOK EMAIL OTOMATIS & KONTAK SOSIAL -->
+                        <!-- 2. QRIS EMVCo TAG 59, UNIFIED WEBHOOK GAS & SIMULATOR MACRODROID -->
                         <div class="dashboard-panel">
                             <div class="panel-header">
-                                <h3><i class="fa-solid fa-qrcode text-primary"></i> Payload QRIS, Email & Kontak CS</h3>
+                                <h3><i class="fa-solid fa-qrcode text-primary"></i> Payload QRIS, Unified Webhook & Kontak CS</h3>
                             </div>
                             <div class="form-group">
                                 <label for="set-qris-string">String Payload QRIS Statis (EMVCo)</label>
-                                <textarea id="set-qris-string" class="form-control code-input text-xs" rows="3" placeholder="000201010211...6304XXXX"></textarea>
-                                <small class="text-muted mt-1 d-block">Mesin EMVCo TLV otomatis mengubah kode statis di atas menjadi QRIS Dinamis yang valid di semua aplikasi bank & e-wallet.</small>
+                                <textarea id="set-qris-string" class="form-control code-input text-xs" rows="3" placeholder="000201010211...6304XXXX" oninput="window.previewQrisMerchantTag59()"></textarea>
+                                <!-- Preview Otomatis Ekstraksi Nama Merchant Tag 59 & Kota Tag 60 -->
+                                <div id="qris-merchant-detected-preview" class="info-box bg-success-light border-success mt-2 text-xs fw-bold text-success" style="padding: 8px 12px;">
+                                    <i class="fa-solid fa-store"></i> Terdeteksi Nama Merchant QRIS: <b id="detected-qris-merchant-text">VIPERCELL INDONESIA (AMBON)</b>
+                                </div>
                             </div>
 
                             <div class="form-group">
-                                <label for="set-email-webhook"><i class="fa-solid fa-paper-plane text-primary"></i> URL Google Apps Script / Webhook Pengirim Email Otomatis (Opsional)</label>
+                                <label for="set-email-webhook"><i class="fa-solid fa-bolt text-primary"></i> URL Unified Google Apps Script Webhook (MacroDroid + Email/OTP)</label>
                                 <input type="url" id="set-email-webhook" class="form-control code-input text-xs" placeholder="https://script.google.com/macros/s/.../exec">
-                                <small class="text-muted mt-1 d-block">Jika diisi, sistem otomatis mengirim struk & data akun ke Email pembeli saat pesanan selesai. Tombol kirim manual ke Email & WA tetap tersedia di tabel pesanan.</small>
+                                <small class="text-muted mt-1 d-block">Satu URL untuk Verifikasi Pembayaran Otomatis MacroDroid, Kirim Kode OTP 6-Digit, dan Kirim Struk Email.</small>
                             </div>
 
                             <div class="grid-2col" style="gap: 10px;">
@@ -700,20 +790,50 @@
                                 <input type="text" id="set-tt" class="form-control" placeholder="https://tiktok.com/@...">
                             </div>
                             <button class="btn btn-primary btn-block mt-2" onclick="window.saveSettingsManual(true)">
-                                <i class="fa-solid fa-floppy-disk"></i> Simpan QRIS, Email & Kontak
+                                <i class="fa-solid fa-floppy-disk"></i> Simpan QRIS, Webhook & Kontak
                             </button>
 
                             <hr style="border:none; border-top:1.5px dashed var(--border-subtle); margin:1.3rem 0;">
 
-                            <!-- Panel Banner Slider Utama -->
-                            <div class="flex-between align-center mb-2">
-                                <h4 style="margin:0; font-size:0.95rem;"><i class="fa-solid fa-images text-primary"></i> Spanduk / Banner Promo</h4>
-                                <button class="btn btn-outline btn-sm" onclick="document.getElementById('banner-upload').click()">
-                                    <i class="fa-solid fa-plus"></i> Upload Banner
-                                </button>
+                            <!-- [FEATURE-13] PANEL HELPER MACRODROID & SIMULATOR TEMBAK WEBHOOK -->
+                            <div class="info-box bg-surface-hover border-border">
+                                <div class="flex-between align-center flex-wrap-gap mb-2">
+                                    <h4 style="margin:0; font-size:0.92rem;"><i class="fa-solid fa-robot text-primary"></i> MacroDroid Helper & Simulator Webhook</h4>
+                                    <button type="button" class="btn btn-outline btn-sm" onclick="window.pingUnifiedGasWebhook()">
+                                        <i class="fa-solid fa-plug-circle-check"></i> Cek Koneksi & Kuota GAS
+                                    </button>
+                                </div>
+                                <p class="text-xs text-muted mb-2">
+                                    Salin template Badan Konten JSON untuk dipasang di HTTP Request MacroDroid, atau uji coba tembak nominal pembayaran secara langsung:
+                                </p>
+                                <div class="flex-wrap-gap mb-3">
+                                    <button type="button" class="btn btn-outline btn-sm flex-1" onclick="window.copyMacroDroidJsonTemplate('curly')">
+                                        <i class="fa-regular fa-copy"></i> Copy JSON MacroDroid <code>{not_text}</code>
+                                    </button>
+                                    <button type="button" class="btn btn-outline btn-sm flex-1" onclick="window.copyMacroDroidJsonTemplate('square')">
+                                        <i class="fa-regular fa-copy"></i> Copy JSON MacroDroid <code>[not_text]</code>
+                                    </button>
+                                </div>
+
+                                <!-- Simulator Tembak Nominal Pembayaran QRIS -->
+                                <label class="text-xs fw-bold text-dark d-block mb-1">Simulasi Tembak Pembayaran Masuk (Auto-Match Order):</label>
+                                <div class="flex-gap mb-2">
+                                    <input type="number" id="sim-payment-amount" class="form-control code-input" placeholder="Nominal Unik (Cth: 25142)">
+                                    <button type="button" id="btn-sim-payment" class="btn btn-success btn-sm" style="white-space:nowrap;" onclick="window.simulateMacroDroidPaymentFromAdmin()">
+                                        <i class="fa-solid fa-bolt"></i> Tembak Mutasi
+                                    </button>
+                                </div>
+
+                                <!-- Tester Kirim Email OTP -->
+                                <label class="text-xs fw-bold text-dark d-block mb-1 mt-2">Uji Coba Kirim Email OTP 6-Digit via GAS:</label>
+                                <div class="flex-gap">
+                                    <input type="email" id="sim-test-email" class="form-control text-xs" placeholder="Masukkan email tujuan tes...">
+                                    <button type="button" id="btn-sim-email" class="btn btn-primary btn-sm" style="white-space:nowrap;" onclick="window.testSendOtpFromAdmin()">
+                                        <i class="fa-solid fa-paper-plane"></i> Tes OTP
+                                    </button>
+                                </div>
+                                <div id="webhook-diagnostic-output" class="mt-2 text-xs fw-bold" style="display:none;"></div>
                             </div>
-                            <input type="file" id="banner-upload" accept="image/*" style="display: none;">
-                            <div id="admin-banner-list" class="mt-2"></div>
                         </div>
                     </div>
                 </div>
@@ -723,7 +843,7 @@
     </div>
 
     <!-- ========================================================
-         ADMIN MODALS (SCANNER BARCODE, PROSES PESANAN + KIRIM EMAIL/WA, PROMO 2-KOLOM, BERITA + PRODUK, HAPUS AKUN)
+         ADMIN MODALS V25.0
          ======================================================== -->
 
     <!-- MODAL 1: KASIR SCANNER BARCODE TUNAI -->
@@ -753,11 +873,14 @@
         </div>
     </div>
     
-    <!-- MODAL 2: PROSES PESANAN + PANEL KIRIM PESAN KE EMAIL & WHATSAPP PEMBELI -->
+    <!-- ==========================================================================
+         [FEATURE-09 & FEATURE-11] MODAL 2: PROSES PESANAN, KONTROL DURASI / KICK
+         & KIRIM PESAN KE EMAIL / WHATSAPP PEMBELI
+         ========================================================================== -->
     <div class="modal-overlay" id="modal-process-order">
         <div class="modal-content wide">
             <div class="modal-header">
-                <h2><i class="fa-solid fa-file-invoice text-primary"></i> Rincian & Pengiriman Pesanan</h2>
+                <h2><i class="fa-solid fa-file-invoice text-primary"></i> Rincian, Durasi & Pengiriman Pesanan</h2>
                 <button class="close-btn" aria-label="Tutup" onclick="window.closeModal('modal-process-order')"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <input type="hidden" id="proc-order-id">
@@ -766,16 +889,33 @@
             <div id="proc-ereceipt-summary" class="admin-ereceipt-box mb-3"></div>
             
             <div id="proc-items-list" class="info-box bg-surface-hover mb-3"></div>
+
+            <!-- PANEL KHUSUS KONTROL DURASI LANGGANAN & KICK MANAGER (MUNCUL JIKA PESANAN BERDURASI) -->
+            <div id="proc-subscription-box" class="info-box bg-warning-light border-warning mb-3" style="display:none;">
+                <div class="flex-between align-center flex-wrap-gap">
+                    <div>
+                        <strong class="text-dark text-xs d-block"><i class="fa-solid fa-stopwatch text-warning"></i> Status & Kontrol Durasi Langganan Aplikasi:</strong>
+                        <span id="proc-sub-countdown-text" class="text-xs fw-bold text-dark">Memeriksa durasi...</span>
+                    </div>
+                    <div class="flex-wrap-gap">
+                        <button type="button" class="btn btn-outline btn-sm" onclick="window.extendOrderSubscriptionDays(7)">+7 Hari</button>
+                        <button type="button" class="btn btn-outline btn-sm" onclick="window.extendOrderSubscriptionDays(30)">+30 Hari</button>
+                        <button type="button" id="btn-modal-kick-done" class="btn btn-danger btn-sm" onclick="window.markSubscriptionKickedFromModal()">
+                            <i class="fa-solid fa-user-slash"></i> Tandai Sudah Kick
+                        </button>
+                    </div>
+                </div>
+            </div>
             
             <div id="proc-stock-section" class="info-box bg-primary-light border-primary mb-3" style="display:none;">
                 <label class="text-dark fw-bold mb-2 d-block"><i class="fa-solid fa-key"></i> Pilih Akun / Link dari Gudang Stok Ready:</label>
                 <select id="proc-stock-select" class="form-control"></select>
-                <small class="text-muted d-block mt-1">Stok berlabel <b>[Reusable]</b> dapat dikirim berulang kali tanpa habis.</small>
+                <small class="text-muted d-block mt-1">Stok berlabel <b>[Sharing X/Y]</b> atau <b>[Reusable ∞]</b> akan otomatis menyesuaikan sisa slot kuota.</small>
             </div>
             
             <div class="form-group mb-2">
                 <div class="flex-between align-center flex-wrap-gap mb-1">
-                    <label class="mb-0">Data Akun / Link Tools / Pesan Pengiriman (Tampil di Web & Dikirim ke Pembeli):</label>
+                    <label class="mb-0">Data Akun / Link Tools / Pesan Pengiriman (Tampil di E-Receipt & Email):</label>
                     <div class="flex-wrap-gap">
                         <button type="button" class="btn btn-outline btn-sm" style="padding:2px 8px; min-height:26px; font-size:0.68rem;" onclick="window.applyOrderMessageTemplate('game')">Template Game</button>
                         <button type="button" class="btn btn-outline btn-sm" style="padding:2px 8px; min-height:26px; font-size:0.68rem;" onclick="window.applyOrderMessageTemplate('app')">Template Akun App</button>
@@ -783,15 +923,15 @@
                         <button type="button" class="btn btn-outline btn-sm" style="padding:2px 8px; min-height:26px; font-size:0.68rem;" onclick="window.applyOrderMessageTemplate('remind')">Template Tagihan</button>
                     </div>
                 </div>
-                <textarea id="proc-reply" class="form-control code-input" rows="5" placeholder="Masukkan detail akun / link tools / SN / konfirmasi pengiriman..."></textarea>
+                <textarea id="proc-reply" class="form-control code-input" rows="5" placeholder="Format disarankan agar muncul tombol Salin terpisah di pembeli:&#10;Email : akun@domain.com&#10;Password : Sandi123&#10;Profil/Pin : Profil #2 (Jangan diubah)"></textarea>
             </div>
 
-            <!-- PANEL BARU: HUBUNGI & KIRIM STRUK LANGSUNG KE EMAIL / WHATSAPP PEMBELI -->
+            <!-- PANEL HUBUNGI & KIRIM STRUK LANGSUNG KE EMAIL / WHATSAPP PEMBELI -->
             <div class="buyer-notify-bar">
                 <div class="flex-between align-center flex-wrap-gap mb-2">
                     <div>
                         <strong class="text-dark text-xs d-block"><i class="fa-solid fa-paper-plane text-primary"></i> Kirim Pesan & Bukti Pesanan ke Pembeli</strong>
-                        <small class="text-muted text-xs">Gunakan tombol di bawah untuk mengirim pesan beserta isi kotak di atas ke Email atau WhatsApp pembeli:</small>
+                        <small class="text-muted text-xs">Kirim otomatis via GAS Email Webhook atau buka WhatsApp/Email Client dengan 1x klik:</small>
                     </div>
                 </div>
                 <div class="grid-2col" style="gap: 8px; margin-bottom: 8px;">
@@ -825,7 +965,7 @@
         </div>
     </div>
 
-    <!-- MODAL 3: KONFIRMASI HAPUS AKUN BERLAPIS (CASCADE CLEANUP DARI DESAIN.MD 2.2) -->
+    <!-- MODAL 3: KONFIRMASI HAPUS AKUN BERLAPIS (CASCADE CLEANUP) -->
     <div class="modal-overlay" id="modal-delete-account">
         <div class="modal-content" style="max-width: 460px;">
             <div class="modal-header">
@@ -923,7 +1063,6 @@
                 <textarea id="manage-news-desc" class="form-control" rows="5" placeholder="Tulis rincian informasi atau promo di sini..."></textarea>
             </div>
 
-            <!-- FITUR BARU: CENTANG TAMBAH TOMBOL PINTAS KE PRODUK TERKAIT DI DALAM BERITA -->
             <div class="info-box bg-primary-light border-primary mb-3">
                 <div class="toggle-box">
                     <label for="manage-news-enable-btn" class="fw-bold text-dark text-xs mb-0 flex-1 pointer">
@@ -945,7 +1084,7 @@
         </div>
     </div>
 
-    <!-- MODAL 6: STUDIO PEMBUAT KODE PROMO VERSI BARU (2-KOLOM + LIVE PREVIEW + FITUR LENGKAP) -->
+    <!-- MODAL 6: STUDIO PEMBUAT KODE PROMO VERSI BARU (2-KOLOM + LIVE PREVIEW) -->
     <div class="modal-overlay" id="modal-manage-promo">
         <div class="modal-content large" style="max-width: 780px;">
             <div class="modal-header">
@@ -955,7 +1094,6 @@
             <input type="hidden" id="manage-promo-id">
             
             <div class="promo-studio-grid">
-                <!-- KOLOM KIRI: KONFIGURASI LENGKAP VOUCHER -->
                 <div>
                     <div class="form-group">
                         <div class="flex-between align-center mb-1">
@@ -981,7 +1119,6 @@
                         </div>
                     </div>
 
-                    <!-- Preset Cepat Potongan -->
                     <div class="form-group">
                         <span class="text-xs text-muted fw-bold">Preset Cepat Nilai Diskon:</span>
                         <div class="promo-preset-chips">
@@ -1027,7 +1164,6 @@
                     </div>
                 </div>
 
-                <!-- KOLOM KANAN: LIVE PREVIEW TIKET VOUCHER & TOMBOL SIMPAN -->
                 <div class="promo-live-preview-box">
                     <span class="text-xs fw-bold text-muted d-block mb-2"><i class="fa-solid fa-eye text-primary"></i> PRATINJAU KUPON VOUCHER:</span>
                     
@@ -1054,11 +1190,14 @@
         </div>
     </div>
 
-    <!-- MODAL 7: MANAJEMEN PRODUK & KUOTA STOK -->
+    <!-- ==========================================================================
+         [FEATURE-04, FEATURE-05 & FEATURE-09] MODAL 7: MANAJEMEN PRODUK,
+         INPUT EMAIL TUJUAN OPSIONAL APP, DESKRIPSI VARIAN, & DURASI HARI
+         ========================================================================== -->
     <div class="modal-overlay" id="modal-manage-product">
         <div class="modal-content large">
             <div class="modal-header">
-                <h2 id="modal-prod-title"><i class="fa-solid fa-box-open text-primary"></i> Kelola Produk & Varian Layanan</h2>
+                <h2 id="modal-prod-title"><i class="fa-solid fa-box-open text-primary"></i> Kelola Produk & Varian Layanan V25</h2>
                 <button class="close-btn" aria-label="Tutup" onclick="window.closeModal('modal-manage-product')"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <input type="hidden" id="manage-prod-old-brand">
@@ -1086,18 +1225,39 @@
                         </div>
                         <div class="form-group mb-2">
                             <label for="manage-prod-brand">2. Nama Brand / Produk</label>
-                            <input type="text" id="manage-prod-brand" class="form-control" placeholder="Cth: Netflix / Mobile Legends / Canva">
+                            <input type="text" id="manage-prod-brand" class="form-control" placeholder="Cth: Netflix / Canva Pro / Mobile Legends">
                         </div>
                     </div>
                     <div class="form-group mb-0">
-                        <label for="manage-prod-desc">3. Deskripsi & Panduan Singkat (Opsional)</label>
-                        <textarea id="manage-prod-desc" class="form-control" rows="2" placeholder="Tulis informasi garansi, cara pemakaian, atau catatan penting..."></textarea>
+                        <label for="manage-prod-desc">3. Deskripsi & Panduan Umum Produk (Opsional)</label>
+                        <textarea id="manage-prod-desc" class="form-control" rows="2" placeholder="Tulis informasi garansi umum, cara pemakaian, atau catatan penting..."></textarea>
                     </div>
                     <small id="manage-prod-file-name" class="text-muted text-xs d-block mt-1">Klik kotak kamera untuk mengunggah gambar (Auto WebP).</small>
                 </div>
             </div>
+
+            <!-- [FEATURE-05] PENGATURAN KHUSUS KATEGORI APLIKASI PREMIUM: MINTA EMAIL / DATA TUJUAN PEMBELI (OPSIONAL) -->
+            <div id="group-app-target-config" class="info-box bg-primary-light border-primary mb-3">
+                <div class="toggle-box">
+                    <label for="manage-prod-require-app-target" class="fw-bold text-dark text-xs mb-0 flex-1 pointer">
+                        <i class="fa-solid fa-at text-primary"></i> Minta Email / Data Tujuan dari Pembeli? (Khusus Produk Invite seperti Canva / YouTube / Spotify)
+                    </label>
+                    <input type="checkbox" id="manage-prod-require-app-target" class="large-checkbox" onchange="window.toggleAppTargetCustomFields()">
+                </div>
+                <div id="app-target-custom-fields" class="grid-2col mt-2" style="gap:10px; display:none;">
+                    <div class="form-group mb-0">
+                        <label for="manage-prod-target-label" class="text-xs">Label Kolom Input di Checkout:</label>
+                        <input type="text" id="manage-prod-target-label" class="form-control text-xs" placeholder="Masukkan Email / Akun Tujuan (Untuk Invite)">
+                    </div>
+                    <div class="form-group mb-0">
+                        <label for="manage-prod-target-placeholder" class="text-xs">Placeholder Contoh Input:</label>
+                        <input type="text" id="manage-prod-target-placeholder" class="form-control text-xs" placeholder="Contoh: emailkamu@gmail.com">
+                    </div>
+                </div>
+            </div>
             
-            <div id="group-tipe-input" class="dashboard-panel bg-surface-hover mb-3" style="padding: 1rem;">
+            <!-- PENGATURAN TIPE INPUT UNTUK GAME / TOOLS -->
+            <div id="group-tipe-input" class="dashboard-panel bg-surface-hover mb-3" style="padding: 1rem; display:none;">
                 <label class="fw-bold d-block mb-2 text-sm"><i class="fa-solid fa-keyboard text-primary"></i> Format Input Data Tujuan Pembeli:</label>
                 <div class="input-type-grid">
                     <label class="type-card" onclick="window.selectInputType('none', this)">
@@ -1119,9 +1279,10 @@
                 </div>
             </div>
             
+            <!-- [FEATURE-04 & FEATURE-09] BUILDER VARIAN HARGA + DURASI LANGGANAN (HARI) + DESKRIPSI VARIAN OPSIONAL -->
             <div class="dashboard-panel bg-surface-hover mb-3" style="padding: 1.2rem;">
                 <div class="flex-between align-center flex-wrap-gap mb-2">
-                    <label class="fw-bold mb-0"><i class="fa-solid fa-tags text-primary"></i> Daftar Varian, Harga & Kuota Stok (<span id="temp-nom-count">0</span> Varian)</label>
+                    <label class="fw-bold mb-0"><i class="fa-solid fa-tags text-primary"></i> Daftar Varian, Harga, Durasi & Deskripsi (<span id="temp-nom-count">0</span> Varian)</label>
                     <div class="flex-wrap-gap">
                         <button type="button" class="btn btn-outline btn-sm" style="padding:3px 8px; min-height:28px; font-size:0.7rem;" onclick="window.adjustAllTempPrices(1000)">+Rp1rb Semua</button>
                         <button type="button" class="btn btn-outline btn-sm" style="padding:3px 8px; min-height:28px; font-size:0.7rem;" onclick="window.adjustAllTempPrices(-1000)">-Rp1rb Semua</button>
@@ -1133,18 +1294,22 @@
                 
                 <div class="info-box bg-bg border-border mb-3">
                     <input type="hidden" id="temp-nom-index" value="-1">
-                    <div class="flex-wrap-gap align-end">
+                    <div class="flex-wrap-gap align-end mb-2">
                         <div class="flex-2 min-w-150">
-                            <label for="temp-nom-name" class="text-xs text-muted">Nama Varian / Durasi</label>
-                            <input type="text" id="temp-nom-name" class="form-control" placeholder="Cth: Lisensi Lifetime / Sharing 1 Bulan">
+                            <label for="temp-nom-name" class="text-xs text-muted">Nama Varian / Paket</label>
+                            <input type="text" id="temp-nom-name" class="form-control" placeholder="Cth: Sharing 1 Bulan (UHD)">
                         </div>
                         <div class="flex-1 min-w-100">
                             <label for="temp-nom-price" class="text-xs text-muted">Harga Jual (Rp)</label>
                             <input type="number" id="temp-nom-price" class="form-control" placeholder="25000">
                         </div>
                         <div class="flex-1 min-w-100">
-                            <label for="temp-nom-stock" class="text-xs text-muted">Jumlah Stok (Opsional)</label>
-                            <input type="number" id="temp-nom-stock" class="form-control" placeholder="Kosong = Bebas">
+                            <label for="temp-nom-duration" class="text-xs text-muted" title="Jika diisi > 0, otomatis mengaktifkan Hitung Mundur Durasi di Admin">⏱️ Durasi (Hari)</label>
+                            <input type="number" id="temp-nom-duration" class="form-control" placeholder="0 = Permanen">
+                        </div>
+                        <div class="flex-1 min-w-100">
+                            <label for="temp-nom-stock" class="text-xs text-muted">Kuota Stok</label>
+                            <input type="number" id="temp-nom-stock" class="form-control" placeholder="Kosong = ∞">
                         </div>
                         <div class="flex-1 min-w-100">
                             <label for="temp-nom-status" class="text-xs text-muted">Pengiriman</label>
@@ -1153,14 +1318,21 @@
                                 <option value="manual">👨‍💻 Manual</option>
                             </select>
                         </div>
+                    </div>
+                    <div class="flex-wrap-gap align-center">
+                        <div class="flex-1" style="min-width: 220px;">
+                            <input type="text" id="temp-nom-desc" class="form-control text-xs" placeholder="📝 Deskripsi singkat varian ini (Opsional — Cth: Garansi 30 hari, 1 profil khusus, bisa TV & HP)">
+                        </div>
                         <button id="btn-add-item" class="btn btn-primary" onclick="window.addOrUpdateTempNominal()">
-                            <i class="fa-solid fa-plus"></i> <span>Tambah</span>
+                            <i class="fa-solid fa-plus"></i> <span>Tambah Varian</span>
                         </button>
                         <button id="btn-cancel-edit-item" class="btn btn-danger" style="display:none;" onclick="window.clearTempNominalInput()">
-                            <i class="fa-solid fa-xmark"></i>
+                            <i class="fa-solid fa-xmark"></i> Batal Edit
                         </button>
                     </div>
-                    <small class="text-muted text-xs d-block mt-1">*Jika <b>Jumlah Stok</b> diisi angka (misal: 20), maka stok akan tampil di halaman User dan otomatis berkurang setiap kali dibeli.</small>
+                    <small class="text-muted text-xs d-block mt-1">
+                        *Isi <b>Durasi (Hari)</b> (contoh: <code>30</code>) jika varian ini adalah langganan berwaktu. Saat durasi habis, pesanan akan otomatis menyala <b>MERAH (Wajib Kick)</b> di tab Pesanan Admin!
+                    </small>
                 </div>
                 
                 <div id="manage-prod-nominals-list" class="variant-list-admin"></div>
@@ -1207,7 +1379,7 @@
         </div>
     </div>
 
-    <!-- Script Utama Admin V24.5 -->
+    <!-- Script Utama Admin V25.0 -->
     <script type="module" src="js/admin.js" defer></script>
 
     <!-- Registrasi PWA Service Worker Admin -->
