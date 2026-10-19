@@ -1,5 +1,5 @@
 /* ============================================================================
- * VIPERCELL V25.0 - ADMIN COMMAND CENTER ENGINE
+ * VIPERCELL V25.1 - ADMIN COMMAND CENTER ENGINE (FAST & UNIFIED GAS WEBHOOK READY)
  * Standar Arsitektur : Modular Feature Blocks ([FEATURE-01] s/d [FEATURE-13])
  * ============================================================================ */
 
@@ -57,6 +57,7 @@ let siteSettings = {
     marquee: 'Selamat Datang di Vipercell! Layanan Otomatis 24 Jam.',
     qrisStringData: '00020101021126670016COM.NOBUBANK.WWW011893600503000000000051440014ID.CO.QRIS.WWW0215ID10200210007070303UMI5204581253033605802ID5919VIPERCELL INDONESIA6005AMBON61059711662070703A016304',
     emailWebhookUrl: '',
+    webhookSecret: 'VIPERCELL_SECRET_2026',
     adminWa: '085656321860',
     igLink: '',
     ttLink: '',
@@ -125,12 +126,22 @@ function hideAdminPreloader() {
     document.body.classList.remove('preloader-locked');
     document.body.classList.remove('no-scroll');
 
+    // Jaminan Anti-Blank: Jika dashboard belum aktif saat preloader ditutup, wajib tampilkan layar login
+    const dashEl = document.getElementById('admin-dashboard');
+    const loginEl = document.getElementById('admin-login-screen');
+    if (dashEl && loginEl) {
+        const isDashVisible = dashEl.style.display === 'flex' || dashEl.style.display === 'block';
+        if (!isDashVisible && !currentAdminUser) {
+            loginEl.style.display = 'flex';
+        }
+    }
+
     const loader = document.getElementById('app-preloader-overlay');
     if (loader && !loader.classList.contains('hidden')) {
         loader.classList.add('hidden');
         setTimeout(() => {
             loader.style.display = 'none';
-        }, 280);
+        }, 250);
     }
 }
 /* ======================== END OF [FEATURE-01] ============================= */
@@ -386,14 +397,21 @@ window.previewQrisMerchantTag59 = function() {
     }
 };
 
+function getActiveWebhookSecret() {
+    const secretInp = document.getElementById('set-webhook-secret')?.value.trim();
+    return secretInp || (siteSettings.webhookSecret || 'VIPERCELL_SECRET_2026').trim();
+}
+
 async function callUnifiedGasWebhook(payloadObj) {
     const inputUrl = document.getElementById('set-email-webhook')?.value.trim();
     const gasWebAppUrl = inputUrl || (siteSettings.emailWebhookUrl || '').trim();
+    const activeSecret = getActiveWebhookSecret();
 
     if (!gasWebAppUrl || !gasWebAppUrl.startsWith('https://script.google.com/')) {
         throw new Error('URL Google Apps Script Webhook belum diatur atau tidak valid.');
     }
 
+    const startTime = Date.now();
     const response = await fetch(gasWebAppUrl, {
         method: 'POST',
         headers: {
@@ -401,21 +419,35 @@ async function callUnifiedGasWebhook(payloadObj) {
         },
         body: JSON.stringify({
             projectId: 'vipercell-fc50e',
+            secret: activeSecret,
+            key: activeSecret,
+            timestamp: startTime,
             ...payloadObj
         }),
         redirect: 'follow'
     });
 
-    const result = await response.json();
+    const rawText = await response.text();
+    let result = null;
+    try {
+        result = JSON.parse(rawText);
+    } catch (parseErr) {
+        throw new Error('Respons GAS bukan JSON valid. Pastikan Web App di-deploy dengan akses "Siapa saja (Anyone)".');
+    }
+
     if (!result || (result.ok === false && result.status !== 'ok')) {
         throw new Error((result && result.message) || (result && result.error) || 'Gagal menghubungi server GAS Webhook.');
+    }
+    if (result.executionMs === undefined) {
+        result.executionMs = Date.now() - startTime;
     }
     return result;
 }
 
 async function triggerAutomatedEmailWebhook(orderData, replyMessage, customAction = 'SEND_ORDER_DELIVERY') {
     const buyerEmail = (orderData.userEmail || orderData.buyerEmail || '').trim();
-    const gasUrl = (siteSettings.emailWebhookUrl || '').trim();
+    const inputUrl = document.getElementById('set-email-webhook')?.value.trim();
+    const gasUrl = inputUrl || (siteSettings.emailWebhookUrl || '').trim();
     if (!gasUrl || !buyerEmail || !buyerEmail.includes('@')) return false;
 
     const itemObj = (orderData.items && orderData.items[0]) ? orderData.items[0] : {};
@@ -433,6 +465,7 @@ async function triggerAutomatedEmailWebhook(orderData, replyMessage, customActio
             variantName: itemObj.exactItemName || orderData.variantName || itemObj.name || '-',
             itemName: itemObj.name || 'Layanan Digital Vipercell',
             totalAmount: orderData.finalTotal || 0,
+            uniqueTotal: orderData.finalTotal || 0,
             totalFormatted: `Rp${(orderData.finalTotal || 0).toLocaleString('id-ID')}`,
             targetId: itemObj.playerInfo || orderData.targetId || '-',
             accountDetails: replyMessage || orderData.adminReply || 'Pesanan selesai diproses.',
@@ -447,12 +480,13 @@ async function triggerAutomatedEmailWebhook(orderData, replyMessage, customActio
 }
 
 window.copyMacroDroidJsonTemplate = function(bracketMode = 'curly') {
+    const activeSecret = getActiveWebhookSecret();
     const template = bracketMode === 'square'
-        ? `{\n  "secret": "VIPERCELL_SECRET_2026",\n  "projectId": "vipercell-fc50e",\n  "app": "[not_app_name]",\n  "title": "[not_title]",\n  "text": "[not_text]",\n  "big_text": "[not_big_text]"\n}`
-        : `{\n  "secret": "VIPERCELL_SECRET_2026",\n  "projectId": "vipercell-fc50e",\n  "app": "{not_app_name}",\n  "title": "{not_title}",\n  "text": "{not_text}",\n  "big_text": "{not_big_text}"\n}`;
+        ? `{\n  "secret": "${activeSecret}",\n  "projectId": "vipercell-fc50e",\n  "app": "[not_app_name]",\n  "title": "[not_title]",\n  "text": "[not_text]",\n  "big_text": "[not_big_text]"\n}`
+        : `{\n  "secret": "${activeSecret}",\n  "projectId": "vipercell-fc50e",\n  "app": "{not_app_name}",\n  "title": "{not_title}",\n  "text": "{not_text}",\n  "big_text": "{not_big_text}"\n}`;
 
     navigator.clipboard.writeText(template).then(() => {
-        window.showToast('Template JSON Disalin', 'Tempelkan langsung ke kolom Badan Konten (Content Body) di HTTP Request MacroDroid!', 'success');
+        window.showToast('Template JSON Disalin', `Template MacroDroid dengan secret "${activeSecret}" berhasil disalin!`, 'success');
     });
 };
 
@@ -461,14 +495,14 @@ window.pingUnifiedGasWebhook = async function() {
     if (outEl) {
         outEl.style.display = 'block';
         outEl.className = 'mt-2 text-xs fw-bold text-primary';
-        outEl.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Menghubungi server Google Apps Script...`;
+        outEl.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Menghubungi server Google Apps Script & memvalidasi Secret...`;
     }
     try {
-        const res = await callUnifiedGasWebhook({ action: 'PING' });
+        const res = await callUnifiedGasWebhook({ action: 'PING_TEST' });
         const quota = res.remainingEmailQuota !== undefined ? res.remainingEmailQuota : 'Aktif';
         if (outEl) {
             outEl.className = 'mt-2 text-xs fw-bold text-success';
-            outEl.innerHTML = `<i class="fa-solid fa-circle-check"></i> Terhubung! Sisa Kuota Email Harian GAS: <b>${quota} Email</b> (${res.executionMs || 0}ms)`;
+            outEl.innerHTML = `<i class="fa-solid fa-circle-check"></i> Terhubung & Secret Valid! Sisa Kuota Email Harian GAS: <b>${quota} Email</b> (${res.executionMs || 0}ms)`;
         }
         window.showToast('Koneksi GAS Aktif', `Sisa kuota pengiriman email hari ini: ${quota}`, 'success');
     } catch (err) {
@@ -530,8 +564,10 @@ window.simulateMacroDroidPaymentFromAdmin = async function() {
         const gasUrl = document.getElementById('set-email-webhook')?.value.trim() || siteSettings.emailWebhookUrl;
         if (gasUrl && gasUrl.startsWith('https://script.google.com/')) {
             await callUnifiedGasWebhook({
-                action: 'SIMULATE_PAYMENT',
-                app: 'SIMULATOR_ADMIN_V25',
+                action: 'SIMULATE_MACRODROID',
+                isSimulation: true,
+                forceTest: true,
+                app: 'SIMULATOR_ADMIN_V25.1',
                 title: 'Pembayaran QRIS Diterima',
                 text: `Pembayaran QRIS sebesar Rp ${amountVal.toLocaleString('id-ID')} berhasil diterima`,
                 amount: amountVal
@@ -818,50 +854,75 @@ window.jumpToExpiredSubscriptions = function() {
 };
 
 // ==========================================
-// AUTHENTICATION KHUSUS EMAIL & PASSWORD
+// AUTHENTICATION KHUSUS EMAIL & PASSWORD (ANTI-HANG V25.2)
 // ==========================================
+let isVerifyingAdmin = false;
+
 async function verifyAdminAccess(user) {
+    if (!user || isVerifyingAdmin) return;
+    isVerifyingAdmin = true;
     try {
         updateAdminPreloaderStage(55, 'Sedang memuat data...', 'Memverifikasi otoritas administrator...');
         let role = 'user';
-        const allowedEmails = ['vipercell.id@gmail.com', 'viperdev4@gmail.com']; 
-        
-        if (allowedEmails.includes((user.email || '').toLowerCase())) {
+        const allowedEmails = [
+            'vipercell.id@gmail.com',
+            'viperdev4@gmail.com',
+            'millertipak63@gmail.com',
+            'vipercell@bot.id'
+        ];
+        const cleanEmail = (user.email || '').trim().toLowerCase();
+
+        if (allowedEmails.includes(cleanEmail)) {
             role = 'superadmin';
         } else {
-            const userDoc = await getDoc(doc(db, pathUsers, user.uid));
-            if (userDoc.exists() && userDoc.data().role) {
+            // Gunakan Promise.race dengan batas waktu 3.5 detik agar getDoc tidak pernah macet selamanya
+            const userDoc = await Promise.race([
+                getDoc(doc(db, pathUsers, user.uid)),
+                new Promise((resolve) => setTimeout(() => resolve(null), 3500))
+            ]).catch(() => null);
+
+            if (userDoc && typeof userDoc.exists === 'function' && userDoc.exists() && userDoc.data().role) {
                 role = userDoc.data().role;
             }
         }
 
         if (role === 'admin' || role === 'superadmin') {
             currentAdminUser = user;
-            document.getElementById('admin-login-screen').style.display = 'none';
-            document.getElementById('admin-dashboard').style.display = 'flex';
+            const loginScreen = document.getElementById('admin-login-screen');
+            const dashScreen = document.getElementById('admin-dashboard');
+            if (loginScreen) loginScreen.style.display = 'none';
+            if (dashScreen) dashScreen.style.display = 'flex';
+
             const emailLbl = document.getElementById('admin-logged-email');
             if (emailLbl) emailLbl.innerText = user.email || 'Otoritas Penuh';
-            
+
             updateSoundIconUI();
             updateAdminNotifToggleUI();
             updateAdminPreloaderStage(85, 'Sedang memuat data...', 'Menghubungkan data pesanan & gudang stok...');
             listenAdminData();
             startAdminSubscriptionLiveTicker();
-            updateAdminPreloaderStage(100, 'Siap!', 'Membuka Command Center V25...');
-            setTimeout(hideAdminPreloader, 180);
+            updateAdminPreloaderStage(100, 'Siap!', 'Membuka Command Center...');
+            resetLoginButtons();
+            setTimeout(hideAdminPreloader, 120);
         } else {
-            await signOut(auth);
-            document.getElementById('admin-login-screen').style.display = 'flex';
-            document.getElementById('admin-dashboard').style.display = 'none';
+            currentAdminUser = null;
+            await signOut(auth).catch(() => {});
+            const loginScreen = document.getElementById('admin-login-screen');
+            const dashScreen = document.getElementById('admin-dashboard');
+            if (loginScreen) loginScreen.style.display = 'flex';
+            if (dashScreen) dashScreen.style.display = 'none';
             hideAdminPreloader();
-            window.customAlert('Akses Ditolak', 'Akun ini tidak memiliki otoritas Administrator Vipercell.', 'error');
+            window.customAlert('Akses Ditolak', `Akun <b>${window.escapeHtml(user.email || '')}</b> tidak memiliki otoritas Administrator Vipercell.`, 'error');
             resetLoginButtons();
         }
     } catch (err) {
         console.error("Verify Admin Error:", err);
-        document.getElementById('admin-login-screen').style.display = 'flex';
+        const loginScreen = document.getElementById('admin-login-screen');
+        if (loginScreen) loginScreen.style.display = 'flex';
         hideAdminPreloader();
         resetLoginButtons();
+    } finally {
+        isVerifyingAdmin = false;
     }
 }
 
@@ -880,15 +941,20 @@ window.processAdminLogin = async function() {
     btn.disabled = true;
     
     try {
-        await signInWithEmailAndPassword(auth, em, pw);
+        const cred = await signInWithEmailAndPassword(auth, em, pw);
+        if (cred && cred.user) {
+            await verifyAdminAccess(cred.user);
+        }
     } catch (e) {
-        window.customAlert('Akses Ditolak', 'Email atau kata sandi administrator salah.', 'error');
+        console.error("Admin Login Error:", e);
+        window.customAlert('Akses Ditolak', 'Email atau kata sandi administrator salah, atau periksa koneksi internet Anda.', 'error');
         resetLoginButtons();
     }
 };
 
 window.logoutAdmin = async function() {
-    await signOut(auth);
+    currentAdminUser = null;
+    await signOut(auth).catch(() => {});
     window.location.reload();
 };
 
@@ -904,30 +970,52 @@ async function initAdminApp() {
         return;
     }
 
+    updateAdminPreloaderStage(30, 'Sedang memuat data...', 'Memeriksa sesi keamanan...');
+
+    // Timer Pengaman Cepat (4.5 Detik): Mencegah loading berputar selamanya jika IndexedDB/Auth lambat
     if (preloaderSafetyTimer) clearTimeout(preloaderSafetyTimer);
     preloaderSafetyTimer = setTimeout(() => {
         if (!isPreloaderFinished) {
-            hideAdminPreloader();
+            if (auth.currentUser && !auth.currentUser.isAnonymous) {
+                verifyAdminAccess(auth.currentUser);
+            } else {
+                const loginScreen = document.getElementById('admin-login-screen');
+                const dashScreen = document.getElementById('admin-dashboard');
+                if (loginScreen && (!dashScreen || dashScreen.style.display !== 'flex')) {
+                    loginScreen.style.display = 'flex';
+                }
+                resetLoginButtons();
+                hideAdminPreloader();
+            }
         }
-    }, 10000);
-    
-    try {
-        updateAdminPreloaderStage(25, 'Sedang memuat data...', 'Memeriksa sesi keamanan...');
-        await setPersistence(auth, browserLocalPersistence);
-    } catch (e) {}
-    
+    }, 4500);
+
+    // Jangan gunakan "await setPersistence" secara blocking karena sudah dijalankan di firebase.js
+    // dan dapat menyebabkan deadlock IndexedDB pada browser mobile / PWA.
+    setPersistence(auth, browserLocalPersistence).catch(() => {});
+
     onAuthStateChanged(auth, async (user) => {
         if (user && !user.isAnonymous) {
             await verifyAdminAccess(user);
         } else {
             if (user && user.isAnonymous) {
-                await signOut(auth).catch(() => {});
+                signOut(auth).catch(() => {});
             }
-            document.getElementById('admin-login-screen').style.display = 'flex';
-            document.getElementById('admin-dashboard').style.display = 'none';
-            resetLoginButtons();
-            hideAdminPreloader();
+            if (!currentAdminUser) {
+                const loginScreen = document.getElementById('admin-login-screen');
+                const dashScreen = document.getElementById('admin-dashboard');
+                if (loginScreen) loginScreen.style.display = 'flex';
+                if (dashScreen) dashScreen.style.display = 'none';
+                resetLoginButtons();
+                hideAdminPreloader();
+            }
         }
+    }, (authErr) => {
+        console.warn("onAuthStateChanged Error:", authErr);
+        const loginScreen = document.getElementById('admin-login-screen');
+        if (loginScreen) loginScreen.style.display = 'flex';
+        resetLoginButtons();
+        hideAdminPreloader();
     });
 
     window.addEventListener('resize', () => {
@@ -961,7 +1049,7 @@ function mergeValidSettings(target, source) {
     Object.keys(source).forEach(key => {
         const val = source[key];
         if (val !== undefined && val !== null) {
-            if (typeof val === 'string' && val.trim() === '' && ['logoText', 'logoAccent', 'qrisStringData', 'adminWa'].includes(key) && result[key]) {
+            if (typeof val === 'string' && val.trim() === '' && ['logoText', 'logoAccent', 'qrisStringData', 'adminWa', 'webhookSecret'].includes(key) && result[key]) {
                 return;
             }
             result[key] = val;
@@ -2149,7 +2237,7 @@ window.renderAdminOrders = function() {
         if (currentOrderFilter === 'CASH_ONLY') return o.paymentMethod === 'cash';
         if (currentOrderFilter === 'UNPAID') return o.status === 'UNPAID' || o.status === 'PENDING_PAYMENT';
         if (currentOrderFilter === 'SUCCESS') return o.status === 'SUCCESS' && !!o.adminReply;
-        if (currentOrderFilter === 'FAILED') return o.status === 'FAILED' || o.status === 'EXPIRED';
+        if (currentOrderFilter === 'FAILED') return o.status === 'FAILED' || o.status === 'EXPIRED' || o.status === 'CANCELLED';
         return true;
     });
 
@@ -2181,6 +2269,7 @@ window.renderAdminOrders = function() {
         let sBadge = `<span class="status-badge status-unpaid">UNPAID</span>`;
         if (o.status === 'PENDING') sBadge = `<span class="status-badge status-pending">PENDING</span>`;
         else if (o.status === 'FAILED') sBadge = `<span class="status-badge status-failed">FAILED</span>`;
+        else if (o.status === 'CANCELLED') sBadge = `<span class="status-badge status-failed">DIBATALKAN</span>`;
         else if (o.status === 'EXPIRED') sBadge = `<span class="status-badge status-failed">EXPIRED</span>`;
         else if (o.status === 'SUCCESS' && !o.adminReply) sBadge = `<span class="status-badge status-pending">LUNAS - BELUM DIKIRIM</span>`;
         else if (isSubExpired) sBadge = `<span class="status-badge status-failed danger-blink">🚨 WAJIB KICK!</span>`;
@@ -2296,18 +2385,18 @@ window.exportOrdersCSV = function() {
 };
 
 window.cleanExpiredOrders = function() {
-    const expiredList = orders.filter(o => o.status === 'EXPIRED');
+    const expiredList = orders.filter(o => o.status === 'EXPIRED' || o.status === 'CANCELLED');
     if (expiredList.length === 0) {
-        window.customAlert('Bersih!', 'Tidak ada pesanan berstatus EXPIRED saat ini.', 'info');
+        window.customAlert('Bersih!', 'Tidak ada pesanan berstatus EXPIRED atau DIBATALKAN saat ini.', 'info');
         return;
     }
-    window.openConfirm('Bersihkan Pesanan Expired', `Hapus permanen <b>${expiredList.length} pesanan</b> yang sudah EXPIRED dari database?`, async (confirmed) => {
+    window.openConfirm('Bersihkan Pesanan Expired & Batal', `Hapus permanen <b>${expiredList.length} pesanan</b> yang berstatus EXPIRED / CANCELLED dari database?`, async (confirmed) => {
         if (confirmed) {
             try {
                 for (const ord of expiredList) {
                     await deleteDoc(doc(db, pathOrders, ord.dbId));
                 }
-                window.showToast('Selesai Dibersihkan', `${expiredList.length} pesanan expired telah dihapus.`, 'success');
+                window.showToast('Selesai Dibersihkan', `${expiredList.length} pesanan expired/batal telah dihapus.`, 'success');
             } catch (e) {
                 window.customAlert('Gagal', 'Terjadi kesalahan saat menghapus data expired.', 'error');
             }
@@ -2469,11 +2558,26 @@ window.sendOrderNotificationToEmail = async function() {
     const itemTitle = order && order.items && order.items[0] ? order.items[0].name : 'Pesanan Vipercell';
     const totalRp = order ? (order.finalTotal || 0).toLocaleString('id-ID') : '0';
 
-    if (siteSettings.emailWebhookUrl && order) {
-        const sent = await triggerAutomatedEmailWebhook({ ...order, userEmail: targetEmail }, replyText, 'SEND_ORDER_DELIVERY');
-        if (sent) {
-            window.showToast('Email Otomatis Terkirim!', `E-Receipt & data akun berhasil dikirim ke ${targetEmail} via GAS Webhook.`, 'success');
-            return;
+    const btn = document.getElementById('btn-send-order-email');
+    const ogHtml = btn ? btn.innerHTML : '';
+    const gasUrl = document.getElementById('set-email-webhook')?.value.trim() || (siteSettings.emailWebhookUrl || '').trim();
+
+    if (gasUrl && order) {
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Mengirim via GAS...`;
+        }
+        try {
+            const sent = await triggerAutomatedEmailWebhook({ ...order, userEmail: targetEmail }, replyText, 'SEND_ORDER_DELIVERY');
+            if (sent) {
+                window.showToast('Email Otomatis Terkirim!', `E-Receipt & data akun berhasil dikirim ke ${targetEmail} via GAS Webhook.`, 'success');
+                return;
+            }
+        } finally {
+            if (btn && ogHtml) {
+                btn.disabled = false;
+                btn.innerHTML = ogHtml;
+            }
         }
     }
 
@@ -3860,6 +3964,7 @@ window.saveSettingsManual = async function(showNotification = false) {
         ttLink: document.getElementById('set-tt').value.trim(),
         qrisStringData: document.getElementById('set-qris-string').value.trim() || siteSettings.qrisStringData || '',
         emailWebhookUrl: document.getElementById('set-email-webhook') ? document.getElementById('set-email-webhook').value.trim() : (siteSettings.emailWebhookUrl || ''),
+        webhookSecret: document.getElementById('set-webhook-secret') ? (document.getElementById('set-webhook-secret').value.trim() || 'VIPERCELL_SECRET_2026') : (siteSettings.webhookSecret || 'VIPERCELL_SECRET_2026'),
         waChannelLink: document.getElementById('set-wa-channel') ? document.getElementById('set-wa-channel').value.trim() : (siteSettings.waChannelLink || ''),
         isStoreOpen: document.getElementById('set-store-status') ? document.getElementById('set-store-status').checked : true
     };
@@ -3886,6 +3991,7 @@ window.populateAdminSettings = function() {
     document.getElementById('set-tt').value = siteSettings.ttLink || '';
     document.getElementById('set-qris-string').value = siteSettings.qrisStringData || '';
     if (document.getElementById('set-email-webhook')) document.getElementById('set-email-webhook').value = siteSettings.emailWebhookUrl || '';
+    if (document.getElementById('set-webhook-secret')) document.getElementById('set-webhook-secret').value = siteSettings.webhookSecret || 'VIPERCELL_SECRET_2026';
     if (document.getElementById('set-wa-channel')) document.getElementById('set-wa-channel').value = siteSettings.waChannelLink || '';
 
     window.previewQrisMerchantTag59();
