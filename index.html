@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
-    <title>Vipercell - Admin Command Center V25.0</title>
+    <title>Vipercell - Admin Command Center V25.1</title>
     <meta name="robots" content="noindex, nofollow">
     
     <!-- Optimisasi PWA Admin & Rotasi Penuh -->
@@ -19,12 +19,13 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Space+Grotesk:wght@700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
     
     <!-- HTML5-QRCode & Barcode Scanner Library untuk Kasir Tunai Admin -->
-    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
     
-    <!-- CSS Modular Admin V25.0 (Neo-Brutalism V2) -->
+    <!-- CSS Modular Admin V25.1 (Neo-Brutalism V2) -->
     <link rel="stylesheet" href="css/admin.css">
     
     <script>
@@ -83,10 +84,10 @@
         <div class="login-container">
             <div class="login-left-panel hide-mobile">
                 <div class="login-branding">
-                    <div class="login-badge">COMMAND CENTER V25.0</div>
+                    <div class="login-badge">COMMAND CENTER V25.1</div>
                     <i class="fa-solid fa-shield-halved"></i>
                     <h2>Vipercell Admin</h2>
-                    <p>Pusat kendali toko otomatis, Gudang Stok Sharing Multi-Kuota, Pemantau Durasi Langganan (Auto-Kick), Scanner Barcode Tunai, dan Unified Webhook MacroDroid.</p>
+                    <p>Pusat kendali toko otomatis, Gudang Stok Sharing Multi-Kuota, Pemantau Durasi Langganan (Auto-Kick), Scanner Barcode Tunai, dan Unified Webhook MacroDroid & Email OTP.</p>
                 </div>
             </div>
             <div class="login-right-panel">
@@ -119,14 +120,14 @@
     </div>
 
     <!-- ==========================================================================
-         DASHBOARD UTAMA ADMIN COMMAND CENTER V25.0
+         DASHBOARD UTAMA ADMIN COMMAND CENTER V25.1
          ========================================================================== -->
     <div id="admin-dashboard" class="admin-layout" style="display:none;">
         
         <aside class="admin-sidebar" id="admin-sidebar">
             <div class="sidebar-header">
                 <div class="sidebar-logo">
-                    <img id="admin-header-logo-img" src="" alt="Admin Logo" width="36" height="36" style="display:none;" class="logo-img">
+                    <img id="admin-header-logo-img" src="" alt="Admin Logo" width="36" height="36" style="display:none;" class="logo-img" decoding="async">
                     <div id="admin-header-default-icon" class="logo-fallback-box"><i class="fa-solid fa-bolt"></i></div>
                     <h2>VIPER<span>ADMIN</span></h2>
                 </div>
@@ -310,7 +311,7 @@
                                 <i class="fa-solid fa-file-csv"></i> Export CSV
                             </button>
                             <button class="btn btn-danger btn-sm" onclick="window.cleanExpiredOrders()">
-                                <i class="fa-solid fa-broom"></i> Bersihkan Expired
+                                <i class="fa-solid fa-broom"></i> Bersihkan Expired/Batal
                             </button>
                         </div>
                     </div>
@@ -328,7 +329,7 @@
                             <button class="filter-pill" data-ofilter="CASH_ONLY" onclick="window.setAdminOrderFilter('CASH_ONLY', this)">🏷️ Tunai / Barcode</button>
                             <button class="filter-pill" data-ofilter="UNPAID" onclick="window.setAdminOrderFilter('UNPAID', this)">Belum Bayar</button>
                             <button class="filter-pill" data-ofilter="SUCCESS" onclick="window.setAdminOrderFilter('SUCCESS', this)">Selesai</button>
-                            <button class="filter-pill" data-ofilter="FAILED" onclick="window.setAdminOrderFilter('FAILED', this)">Gagal / Expired</button>
+                            <button class="filter-pill" data-ofilter="FAILED" onclick="window.setAdminOrderFilter('FAILED', this)">Gagal / Batal / Expired</button>
                         </div>
                         <div class="search-box" style="max-width: 340px;">
                             <i class="fa-solid fa-magnifying-glass"></i>
@@ -671,7 +672,7 @@
                 
                 <!-- ==================================================================
                      [FEATURE-07 & FEATURE-13] TAB 10: PENGATURAN WEB, EKSTRAKSI NAMA
-                     MERCHANT QRIS TAG 59, & SIMULATOR UNIFIED WEBHOOK MACRODROID/EMAIL
+                     MERCHANT QRIS TAG 59, KUNCI RAHASIA WEBHOOK & SIMULATOR GAS
                      ================================================================== -->
                 <div id="tab-settings" class="admin-tab-content" style="display: none;">
                     <div class="grid-2col">
@@ -755,10 +756,10 @@
                             <div id="admin-banner-list" class="mt-2"></div>
                         </div>
 
-                        <!-- 2. QRIS EMVCo TAG 59, UNIFIED WEBHOOK GAS & SIMULATOR MACRODROID -->
+                        <!-- 2. QRIS EMVCo TAG 59, UNIFIED WEBHOOK GAS, KUNCI RAHASIA & SIMULATOR MACRODROID -->
                         <div class="dashboard-panel">
                             <div class="panel-header">
-                                <h3><i class="fa-solid fa-qrcode text-primary"></i> Payload QRIS, Unified Webhook & Kontak CS</h3>
+                                <h3><i class="fa-solid fa-qrcode text-primary"></i> Payload QRIS, Unified Webhook GAS & Kontak CS</h3>
                             </div>
                             <div class="form-group">
                                 <label for="set-qris-string">String Payload QRIS Statis (EMVCo)</label>
@@ -773,6 +774,23 @@
                                 <label for="set-email-webhook"><i class="fa-solid fa-bolt text-primary"></i> URL Unified Google Apps Script Webhook (MacroDroid + Email/OTP)</label>
                                 <input type="url" id="set-email-webhook" class="form-control code-input text-xs" placeholder="https://script.google.com/macros/s/.../exec">
                                 <small class="text-muted mt-1 d-block">Satu URL untuk Verifikasi Pembayaran Otomatis MacroDroid, Kirim Kode OTP 6-Digit, dan Kirim Struk Email.</small>
+                            </div>
+
+                            <!-- KOLOM BARU: KUNCI RAHASIA WEBHOOK (WEBHOOK SECRET) AGAR WEB BISA AKSES APPS SCRIPT -->
+                            <div class="form-group">
+                                <div class="flex-between align-center mb-1">
+                                    <label for="set-webhook-secret" class="mb-0"><i class="fa-solid fa-key text-warning"></i> Kunci Rahasia Webhook GAS (<code>WEBHOOK_SECRET</code>)</label>
+                                    <button type="button" class="btn btn-outline btn-sm" style="padding:2px 8px; min-height:24px; font-size:0.68rem;" onclick="window.copyTextToClipboard(document.getElementById('set-webhook-secret').value || 'VIPERCELL_SECRET_2026', 'Kunci Rahasia Webhook')">
+                                        <i class="fa-regular fa-copy"></i> Salin Secret
+                                    </button>
+                                </div>
+                                <div class="input-icon-right">
+                                    <input type="text" id="set-webhook-secret" class="form-control code-input text-xs" placeholder="VIPERCELL_SECRET_2026" value="VIPERCELL_SECRET_2026">
+                                    <button type="button" class="eye-toggle-btn" onclick="window.toggleAdminInputPass('set-webhook-secret', this)" title="Tampilkan / Sembunyikan"><i class="fa-regular fa-eye-slash"></i></button>
+                                </div>
+                                <small class="text-muted mt-1 d-block">
+                                    Wajib sama persis dengan nilai <code>WEBHOOK_SECRET</code> di dalam file <b>SERVER APPS SCRIP.JS</b> (Default: <code>VIPERCELL_SECRET_2026</code>) agar pengiriman Email OTP, Struk E-Receipt, dan mutasi MacroDroid diizinkan oleh Google Apps Script.
+                                </small>
                             </div>
 
                             <div class="grid-2col" style="gap: 10px;">
@@ -790,7 +808,7 @@
                                 <input type="text" id="set-tt" class="form-control" placeholder="https://tiktok.com/@...">
                             </div>
                             <button class="btn btn-primary btn-block mt-2" onclick="window.saveSettingsManual(true)">
-                                <i class="fa-solid fa-floppy-disk"></i> Simpan QRIS, Webhook & Kontak
+                                <i class="fa-solid fa-floppy-disk"></i> Simpan QRIS, Webhook, Secret & Kontak
                             </button>
 
                             <hr style="border:none; border-top:1.5px dashed var(--border-subtle); margin:1.3rem 0;">
@@ -804,7 +822,7 @@
                                     </button>
                                 </div>
                                 <p class="text-xs text-muted mb-2">
-                                    Salin template Badan Konten JSON untuk dipasang di HTTP Request MacroDroid, atau uji coba tembak nominal pembayaran secara langsung:
+                                    Salin template Badan Konten JSON (sudah otomatis berisi Kunci Rahasia Webhook di atas) untuk dipasang di HTTP Request MacroDroid, atau uji coba tembak nominal pembayaran & email OTP:
                                 </p>
                                 <div class="flex-wrap-gap mb-3">
                                     <button type="button" class="btn btn-outline btn-sm flex-1" onclick="window.copyMacroDroidJsonTemplate('curly')">
@@ -843,7 +861,7 @@
     </div>
 
     <!-- ========================================================
-         ADMIN MODALS V25.0
+         ADMIN MODALS V25.1
          ======================================================== -->
 
     <!-- MODAL 1: KASIR SCANNER BARCODE TUNAI -->
@@ -945,8 +963,8 @@
                     </div>
                 </div>
                 <div class="flex-wrap-gap">
-                    <button type="button" class="btn btn-outline btn-sm flex-1" onclick="window.sendOrderNotificationToEmail()">
-                        <i class="fa-solid fa-envelope text-primary"></i> Kirim ke Email Pembeli
+                    <button type="button" id="btn-send-order-email" class="btn btn-outline btn-sm flex-1" onclick="window.sendOrderNotificationToEmail()">
+                        <i class="fa-solid fa-envelope text-primary"></i> Kirim ke Email Pembeli (GAS)
                     </button>
                     <button type="button" class="btn btn-success btn-sm flex-1" onclick="window.sendOrderNotificationToWA()">
                         <i class="fa-brands fa-whatsapp"></i> Kirim ke WhatsApp Pembeli
@@ -1197,7 +1215,7 @@
     <div class="modal-overlay" id="modal-manage-product">
         <div class="modal-content large">
             <div class="modal-header">
-                <h2 id="modal-prod-title"><i class="fa-solid fa-box-open text-primary"></i> Kelola Produk & Varian Layanan V25</h2>
+                <h2 id="modal-prod-title"><i class="fa-solid fa-box-open text-primary"></i> Kelola Produk & Varian Layanan V25.1</h2>
                 <button class="close-btn" aria-label="Tutup" onclick="window.closeModal('modal-manage-product')"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <input type="hidden" id="manage-prod-old-brand">
@@ -1379,7 +1397,7 @@
         </div>
     </div>
 
-    <!-- Script Utama Admin V25.0 -->
+    <!-- Script Utama Admin V25.1 -->
     <script type="module" src="js/admin.js" defer></script>
 
     <!-- Registrasi PWA Service Worker Admin -->
