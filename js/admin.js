@@ -1,11 +1,28 @@
 /* ============================================================================
- * VIPERCELL V25.1 - ADMIN COMMAND CENTER ENGINE (FAST & UNIFIED GAS WEBHOOK READY)
- * Standar Arsitektur : Modular Feature Blocks ([FEATURE-01] s/d [FEATURE-13])
+ * VIPERCELL V27.0 - ADMIN COMMAND CENTER ENGINE (NEO-BRUTALISM V3)
+ * Nama File : js/admin.js
+ * Pembaruan Utama V27.0:
+ *  1. Tanpa Panel Pop-Up Mengambang (Full-Page Seamless View & Top Inline Banner) (#1)
+ *  2. Tombol Kirim Email Eksklusif di Admin + Otomatis Terkirim Saat Klik
+ *     "Selesaikan & Kirim" + Tombol Terkunci Jika Email Sudah Terkirim (#2, #3)
+ *  3. Otomatis Kirim Email Saat Stok Lokal Terkirim ke Pembeli (#3)
+ *  4. Auto-Delete Akun Anonim Setiap 6 Jam (Bisa Dihidupkan/Dimatikan di Pengaturan) (#4)
+ *  5. Integrasi Penuh Link Ubah Kata Sandi & E-Receipt via Google Apps Script V27 (#5)
+ *  6. Efek Transisi Halus Tema Terang <-> Gelap dengan Radial Curtain (#7)
+ *  7. Perbaikan Permanen Bug False-Logout "Akun Dihapus oleh Admin" (#10)
+ *  8. Studio Running Text Multi-Pesan (Hingga 6 Slot Interaktif ke Promo/Produk/Berita) (#11)
+ *  9. Frosted Glass Translucent Preloader (Transparan Agak Buram & Cepat) (#12)
+ * 10. Kode Promo: Pilihan Semua User vs Khusus Member Resmi (#13) & 1 Email 1x Pakai (#19)
+ * 11. Perbaikan Favicon & Meta Icon Logo Web agar Selalu Tampil di Link Web (#16)
+ * 12. Format Stok Produk Email ("email|password|refresh_token|client_id" + Link Akses
+ *     Tanpa Login + Tombol Copy Format Utuh 1-Klik) (#17)
+ * 13. Stok Produk Otomatis Aktif Saat Ditambah di Tab Stok + 3 Mode Pengiriman:
+ *     Otomatis (auto), Manual (manual), dan Tanya & Otomatis (ask_auto) (#18)
  * ============================================================================ */
 
 import { 
     db, auth,
-    signInWithEmailAndPassword, signOut, onAuthStateChanged,
+    signInWithEmailAndPassword, onAuthStateChanged, signOut,
     setPersistence, browserLocalPersistence,
     doc, setDoc, getDoc, updateDoc, deleteDoc, onSnapshot, collection, addDoc, query, where, getDocs, arrayUnion, increment, runTransaction 
 } from './firebase.js';
@@ -21,41 +38,45 @@ const pathOrders = isWorkspace ? `artifacts/${appId}/public/data/orders` : 'orde
 const pathSettings = isWorkspace ? `artifacts/${appId}/public/data/settings` : 'settings';
 const pathPromos = isWorkspace ? `artifacts/${appId}/public/data/promos` : 'promos';
 const pathChats = isWorkspace ? `artifacts/${appId}/public/data/chats` : 'chats';
+const pathReviews = isWorkspace ? `artifacts/${appId}/public/data/reviews` : 'reviews';
 const pathStocks = isWorkspace ? `artifacts/${appId}/public/data/stocks` : 'stocks';
 const pathUsers = isWorkspace ? `artifacts/${appId}/public/data/users` : 'users';
-const pathReviews = isWorkspace ? `artifacts/${appId}/public/data/reviews` : 'reviews';
 const pathDeviceLocks = isWorkspace ? `artifacts/${appId}/public/data/device_locks` : 'device_locks';
 const pathDeletedAccounts = isWorkspace ? `artifacts/${appId}/public/data/deleted_accounts` : 'deleted_accounts';
 const pathMutations = isWorkspace ? `artifacts/${appId}/public/data/payment_mutations` : 'payment_mutations';
 
 const fallbackSettingsPath = isWorkspace ? 'settings' : `artifacts/${appId}/public/data/settings`;
 
+// Durasi Auto-Delete Anonim 6 Jam (21.600.000 ms)
+const ANON_AUTO_DELETE_TTL_MS = 6 * 60 * 60 * 1000;
+
+// SVG Default Favicon Vipercell V27 (#16)
+const DEFAULT_VIPERCELL_SVG_ICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='116' fill='%232563eb' stroke='%230f172a' stroke-width='28'/%3E%3Cpath d='M298 88L136 288h116l-44 136 168-200H260l38-136z' fill='%23facc15' stroke='%230f172a' stroke-width='18' stroke-linejoin='round'/%3E%3C/svg%3E";
+
 // ==========================================
-// STATE & VARIABEL GLOBAL (ADMIN V25.0)
+// STATE & VARIABEL GLOBAL ADMIN V27
 // ==========================================
+const ADMIN_EMAILS = ['miler.teves@gmail.com', 'admin@vipercell.com', 'vipercell@admin.com'];
+let currentAdminUser = null;
+let isListening = false;
+
 let products = [];
-let groupedBrands = []; 
+let groupedBrands = [];
 let orders = [];
 let promos = [];
-let reviewsList = [];
+let reviewsData = [];
+let stocksData = [];
 let allLiveChats = [];
 let allUsersList = [];
-let deviceLocksMap = {};
-
-let adminChatUnsubscribe = null; 
-let isAdminListening = false;
-let isPreloaderFinished = false;
-let html5BarcodeScanner = null;
-let subscriptionTickerInterval = null;
-let preloaderSafetyTimer = null;
 
 let siteSettings = { 
     logoText: 'VIPER',
     logoAccent: 'CELL',
     logoImgBase64: '',
     pwaIconBase64: '',
-    marquee: 'Selamat Datang di Vipercell! Layanan Otomatis 24 Jam.',
-    qrisStringData: '00020101021126670016COM.NOBUBANK.WWW011893600503000000000051440014ID.CO.QRIS.WWW0215ID10200210007070303UMI5204581253033605802ID5919VIPERCELL INDONESIA6005AMBON61059711662070703A016304',
+    marquee: 'Selamat Datang di Vipercell V27! Layanan Otomatis 24 Jam.',
+    marqueeList: [], // Hingga 6 pesan interaktif (#11)
+    qrisStringData: '',
     emailWebhookUrl: '',
     webhookSecret: 'VIPERCELL_SECRET_2026',
     adminWa: '085656321860',
@@ -65,98 +86,47 @@ let siteSettings = {
     banners: [],
     isStoreOpen: true,
     waChannelLink: '',
+    anonAutoDelete6h: true, // Fitur Auto-Delete Anonim setiap 6 jam (#4)
+    defaultEmailPortalUrl: '', // Link default web ambil kode email tanpa login (#17)
     deletedUids: [],
     blockedUids: [],
     blockedDevices: []
 };
 
-let currentAdminUser = null;
-let isSettingsLoaded = false;
-let currentGroupNominals = [];
 let currentOrderFilter = 'ALL';
-let currentAdminProdFilter = 'all';
+let currentStockFilter = 'ALL';
 let currentMemberFilter = 'ALL';
+let activeAdminChatId = null;
+
+// Sound & Notification States
 let isSoundEnabled = localStorage.getItem('vipercell_admin_sound') !== 'off';
-let isAdminNotifEnabled = localStorage.getItem('vipercell_admin_notif') !== 'off';
+let initialOrdersLoaded = false;
+let initialChatsLoaded = false;
+let knownOrderIds = new Set();
+let knownChatTimestamps = {};
+const processingAutoOrderIds = new Set();
+let html5BarcodeScanner = null;
+let liveSubCountdownInterval = null;
+let anonSixHourAutoCleanInterval = null;
 
-let isInitialOrderLoad = true;
-let isInitialChatLoad = true;
-let previousOrdersData = {};
-let previousChatMsgCount = {};
-let processingAutoOrderIds = new Set();
-let deductedStockOrderIds = new Set();
-window.tempProcessStocks = []; 
-
-/* ============================================================================
- * [FEATURE-01] ZERO-LEAK PRE-LOADER GATEKEEPER (ADMIN COMMAND CENTER)
- * ============================================================================ */
-function updateAdminPreloaderStage(percent, statusText, subText = '') {
-    const txtEl = document.getElementById('preloader-status-text');
-    const fillEl = document.getElementById('preloader-bar-fill');
-    const subEl = document.getElementById('preloader-stage-sub');
-
-    if (txtEl && statusText) txtEl.innerText = statusText;
-    if (fillEl) fillEl.style.width = `${Math.min(100, Math.max(10, percent))}%`;
-    if (subEl && subText) subEl.innerText = subText;
-}
-
-function showAdminPreloaderRetry(reason) {
-    const spinner = document.getElementById('preloader-spinner');
-    const retryBox = document.getElementById('preloader-retry-box');
-    const subEl = document.getElementById('preloader-stage-sub');
-    if (spinner) spinner.style.display = 'none';
-    if (subEl && reason) subEl.innerText = reason;
-    if (retryBox) retryBox.style.display = 'block';
-}
-
-window.retryAdminPreloader = function() {
-    const spinner = document.getElementById('preloader-spinner');
-    const retryBox = document.getElementById('preloader-retry-box');
-    if (spinner) spinner.style.display = 'block';
-    if (retryBox) retryBox.style.display = 'none';
-    initAdminApp();
-};
-
-function hideAdminPreloader() {
-    if (preloaderSafetyTimer) {
-        clearTimeout(preloaderSafetyTimer);
-        preloaderSafetyTimer = null;
-    }
-    isPreloaderFinished = true;
-    document.body.classList.remove('preloader-locked');
-    document.body.classList.remove('no-scroll');
-
-    // Jaminan Anti-Blank: Jika dashboard belum aktif saat preloader ditutup, wajib tampilkan layar login
-    const dashEl = document.getElementById('admin-dashboard');
-    const loginEl = document.getElementById('admin-login-screen');
-    if (dashEl && loginEl) {
-        const isDashVisible = dashEl.style.display === 'flex' || dashEl.style.display === 'block';
-        if (!isDashVisible && !currentAdminUser) {
-            loginEl.style.display = 'flex';
-        }
-    }
-
-    const loader = document.getElementById('app-preloader-overlay');
-    if (loader && !loader.classList.contains('hidden')) {
-        loader.classList.add('hidden');
-        setTimeout(() => {
-            loader.style.display = 'none';
-        }, 250);
-    }
-}
-/* ======================== END OF [FEATURE-01] ============================= */
+// Temp Buffers untuk Modal Produk, Gambar & Berita
+let tempLogoBase64 = '';
+let tempPwaIconBase64 = '';
+let tempManageImgBase64 = '';
+let tempNewsImgBase64 = '';
+let tempProductVariants = [];
 
 // ==========================================
-// UTILITAS KEAMANAN TEKS, SUARA & NOTIFIKASI PWA
+// FUNGSI KEAMANAN TEKS & CLIPBOARD
 // ==========================================
 window.escapeHtml = function(str) {
     if (!str) return '';
     return String(str)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 };
 
 function escapeJsStr(str) {
@@ -164,123 +134,67 @@ function escapeJsStr(str) {
     return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
 }
 
+window.copyTextToClipboard = function(text, label = 'Data') {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+        window.showToast('Berhasil Disalin', `${label} telah disalin ke papan klip.`, 'success');
+    });
+};
+
+// ==========================================
+// WEB AUDIO API SOUND GENERATOR & PWA ICON (#16)
+// ==========================================
 function playNotificationSound(type = 'order') {
     if (!isSoundEnabled) return;
     try {
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
         if (!AudioCtx) return;
         const ctx = new AudioCtx();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-
         const now = ctx.currentTime;
+
         if (type === 'order') {
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(587.33, now);
-            osc.frequency.setValueAtTime(880, now + 0.12);
-            gain.gain.setValueAtTime(0.18, now);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
-            osc.start(now);
-            osc.stop(now + 0.45);
+            const freqs = [523.25, 659.25, 783.99, 1046.50];
+            freqs.forEach((f, idx) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(f, now + idx * 0.11);
+                gain.gain.setValueAtTime(0.18, now + idx * 0.11);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.11 + 0.35);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(now + idx * 0.11);
+                osc.stop(now + idx * 0.11 + 0.36);
+            });
         } else {
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(659.25, now);
-            osc.frequency.setValueAtTime(783.99, now + 0.1);
-            gain.gain.setValueAtTime(0.15, now);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
-            osc.start(now);
-            osc.stop(now + 0.35);
+            const freqs = [587.33, 880.00];
+            freqs.forEach((f, idx) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(f, now + idx * 0.12);
+                gain.gain.setValueAtTime(0.15, now + idx * 0.12);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.12 + 0.25);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(now + idx * 0.12);
+                osc.stop(now + idx * 0.12 + 0.26);
+            });
         }
     } catch (e) {}
 }
 
-window.toggleSoundAlert = function() {
-    isSoundEnabled = !isSoundEnabled;
-    localStorage.setItem('vipercell_admin_sound', isSoundEnabled ? 'on' : 'off');
-    updateSoundIconUI();
-    if (isSoundEnabled) {
-        playNotificationSound('chat');
-        window.showToast('Suara Aktif', 'Notifikasi suara pesanan & chat diaktifkan.', 'success');
-    } else {
-        window.showToast('Suara Dimatikan', 'Notifikasi suara telah dibisukan.', 'info');
-    }
-};
-
-function updateSoundIconUI() {
-    const icon = document.getElementById('admin-sound-icon');
-    const btn = document.getElementById('btn-sound-toggle');
-    if (icon) icon.className = isSoundEnabled ? 'fa-solid fa-volume-high' : 'fa-solid fa-volume-xmark';
-    if (btn) {
-        btn.style.background = isSoundEnabled ? 'rgba(37, 99, 235, 0.15)' : 'var(--surface)';
-        btn.style.color = isSoundEnabled ? 'var(--primary-light)' : 'var(--text-muted)';
-    }
-}
-
-function updateAdminNotifToggleUI() {
-    const statusText = document.getElementById('set-admin-notif-status');
-    const btn = document.getElementById('btn-set-admin-notif');
-    const icon = document.getElementById('set-admin-bell-icon');
-    if (!statusText || !btn || !icon) return;
-
-    const granted = ('Notification' in window) && Notification.permission === 'granted';
-    const isActive = isAdminNotifEnabled && granted;
-
-    if (isActive) {
-        statusText.innerText = 'Status: Aktif (Menerima Push Notifikasi)';
-        statusText.className = 'text-success text-xs fw-bold';
-        btn.innerText = 'Matikan';
-        btn.className = 'btn btn-sm btn-danger';
-        icon.className = 'fa-solid fa-bell text-success';
-    } else {
-        statusText.innerText = isAdminNotifEnabled ? 'Status: Belum diizinkan browser' : 'Status: Dinonaktifkan';
-        statusText.className = 'text-muted text-xs';
-        btn.innerText = 'Aktifkan';
-        btn.className = 'btn btn-sm btn-primary';
-        icon.className = 'fa-regular fa-bell-slash text-muted';
-    }
-}
-
-window.toggleAdminNotificationSetting = async function() {
-    if (!('Notification' in window)) {
-        window.customAlert('Tidak Didukung', 'Browser perangkat ini belum mendukung notifikasi sistem.', 'warning');
-        return;
-    }
-    const granted = Notification.permission === 'granted';
-    if (isAdminNotifEnabled && granted) {
-        isAdminNotifEnabled = false;
-        localStorage.setItem('vipercell_admin_notif', 'off');
-        updateAdminNotifToggleUI();
-        window.showToast('Notifikasi Dimatikan', 'Push notifikasi sistem telah dinonaktifkan.', 'info');
-        return;
-    }
-
-    if (Notification.permission === 'default') {
-        const perm = await Notification.requestPermission();
-        if (perm !== 'granted') {
-            updateAdminNotifToggleUI();
-            return;
-        }
-    } else if (Notification.permission === 'denied') {
-        window.customAlert('Izin Diblokir', 'Ubah izin Notifikasi situs menjadi "Izinkan" pada pengaturan browser kamu.', 'warning');
-        return;
-    }
-
-    isAdminNotifEnabled = true;
-    localStorage.setItem('vipercell_admin_notif', 'on');
-    updateAdminNotifToggleUI();
-    sendAdminNativeNotification('Vipercell Admin V25 Aktif!', 'Notifikasi pesanan, durasi langganan & chat siap dikirim.');
-    window.showToast('Notifikasi Aktif', 'Push notifikasi sistem telah diaktifkan.', 'success');
-};
-
 function sendAdminNativeNotification(title, bodyText) {
-    if (!isAdminNotifEnabled) return;
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
-    const iconUrl = siteSettings.pwaIconBase64 || siteSettings.logoImgBase64 || 'icon-192.png';
+    const iconUrl = siteSettings.pwaIconBase64 || siteSettings.logoImgBase64 || DEFAULT_VIPERCELL_SVG_ICON;
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.ready.then((reg) => {
-            reg.showNotification(title, { body: bodyText, icon: iconUrl, vibrate: [200, 100, 200] });
+            reg.showNotification(title, {
+                body: bodyText,
+                icon: iconUrl,
+                badge: iconUrl,
+                vibrate: [200, 100, 200]
+            });
         }).catch(() => {
             try { new Notification(title, { body: bodyText, icon: iconUrl }); } catch (e) {}
         });
@@ -289,30 +203,62 @@ function sendAdminNativeNotification(title, bodyText) {
     }
 }
 
-let adminManifestBlobUrl = null;
-function applyAdminCustomPwaIcon() {
-    const customIcon = siteSettings.pwaIconBase64 || siteSettings.logoImgBase64;
-    if (!customIcon) return;
+window.toggleSoundAlert = function() {
+    isSoundEnabled = !isSoundEnabled;
+    localStorage.setItem('vipercell_admin_sound', isSoundEnabled ? 'on' : 'off');
+    updateSoundIconUI();
+    if (isSoundEnabled) {
+        playNotificationSound('chat');
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+        window.showToast('Suara Aktif', 'Notifikasi suara order & chat diaktifkan.', 'success');
+    } else {
+        window.showToast('Suara Dimatikan', 'Mode hening diaktifkan.', 'info');
+    }
+};
 
-    const fav = document.getElementById('admin-favicon');
-    const apple = document.getElementById('admin-apple-icon');
-    const promptLogo = document.getElementById('admin-pwa-prompt-logo');
-    const promptFallback = document.getElementById('admin-pwa-prompt-fallback');
+function updateSoundIconUI() {
+    const icon = document.getElementById('sound-icon');
+    const btn = document.getElementById('btn-toggle-sound');
+    if (!icon || !btn) return;
+    if (isSoundEnabled) {
+        icon.className = 'fa-solid fa-volume-high text-success';
+        btn.style.borderColor = 'var(--success)';
+    } else {
+        icon.className = 'fa-solid fa-volume-xmark text-muted';
+        btn.style.borderColor = 'var(--border)';
+    }
+}
 
-    if (fav) fav.href = customIcon;
-    if (apple) apple.href = customIcon;
-    if (promptLogo) {
-        promptLogo.src = customIcon;
-        promptLogo.style.display = 'block';
-        if (promptFallback) promptFallback.style.display = 'none';
+let dynamicAdminManifestUrl = null;
+function applyCustomAdminPwaIcon() {
+    const customIcon = siteSettings.pwaIconBase64 || siteSettings.logoImgBase64 || DEFAULT_VIPERCELL_SVG_ICON;
+
+    const favicon = document.getElementById('admin-favicon');
+    const shortcutFav = document.getElementById('admin-shortcut-favicon');
+    const appleIcon = document.getElementById('admin-apple-icon');
+    const ogImg = document.getElementById('og-meta-image');
+
+    if (favicon) favicon.href = customIcon;
+    if (shortcutFav) shortcutFav.href = customIcon;
+    if (appleIcon) appleIcon.href = customIcon;
+    if (ogImg) ogImg.setAttribute('content', customIcon);
+
+    if (customIcon.startsWith('data:image')) {
+        try { localStorage.setItem('vipercell_admin_cached_icon_v27', customIcon); } catch (e) {}
     }
 
     try {
+        const mimeType = customIcon.startsWith('data:image/svg')
+            ? "image/svg+xml"
+            : (customIcon.startsWith('data:image/webp') ? "image/webp" : "image/png");
+
         const manifestObj = {
-            id: "/",
-            name: `${siteSettings.logoText || 'Viper'}${siteSettings.logoAccent || 'cell'} Admin Center V25`,
-            short_name: `ViperAdmin`,
-            description: "Admin Command Center Vipercell V25.0",
+            id: "/admin",
+            name: `${siteSettings.logoText || 'Viper'}Admin V27 - Command Center`,
+            short_name: `${siteSettings.logoText || 'Viper'}Admin`,
+            description: "Panel Kendali Pusat Vipercell V27 — Kelola Pesanan, Stok Email OAuth, Produk & Live Chat CS.",
             start_url: window.location.origin + window.location.pathname,
             scope: window.location.origin + "/",
             display: "standalone",
@@ -320,1031 +266,281 @@ function applyAdminCustomPwaIcon() {
             theme_color: "#2563eb",
             orientation: "any",
             icons: [
-                {
-                    src: customIcon,
-                    sizes: "192x192",
-                    type: customIcon.startsWith('data:image/webp') ? "image/webp" : "image/png",
-                    purpose: "any"
-                },
-                {
-                    src: customIcon,
-                    sizes: "512x512",
-                    type: customIcon.startsWith('data:image/webp') ? "image/webp" : "image/png",
-                    purpose: "maskable"
-                }
+                { src: customIcon, sizes: "192x192", type: mimeType, purpose: "any" },
+                { src: customIcon, sizes: "512x512", type: mimeType, purpose: "maskable" }
             ]
         };
-        if (adminManifestBlobUrl) URL.revokeObjectURL(adminManifestBlobUrl);
+        if (dynamicAdminManifestUrl) URL.revokeObjectURL(dynamicAdminManifestUrl);
         const blob = new Blob([JSON.stringify(manifestObj)], { type: 'application/json' });
-        adminManifestBlobUrl = URL.createObjectURL(blob);
-        const link = document.getElementById('admin-pwa-manifest');
-        if (link) link.setAttribute('href', adminManifestBlobUrl);
+        dynamicAdminManifestUrl = URL.createObjectURL(blob);
+        const manifestLink = document.getElementById('admin-manifest-link');
+        if (manifestLink) manifestLink.setAttribute('href', dynamicAdminManifestUrl);
     } catch (e) {}
 }
 
-window.copyTextToClipboard = function(text, label = 'Data') {
-    if (!text) return;
-    navigator.clipboard.writeText(text).then(() => {
-        window.showToast('Tersalin', `${label} berhasil disalin ke papan klip!`, 'success');
-    });
-};
-
-/* ============================================================================
- * [FEATURE-07 & FEATURE-13] EMVCo TAG 59 MERCHANT EXTRACTOR &
- * UNIFIED GAS WEBHOOK CALLER + MACRODROID SIMULATOR
- * ============================================================================ */
-function extractMerchantInfoFromQris(qrisString) {
-    if (!qrisString || typeof qrisString !== 'string' || !qrisString.trim().startsWith('000201')) {
-        return { merchantName: 'FORMAT QRIS BELUM VALID', merchantCity: '' };
-    }
-    const raw = qrisString.trim();
-    let index = 0;
-    let merchantName = 'VIPERCELL STORE';
-    let merchantCity = '';
-
-    while (index < raw.length - 4) {
-        const tag = raw.substring(index, index + 2);
-        const length = parseInt(raw.substring(index + 2, index + 4), 10);
-        if (isNaN(length) || length <= 0 || index + 4 + length > raw.length) break;
-
-        const value = raw.substring(index + 4, index + 4 + length);
-        if (tag === '59' && value.trim()) merchantName = value.trim();
-        if (tag === '60' && value.trim()) merchantCity = value.trim();
-        if (tag === '63') break;
-        index += 4 + length;
-    }
-    return { merchantName, merchantCity };
-}
-
-window.previewQrisMerchantTag59 = function() {
-    const rawQris = document.getElementById('set-qris-string')?.value || '';
-    const previewEl = document.getElementById('detected-qris-merchant-text');
-    const boxEl = document.getElementById('qris-merchant-detected-preview');
-    if (!previewEl) return;
-
-    if (!rawQris.trim()) {
-        previewEl.innerText = 'Belum ada string QRIS';
-        if (boxEl) boxEl.className = 'info-box bg-warning-light border-warning mt-2 text-xs fw-bold text-warning';
-        return;
-    }
-
-    const { merchantName, merchantCity } = extractMerchantInfoFromQris(rawQris);
-    previewEl.innerText = merchantCity ? `${merchantName} (${merchantCity})` : merchantName;
-    if (boxEl) {
-        boxEl.className = merchantName === 'FORMAT QRIS BELUM VALID'
-            ? 'info-box bg-danger-light border-danger mt-2 text-xs fw-bold text-danger'
-            : 'info-box bg-success-light border-success mt-2 text-xs fw-bold text-success';
-    }
-};
-
-function getActiveWebhookSecret() {
-    const secretInp = document.getElementById('set-webhook-secret')?.value.trim();
-    return secretInp || (siteSettings.webhookSecret || 'VIPERCELL_SECRET_2026').trim();
-}
-
-async function callUnifiedGasWebhook(payloadObj) {
-    const inputUrl = document.getElementById('set-email-webhook')?.value.trim();
-    const gasWebAppUrl = inputUrl || (siteSettings.emailWebhookUrl || '').trim();
-    const activeSecret = getActiveWebhookSecret();
-
-    if (!gasWebAppUrl || !gasWebAppUrl.startsWith('https://script.google.com/')) {
-        throw new Error('URL Google Apps Script Webhook belum diatur atau tidak valid.');
-    }
-
-    const startTime = Date.now();
-    const response = await fetch(gasWebAppUrl, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'text/plain;charset=utf-8'
-        },
-        body: JSON.stringify({
-            projectId: 'vipercell-fc50e',
-            secret: activeSecret,
-            key: activeSecret,
-            timestamp: startTime,
-            ...payloadObj
-        }),
-        redirect: 'follow'
-    });
-
-    const rawText = await response.text();
-    let result = null;
-    try {
-        result = JSON.parse(rawText);
-    } catch (parseErr) {
-        throw new Error('Respons GAS bukan JSON valid. Pastikan Web App di-deploy dengan akses "Siapa saja (Anyone)".');
-    }
-
-    if (!result || (result.ok === false && result.status !== 'ok')) {
-        throw new Error((result && result.message) || (result && result.error) || 'Gagal menghubungi server GAS Webhook.');
-    }
-    if (result.executionMs === undefined) {
-        result.executionMs = Date.now() - startTime;
-    }
-    return result;
-}
-
-async function triggerAutomatedEmailWebhook(orderData, replyMessage, customAction = 'SEND_ORDER_DELIVERY') {
-    const buyerEmail = (orderData.userEmail || orderData.buyerEmail || '').trim();
-    const inputUrl = document.getElementById('set-email-webhook')?.value.trim();
-    const gasUrl = inputUrl || (siteSettings.emailWebhookUrl || '').trim();
-    if (!gasUrl || !buyerEmail || !buyerEmail.includes('@')) return false;
-
-    const itemObj = (orderData.items && orderData.items[0]) ? orderData.items[0] : {};
-    const durDays = parseInt(orderData.durationDays || itemObj.durationDays || 0, 10);
-
-    try {
-        await callUnifiedGasWebhook({
-            action: customAction,
-            email: buyerEmail,
-            to: buyerEmail,
-            orderId: orderData.id,
-            invoiceId: orderData.id,
-            buyerName: orderData.buyerName || buyerEmail.split('@')[0],
-            productName: itemObj.brandName || orderData.productName || 'Produk Digital',
-            variantName: itemObj.exactItemName || orderData.variantName || itemObj.name || '-',
-            itemName: itemObj.name || 'Layanan Digital Vipercell',
-            totalAmount: orderData.finalTotal || 0,
-            uniqueTotal: orderData.finalTotal || 0,
-            totalFormatted: `Rp${(orderData.finalTotal || 0).toLocaleString('id-ID')}`,
-            targetId: itemObj.playerInfo || orderData.targetId || '-',
-            accountDetails: replyMessage || orderData.adminReply || 'Pesanan selesai diproses.',
-            durationDays: durDays,
-            subscriptionEndAt: orderData.subscriptionEndAt || 0
-        });
-        return true;
-    } catch (e) {
-        console.warn("Webhook Email Warning:", e.message);
-        return false;
-    }
-}
-
-window.copyMacroDroidJsonTemplate = function(bracketMode = 'curly') {
-    const activeSecret = getActiveWebhookSecret();
-    const template = bracketMode === 'square'
-        ? `{\n  "secret": "${activeSecret}",\n  "projectId": "vipercell-fc50e",\n  "app": "[not_app_name]",\n  "title": "[not_title]",\n  "text": "[not_text]",\n  "big_text": "[not_big_text]"\n}`
-        : `{\n  "secret": "${activeSecret}",\n  "projectId": "vipercell-fc50e",\n  "app": "{not_app_name}",\n  "title": "{not_title}",\n  "text": "{not_text}",\n  "big_text": "{not_big_text}"\n}`;
-
-    navigator.clipboard.writeText(template).then(() => {
-        window.showToast('Template JSON Disalin', `Template MacroDroid dengan secret "${activeSecret}" berhasil disalin!`, 'success');
-    });
-};
-
-window.pingUnifiedGasWebhook = async function() {
-    const outEl = document.getElementById('webhook-diagnostic-output');
-    if (outEl) {
-        outEl.style.display = 'block';
-        outEl.className = 'mt-2 text-xs fw-bold text-primary';
-        outEl.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Menghubungi server Google Apps Script & memvalidasi Secret...`;
-    }
-    try {
-        const res = await callUnifiedGasWebhook({ action: 'PING_TEST' });
-        const quota = res.remainingEmailQuota !== undefined ? res.remainingEmailQuota : 'Aktif';
-        if (outEl) {
-            outEl.className = 'mt-2 text-xs fw-bold text-success';
-            outEl.innerHTML = `<i class="fa-solid fa-circle-check"></i> Terhubung & Secret Valid! Sisa Kuota Email Harian GAS: <b>${quota} Email</b> (${res.executionMs || 0}ms)`;
-        }
-        window.showToast('Koneksi GAS Aktif', `Sisa kuota pengiriman email hari ini: ${quota}`, 'success');
-    } catch (err) {
-        if (outEl) {
-            outEl.className = 'mt-2 text-xs fw-bold text-danger';
-            outEl.innerHTML = `<i class="fa-solid fa-circle-xmark"></i> Gagal: ${window.escapeHtml(err.message)}`;
-        }
-        window.customAlert('Koneksi Webhook Gagal', err.message, 'error');
-    }
-};
-
-window.simulateMacroDroidPaymentFromAdmin = async function() {
-    const amountInp = document.getElementById('sim-payment-amount');
-    const amountVal = parseInt(amountInp?.value || '0', 10);
-    if (!amountVal || amountVal < 500) {
-        window.customAlert('Nominal Tidak Valid', 'Masukkan angka nominal unik pembayaran yang ingin disimulasikan (contoh: 25142).', 'warning');
-        return;
-    }
-
-    const btn = document.getElementById('btn-sim-payment');
-    const ogHtml = btn ? btn.innerHTML : '';
-    if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i>`;
-    }
-
-    try {
-        const nowMs = Date.now();
-        // 1. Tulis ke Firestore payment_mutations & settings/mainConfig agar listener langsung menangkap
-        await addDoc(collection(db, pathMutations), {
-            amount: amountVal,
-            appName: 'SIMULATOR_ADMIN_V25',
-            rawText: `Simulasi Pembayaran QRIS sebesar Rp ${amountVal.toLocaleString('id-ID')}`,
-            createdAt: nowMs,
-            timestamp: nowMs,
-            isSimulation: true
-        }).catch(() => {});
-
-        await setDoc(doc(db, pathSettings, 'mainConfig'), {
-            lastPaymentDetected: amountVal,
-            lastPaymentTimestamp: nowMs,
-            lastPaymentApp: 'SIMULATOR_ADMIN_V25'
-        }, { merge: true }).catch(() => {});
-
-        // 2. Cari pesanan UNPAID / PENDING_PAYMENT yang cocok di memori Admin dan lunaskan
-        const matchedOrd = orders.find(o =>
-            (o.status === 'UNPAID' || o.status === 'PENDING_PAYMENT') &&
-            (Number(o.finalTotal) === amountVal || Number(o.uniqueTotal) === amountVal)
-        );
-        if (matchedOrd) {
-            await updateDoc(doc(db, pathOrders, matchedOrd.dbId), {
-                status: 'SUCCESS',
-                paidAt: nowMs,
-                paymentVerifiedBy: 'ADMIN_SIMULATOR_V25'
-            });
-        }
-
-        // 3. Jika URL GAS Webhook terpasang, tembak juga ke GAS
-        const gasUrl = document.getElementById('set-email-webhook')?.value.trim() || siteSettings.emailWebhookUrl;
-        if (gasUrl && gasUrl.startsWith('https://script.google.com/')) {
-            await callUnifiedGasWebhook({
-                action: 'SIMULATE_MACRODROID',
-                isSimulation: true,
-                forceTest: true,
-                app: 'SIMULATOR_ADMIN_V25.1',
-                title: 'Pembayaran QRIS Diterima',
-                text: `Pembayaran QRIS sebesar Rp ${amountVal.toLocaleString('id-ID')} berhasil diterima`,
-                amount: amountVal
-            }).catch(() => {});
-        }
-
-        if (matchedOrd) {
-            window.showToast('Auto-Match Berhasil! 🎉', `Pesanan #${matchedOrd.id} (Rp${amountVal.toLocaleString('id-ID')}) otomatis LUNAS!`, 'success');
-        } else {
-            window.showToast('Sinyal Mutasi Dikirim', `Mutasi Rp${amountVal.toLocaleString('id-ID')} berhasil ditembakkan ke sistem.`, 'info');
-        }
-    } catch (err) {
-        window.customAlert('Gagal Simulasi', err.message, 'error');
-    } finally {
-        if (btn && ogHtml) {
-            btn.disabled = false;
-            btn.innerHTML = ogHtml;
-        }
-    }
-};
-
-window.testSendOtpFromAdmin = async function() {
-    const emailInp = document.getElementById('sim-test-email');
-    const targetEmail = (emailInp?.value || '').trim();
-    if (!targetEmail || !targetEmail.includes('@')) {
-        window.customAlert('Email Kosong', 'Masukkan alamat email tujuan untuk menguji pengiriman OTP.', 'warning');
-        return;
-    }
-
-    const btn = document.getElementById('btn-sim-email');
-    const ogHtml = btn ? btn.innerHTML : '';
-    if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i>`;
-    }
-
-    try {
-        const testOtp = String(Math.floor(100000 + Math.random() * 900000));
-        await callUnifiedGasWebhook({
-            action: 'SEND_OTP_EMAIL',
-            email: targetEmail,
-            to: targetEmail,
-            otpCode: testOtp,
-            otp: testOtp,
-            userName: 'Tester Admin Vipercell',
-            expiryMinutes: 5
-        });
-        window.customAlert('Tes Email OTP Berhasil!', `Kode OTP uji coba (<b>${testOtp}</b>) berhasil dikirim ke <b>${window.escapeHtml(targetEmail)}</b>.`, 'success');
-    } catch (err) {
-        window.customAlert('Gagal Mengirim Email', err.message, 'error');
-    } finally {
-        if (btn && ogHtml) {
-            btn.disabled = false;
-            btn.innerHTML = ogHtml;
-        }
-    }
-};
-/* ======================== END OF [FEATURE-07 & 13] ======================== */
-
 // ==========================================
-// POP-UP NOTIFIKASI TENGAH + SWIPE TO DISMISS
+// [FEATURE-12] FROSTED GLASS PRE-LOADER GATEKEEPER ADMIN V27
 // ==========================================
-window.showToast = function(title, msg, type = 'info', actionCallback = null) {
-    const container = document.getElementById('toast-container');
-    if (!container) return;
-    const toast = document.createElement('div');
-    toast.className = `toast-item toast-${type}`;
-    let icon = type === 'success' ? '<i class="fa-solid fa-circle-check"></i>' : (type === 'error' ? '<i class="fa-solid fa-circle-xmark"></i>' : (type === 'warning' ? '<i class="fa-solid fa-triangle-exclamation"></i>' : '<i class="fa-solid fa-bolt"></i>'));
-    const hintText = actionCallback ? 'Ketuk untuk buka &bull; Geser untuk tutup' : 'Geser ke kiri/kanan untuk tutup';
+let isAdminAppUnlocked = false;
 
-    toast.innerHTML = `
-        <div class="toast-icon">${icon}</div>
-        <div class="toast-content">
-            <h4>${window.escapeHtml(title)}</h4>
-            <p>${window.escapeHtml(msg)}</p>
-            <span class="toast-swipe-hint">${hintText}</span>
-        </div>
-    `;
+function updateAdminPreloaderStage(percent, statusText, subText = '') {
+    const txtEl = document.getElementById('preloader-status-text');
+    const fillEl = document.getElementById('preloader-bar-fill');
+    const subEl = document.getElementById('preloader-stage-sub');
+    if (txtEl && statusText) txtEl.innerText = statusText;
+    if (fillEl) fillEl.style.width = `${Math.min(100, Math.max(10, percent))}%`;
+    if (subEl && subText) subEl.innerText = subText;
+}
 
-    let startX = 0;
-    let currentX = 0;
-    let isDragging = false;
-    let autoRemoveTimer = null;
+function unlockAdminAppUI() {
+    if (isAdminAppUnlocked) return;
+    isAdminAppUnlocked = true;
 
-    const dismissToast = (dir = 1) => {
-        if (autoRemoveTimer) clearTimeout(autoRemoveTimer);
-        toast.style.transition = 'transform 0.22s ease, opacity 0.22s ease';
-        toast.style.transform = `translateX(${dir * 120}%)`;
-        toast.style.opacity = '0';
-        setTimeout(() => toast.remove(), 220);
-    };
+    document.body.classList.remove('preloader-locked');
+    document.body.classList.remove('no-scroll');
 
-    const onDragStart = (clientX) => {
-        startX = clientX;
-        currentX = 0;
-        isDragging = true;
-        toast.style.transition = 'none';
-    };
+    const loader = document.getElementById('app-preloader-overlay');
+    if (loader && !loader.classList.contains('hidden')) {
+        loader.classList.add('hidden');
+        setTimeout(() => {
+            loader.style.display = 'none';
+        }, 220);
+    }
+}
 
-    const onDragMove = (clientX) => {
-        if (!isDragging) return;
-        currentX = clientX - startX;
-        toast.style.transform = `translateX(${currentX}px)`;
-        toast.style.opacity = String(Math.max(0.2, 1 - Math.abs(currentX) / 180));
-    };
+async function fetchInitialAdminDataBeforeUnlock() {
+    try {
+        updateAdminPreloaderStage(52, 'Menyiapkan ruang kendali...', 'Menarik konfigurasi toko, katalog & pesanan...');
+        const [settingsSnap, productsSnap, ordersSnap, stocksSnap] = await Promise.all([
+            getDoc(doc(db, pathSettings, 'mainConfig')).catch(() => null),
+            getDocs(collection(db, pathProducts)).catch(() => null),
+            getDocs(collection(db, pathOrders)).catch(() => null),
+            getDocs(collection(db, pathStocks)).catch(() => null)
+        ]);
 
-    const onDragEnd = () => {
-        if (!isDragging) return;
-        isDragging = false;
-        if (Math.abs(currentX) > 65) {
-            dismissToast(currentX > 0 ? 1 : -1);
+        if (settingsSnap && settingsSnap.exists()) {
+            siteSettings = { ...siteSettings, ...settingsSnap.data() };
         } else {
-            toast.style.transition = 'transform 0.2s ease, opacity 0.2s ease';
-            toast.style.transform = 'translateY(0) translateX(0)';
-            toast.style.opacity = '1';
-            if (Math.abs(currentX) < 10 && actionCallback) {
-                actionCallback();
-                dismissToast(1);
+            const fallbackSnap = await getDoc(doc(db, fallbackSettingsPath, 'mainConfig')).catch(() => null);
+            if (fallbackSnap && fallbackSnap.exists()) {
+                siteSettings = { ...siteSettings, ...fallbackSnap.data() };
             }
         }
-    };
+        window.populateSettingsForm();
+        applyCustomAdminPwaIcon();
 
-    toast.addEventListener('touchstart', (e) => onDragStart(e.touches[0].clientX), { passive: true });
-    toast.addEventListener('touchmove', (e) => onDragMove(e.touches[0].clientX), { passive: true });
-    toast.addEventListener('touchend', onDragEnd);
-
-    toast.addEventListener('mousedown', (e) => onDragStart(e.clientX));
-    window.addEventListener('mousemove', (e) => { if (isDragging) onDragMove(e.clientX); });
-    window.addEventListener('mouseup', () => { if (isDragging) onDragEnd(); });
-
-    toast.style.cursor = actionCallback ? 'pointer' : 'grab';
-    container.appendChild(toast);
-    
-    setTimeout(() => toast.classList.add('show'), 15);
-    autoRemoveTimer = setTimeout(() => {
-        if (document.body.contains(toast)) {
-            toast.classList.remove('show');
-            setTimeout(() => toast.remove(), 250);
+        if (stocksSnap) {
+            stocksData = [];
+            stocksSnap.forEach(d => stocksData.push({ dbId: d.id, ...d.data() }));
         }
+
+        if (productsSnap) {
+            products = [];
+            productsSnap.forEach(d => products.push({ dbId: d.id, ...d.data() }));
+            rebuildGroupedBrands();
+            window.renderAdminCatalog();
+            window.populateStockProductSelect();
+        }
+
+        if (ordersSnap) {
+            orders = [];
+            ordersSnap.forEach(d => orders.push({ dbId: d.id, ...d.data() }));
+            orders.sort((a, b) => new Date(b.date) - new Date(a.date));
+            window.generateAdminReports();
+            window.renderAdminOrders();
+        }
+    } catch (err) {
+        console.warn("Initial Admin Data Preload Info:", err);
+    }
+}
+
+async function initAdminApp() {
+    const savedTheme = localStorage.getItem('vipercell_admin_theme') || 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    const themeIcon = document.getElementById('admin-theme-icon');
+    if (themeIcon) themeIcon.className = savedTheme === 'dark' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
+    updateSoundIconUI();
+
+    const safetyTimeout = setTimeout(() => {
+        unlockAdminAppUI();
     }, 4800);
-};
 
-// ==========================================
-// UTILITAS UMUM & TEMA
-// ==========================================
-window.resizeImageBase64 = function(file, callback, maxWidth, maxHeight) {
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        const img = new Image();
-        img.onload = function() {
-            let w = img.width, h = img.height;
-            if (w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth; }
-            if (h > maxHeight) { w = Math.round(w * maxHeight / h); h = maxHeight; }
-            const canvas = document.createElement('canvas');
-            canvas.width = w; canvas.height = h;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, w, h);
-            callback(canvas.toDataURL('image/webp', 0.8)); 
-        };
-        img.src = e.target.result;
-    };
-    reader.readAsDataURL(file);
-};
+    await setPersistence(auth, browserLocalPersistence).catch(() => {});
 
-window.toggleTheme = function() {
-    const html = document.documentElement;
-    const currentTheme = html.getAttribute('data-theme') || 'light';
-    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-    html.setAttribute('data-theme', newTheme);
-    localStorage.setItem('vipercell_theme', newTheme);
-    const icon = document.getElementById('admin-theme-icon');
-    if (icon) icon.className = newTheme === 'dark' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
-    const metaTheme = document.getElementById('meta-theme-color');
-    if (metaTheme) metaTheme.setAttribute('content', newTheme === 'dark' ? '#090d16' : '#ffffff');
-};
+    let isFirstAuthCheck = true;
 
-window.openModal = (id) => {
-    const el = document.getElementById(id);
-    if (el) { el.classList.add('active'); document.body.classList.add('no-scroll'); }
-};
-window.closeModal = (id) => {
-    const el = document.getElementById(id);
-    if (el) { el.classList.remove('active'); document.body.classList.remove('no-scroll'); }
-};
+    onAuthStateChanged(auth, async (user) => {
+        if (user && !user.isAnonymous) {
+            currentAdminUser = user;
+            document.getElementById('admin-email-label').innerText = user.email;
+            document.getElementById('admin-login-screen').style.display = 'none';
+            document.getElementById('admin-dashboard-view').style.display = 'flex';
 
-window.customAlert = (title, message, type = 'info') => {
-    const titleEl = document.getElementById('ca-title');
-    const descEl = document.getElementById('ca-desc');
-    const iconEl = document.getElementById('ca-icon');
-    const extraEl = document.getElementById('ca-extra-action');
-    const alertEl = document.getElementById('custom-alert');
-    
-    if (titleEl) titleEl.innerText = title;
-    if (descEl) descEl.innerHTML = message;
-    if (extraEl) extraEl.innerHTML = '';
-    if (iconEl) {
-        iconEl.className = `msg-icon ${type}`;
-        if (type === 'success') iconEl.innerHTML = '<i class="fa-solid fa-circle-check"></i>';
-        else if (type === 'error') iconEl.innerHTML = '<i class="fa-solid fa-circle-xmark"></i>';
-        else if (type === 'warning') iconEl.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i>';
-        else iconEl.innerHTML = '<i class="fa-solid fa-circle-info"></i>';
-    }
-    if (alertEl) alertEl.classList.add('active');
-    document.body.classList.add('no-scroll');
-};
-
-window.closeAlert = () => {
-    const alertEl = document.getElementById('custom-alert');
-    const extraEl = document.getElementById('ca-extra-action');
-    if (alertEl) alertEl.classList.remove('active');
-    if (extraEl) extraEl.innerHTML = '';
-    document.body.classList.remove('no-scroll');
-};
-
-let promptCallback = null;
-window.openConfirm = function(title, message, callback, actionType = 'warning') {
-    const titleEl = document.getElementById('mc-title');
-    const descEl = document.getElementById('mc-desc');
-    const iconContainer = document.getElementById('mc-icon-container');
-    const confirmBtn = document.getElementById('mc-confirm-btn');
-    
-    if (titleEl) titleEl.innerText = title;
-    if (descEl) descEl.innerHTML = message;
-    promptCallback = callback;
-    
-    if (iconContainer && confirmBtn) {
-        if (actionType === 'delete') {
-            iconContainer.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
-            iconContainer.style.background = 'rgba(239, 68, 68, 0.15)';
-            iconContainer.style.color = '#ef4444';
-            confirmBtn.className = 'btn btn-danger flex-1';
-        } else if (actionType === 'success') {
-            iconContainer.innerHTML = '<i class="fa-solid fa-circle-check"></i>';
-            iconContainer.style.background = 'rgba(16, 185, 129, 0.15)';
-            iconContainer.style.color = '#10b981';
-            confirmBtn.className = 'btn btn-success flex-1';
+            if (isFirstAuthCheck) {
+                isFirstAuthCheck = false;
+                await fetchInitialAdminDataBeforeUnlock();
+                startAdminListeners();
+                startLiveSubscriptionTicker();
+                startAnonSixHourAutoCleanScheduler();
+                updateAdminPreloaderStage(100, 'Siap!', 'Membuka Dashboard Admin V27...');
+                clearTimeout(safetyTimeout);
+                setTimeout(unlockAdminAppUI, 80);
+            } else {
+                startAdminListeners();
+                startLiveSubscriptionTicker();
+                startAnonSixHourAutoCleanScheduler();
+            }
         } else {
-            iconContainer.innerHTML = '<i class="fa-solid fa-circle-question"></i>';
-            iconContainer.style.background = 'rgba(37, 99, 235, 0.15)';
-            iconContainer.style.color = 'var(--primary-light)';
-            confirmBtn.className = 'btn btn-primary flex-1';
+            currentAdminUser = null;
+            document.getElementById('admin-login-screen').style.display = 'flex';
+            document.getElementById('admin-dashboard-view').style.display = 'none';
+
+            if (isFirstAuthCheck) {
+                isFirstAuthCheck = false;
+                clearTimeout(safetyTimeout);
+                setTimeout(unlockAdminAppUI, 80);
+            }
         }
+    });
+}
+
+// ==========================================
+// TEMA TRANSISI HALUS (#7) & LOGOUT ADMIN
+// ==========================================
+window.toggleAdminTheme = function() {
+    const html = document.documentElement;
+    const current = html.getAttribute('data-theme') || 'light';
+    const next = current === 'dark' ? 'light' : 'dark';
+    html.setAttribute('data-theme', next);
+    localStorage.setItem('vipercell_admin_theme', next);
+    
+    const metaTheme = document.getElementById('meta-theme-color');
+    if (metaTheme) metaTheme.setAttribute('content', next === 'dark' ? '#090d16' : '#f4f6fb');
+    
+    const icon = document.getElementById('admin-theme-icon');
+    if (icon) icon.className = next === 'dark' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
+};
+
+window.toggleAdminThemeWithTransition = function(evt) {
+    const html = document.documentElement;
+    const curtain = document.getElementById('theme-transition-curtain');
+    const btn = document.getElementById('btn-admin-theme-toggle');
+
+    if (evt && curtain) {
+        const x = Math.round((evt.clientX / window.innerWidth) * 100);
+        const y = Math.round((evt.clientY / window.innerHeight) * 100);
+        curtain.style.setProperty('--theme-x', x + '%');
+        curtain.style.setProperty('--theme-y', y + '%');
+        curtain.classList.add('active');
+        setTimeout(() => curtain.classList.remove('active'), 460);
     }
-    window.openModal('modal-confirm');
+
+    html.classList.add('theme-transitioning');
+    if (btn) btn.classList.add('spin-theme-icon');
+
+    window.toggleAdminTheme();
+
+    setTimeout(() => {
+        html.classList.remove('theme-transitioning');
+        if (btn) btn.classList.remove('spin-theme-icon');
+    }, 480);
 };
 
-window.resolveConfirm = function(isConfirmed) {
-    window.closeModal('modal-confirm');
-    if (promptCallback) promptCallback(isConfirmed);
+window.toggleMobileSidebar = function() {
+    const sidebar = document.getElementById('admin-sidebar');
+    const backdrop = document.getElementById('sidebar-backdrop');
+    if (sidebar) sidebar.classList.toggle('open');
+    if (backdrop) backdrop.classList.toggle('active');
 };
 
-window.switchAdminTab = function(tabId, btnEl) {
-    document.querySelectorAll('.admin-tab').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.admin-tab-content').forEach(c => c.style.display = 'none');
-    if (btnEl) btnEl.classList.add('active');
-    const targetEl = document.getElementById(tabId);
-    if (targetEl) targetEl.style.display = 'block';
+window.switchAdminTab = function(tabId, menuEl) {
+    document.querySelectorAll('.admin-tab').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
     
-    const titleText = btnEl && btnEl.querySelector('span') ? btnEl.querySelector('span').innerText : 'Command Center';
-    const pageTitle = document.getElementById('admin-page-title');
-    if (pageTitle) pageTitle.innerText = titleText;
+    const target = document.getElementById(tabId);
+    if (target) target.classList.add('active');
+    if (menuEl) menuEl.classList.add('active');
     
-    if (window.innerWidth <= 768) {
-        const sidebar = document.getElementById('admin-sidebar');
-        if (sidebar) sidebar.classList.remove('active');
+    const titleSpan = menuEl ? menuEl.querySelector('span') : null;
+    if (titleSpan) document.getElementById('topbar-title').innerText = titleSpan.innerText;
+    
+    const sidebar = document.getElementById('admin-sidebar');
+    const backdrop = document.getElementById('sidebar-backdrop');
+    if (sidebar && sidebar.classList.contains('open')) {
+        sidebar.classList.remove('open');
+        if (backdrop) backdrop.classList.remove('active');
+    }
+
+    if (tabId === 'tab-livechat') {
+        const badgeChat = document.getElementById('badge-chats');
+        if (badgeChat) badgeChat.style.display = 'none';
+    }
+    if (tabId === 'tab-members') {
+        window.renderAdminMembers();
+    }
+    if (tabId === 'tab-stocks') {
+        window.renderAdminStocks();
+    }
+    if (tabId === 'tab-settings') {
+        window.renderMarqueeStudioSlots();
     }
 };
 
 window.switchAdminTabByName = function(tabId) {
-    const btn = document.querySelector(`.admin-tab[data-tab="${tabId}"]`);
-    window.switchAdminTab(tabId, btn);
+    const menuEl = document.getElementById('nav-' + tabId);
+    window.switchAdminTab(tabId, menuEl);
 };
-
-window.jumpToPendingOrders = function() {
-    window.switchAdminTabByName('tab-orders');
-    const pillNeedAction = document.querySelector('#tab-orders .filter-pill[data-ofilter="NEED_ACTION"]');
-    window.setAdminOrderFilter('NEED_ACTION', pillNeedAction);
-};
-
-window.jumpToExpiredSubscriptions = function() {
-    window.switchAdminTabByName('tab-orders');
-    const pillSubExp = document.querySelector('#tab-orders .filter-pill[data-ofilter="SUB_EXPIRED"]');
-    window.setAdminOrderFilter('SUB_EXPIRED', pillSubExp);
-};
-
-// ==========================================
-// AUTHENTICATION KHUSUS EMAIL & PASSWORD (ANTI-HANG V25.2)
-// ==========================================
-let isVerifyingAdmin = false;
-
-async function verifyAdminAccess(user) {
-    if (!user || isVerifyingAdmin) return;
-    isVerifyingAdmin = true;
-    try {
-        updateAdminPreloaderStage(55, 'Sedang memuat data...', 'Memverifikasi otoritas administrator...');
-        let role = 'user';
-        const allowedEmails = [
-            'vipercell.id@gmail.com',
-            'viperdev4@gmail.com',
-            'millertipak63@gmail.com',
-            'vipercell@bot.id'
-        ];
-        const cleanEmail = (user.email || '').trim().toLowerCase();
-
-        if (allowedEmails.includes(cleanEmail)) {
-            role = 'superadmin';
-        } else {
-            // Gunakan Promise.race dengan batas waktu 3.5 detik agar getDoc tidak pernah macet selamanya
-            const userDoc = await Promise.race([
-                getDoc(doc(db, pathUsers, user.uid)),
-                new Promise((resolve) => setTimeout(() => resolve(null), 3500))
-            ]).catch(() => null);
-
-            if (userDoc && typeof userDoc.exists === 'function' && userDoc.exists() && userDoc.data().role) {
-                role = userDoc.data().role;
-            }
-        }
-
-        if (role === 'admin' || role === 'superadmin') {
-            currentAdminUser = user;
-            const loginScreen = document.getElementById('admin-login-screen');
-            const dashScreen = document.getElementById('admin-dashboard');
-            if (loginScreen) loginScreen.style.display = 'none';
-            if (dashScreen) dashScreen.style.display = 'flex';
-
-            const emailLbl = document.getElementById('admin-logged-email');
-            if (emailLbl) emailLbl.innerText = user.email || 'Otoritas Penuh';
-
-            updateSoundIconUI();
-            updateAdminNotifToggleUI();
-            updateAdminPreloaderStage(85, 'Sedang memuat data...', 'Menghubungkan data pesanan & gudang stok...');
-            listenAdminData();
-            startAdminSubscriptionLiveTicker();
-            updateAdminPreloaderStage(100, 'Siap!', 'Membuka Command Center...');
-            resetLoginButtons();
-            setTimeout(hideAdminPreloader, 120);
-        } else {
-            currentAdminUser = null;
-            await signOut(auth).catch(() => {});
-            const loginScreen = document.getElementById('admin-login-screen');
-            const dashScreen = document.getElementById('admin-dashboard');
-            if (loginScreen) loginScreen.style.display = 'flex';
-            if (dashScreen) dashScreen.style.display = 'none';
-            hideAdminPreloader();
-            window.customAlert('Akses Ditolak', `Akun <b>${window.escapeHtml(user.email || '')}</b> tidak memiliki otoritas Administrator Vipercell.`, 'error');
-            resetLoginButtons();
-        }
-    } catch (err) {
-        console.error("Verify Admin Error:", err);
-        const loginScreen = document.getElementById('admin-login-screen');
-        if (loginScreen) loginScreen.style.display = 'flex';
-        hideAdminPreloader();
-        resetLoginButtons();
-    } finally {
-        isVerifyingAdmin = false;
-    }
-}
-
-function resetLoginButtons() {
-    const btn = document.getElementById('btn-admin-login');
-    if (btn) { btn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> <span>Masuk ke Command Center</span>'; btn.disabled = false; }
-}
 
 window.processAdminLogin = async function() {
-    const em = document.getElementById('admin-email').value.trim();
-    const pw = document.getElementById('admin-pass').value.trim();
-    if (!em || !pw) { window.customAlert('Data Kosong', 'Email dan Kata Sandi Administrator wajib diisi!', 'warning'); return; }
+    const email = document.getElementById('login-email').value.trim();
+    const pass = document.getElementById('login-pass').value.trim();
+    
+    if (!email || !pass) {
+        window.customAlert('Data Belum Lengkap', 'Masukkan email dan kata sandi administrator.', 'warning');
+        return;
+    }
     
     const btn = document.getElementById('btn-admin-login');
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Memverifikasi Otoritas...</span>'; 
+    const ogHtml = btn.innerHTML;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Memverifikasi Otoritas...</span>';
     btn.disabled = true;
     
     try {
-        const cred = await signInWithEmailAndPassword(auth, em, pw);
-        if (cred && cred.user) {
-            await verifyAdminAccess(cred.user);
-        }
-    } catch (e) {
-        console.error("Admin Login Error:", e);
-        window.customAlert('Akses Ditolak', 'Email atau kata sandi administrator salah, atau periksa koneksi internet Anda.', 'error');
-        resetLoginButtons();
+        await signInWithEmailAndPassword(auth, email, pass);
+        window.showToast('Akses Diterima', 'Selamat datang di Vipercell Admin V27.', 'success');
+    } catch (error) {
+        console.error(error);
+        window.customAlert('Akses Ditolak', 'Email atau kata sandi salah.', 'error');
+    } finally {
+        btn.innerHTML = ogHtml;
+        btn.disabled = false;
     }
 };
 
 window.logoutAdmin = async function() {
-    currentAdminUser = null;
-    await signOut(auth).catch(() => {});
-    window.location.reload();
+    await signOut(auth);
+    window.showToast('Sesi Berakhir', 'Anda telah keluar dari sistem.', 'info');
 };
 
-async function initAdminApp() {
-    const savedTheme = localStorage.getItem('vipercell_theme') || 'light';
-    document.documentElement.setAttribute('data-theme', savedTheme);
-    const icon = document.getElementById('admin-theme-icon');
-    if (icon) icon.className = savedTheme === 'dark' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
-
-    if (!navigator.onLine) {
-        updateAdminPreloaderStage(20, 'Koneksi Terputus', 'Periksa sambungan internet Anda.');
-        showAdminPreloaderRetry('Perangkat sedang offline.');
-        return;
-    }
-
-    updateAdminPreloaderStage(30, 'Sedang memuat data...', 'Memeriksa sesi keamanan...');
-
-    // Timer Pengaman Cepat (4.5 Detik): Mencegah loading berputar selamanya jika IndexedDB/Auth lambat
-    if (preloaderSafetyTimer) clearTimeout(preloaderSafetyTimer);
-    preloaderSafetyTimer = setTimeout(() => {
-        if (!isPreloaderFinished) {
-            if (auth.currentUser && !auth.currentUser.isAnonymous) {
-                verifyAdminAccess(auth.currentUser);
-            } else {
-                const loginScreen = document.getElementById('admin-login-screen');
-                const dashScreen = document.getElementById('admin-dashboard');
-                if (loginScreen && (!dashScreen || dashScreen.style.display !== 'flex')) {
-                    loginScreen.style.display = 'flex';
-                }
-                resetLoginButtons();
-                hideAdminPreloader();
-            }
-        }
-    }, 4500);
-
-    // Jangan gunakan "await setPersistence" secara blocking karena sudah dijalankan di firebase.js
-    // dan dapat menyebabkan deadlock IndexedDB pada browser mobile / PWA.
-    setPersistence(auth, browserLocalPersistence).catch(() => {});
-
-    onAuthStateChanged(auth, async (user) => {
-        if (user && !user.isAnonymous) {
-            await verifyAdminAccess(user);
-        } else {
-            if (user && user.isAnonymous) {
-                signOut(auth).catch(() => {});
-            }
-            if (!currentAdminUser) {
-                const loginScreen = document.getElementById('admin-login-screen');
-                const dashScreen = document.getElementById('admin-dashboard');
-                if (loginScreen) loginScreen.style.display = 'flex';
-                if (dashScreen) dashScreen.style.display = 'none';
-                resetLoginButtons();
-                hideAdminPreloader();
-            }
-        }
-    }, (authErr) => {
-        console.warn("onAuthStateChanged Error:", authErr);
-        const loginScreen = document.getElementById('admin-login-screen');
-        if (loginScreen) loginScreen.style.display = 'flex';
-        resetLoginButtons();
-        hideAdminPreloader();
-    });
-
-    window.addEventListener('resize', () => {
-        const mainPanel = document.getElementById('admin-chat-main-panel');
-        const sidePanel = document.getElementById('admin-chat-sidebar-panel');
-        if (!mainPanel || !sidePanel) return;
-
-        if (window.innerWidth > 768) {
-            sidePanel.style.display = 'flex';
-            mainPanel.style.display = 'flex';
-            mainPanel.style.transform = 'none';
-        } else {
-            const activeId = document.getElementById('admin-active-chat-id-desk')?.value;
-            if (activeId) {
-                sidePanel.style.display = 'none';
-                mainPanel.style.display = 'flex';
-            } else {
-                sidePanel.style.display = 'flex';
-                mainPanel.style.display = 'none';
-            }
-        }
-    });
-}
-
 // ==========================================
-// DATA LISTENERS REAL-TIME
+// COUNTDOWN DURASI LANGGANAN (LIVE ADMIN TICKER)
 // ==========================================
-function mergeValidSettings(target, source) {
-    if (!source) return target;
-    const result = { ...target };
-    Object.keys(source).forEach(key => {
-        const val = source[key];
-        if (val !== undefined && val !== null) {
-            if (typeof val === 'string' && val.trim() === '' && ['logoText', 'logoAccent', 'qrisStringData', 'adminWa', 'webhookSecret'].includes(key) && result[key]) {
-                return;
-            }
-            result[key] = val;
-        }
-    });
-    return result;
-}
-
-function listenAdminData() {
-    if (isAdminListening) return;
-    isAdminListening = true;
-
-    const cachedSettings = localStorage.getItem('vipercell_settings_backup');
-    if (cachedSettings) {
-        try { siteSettings = mergeValidSettings(siteSettings, JSON.parse(cachedSettings)); } catch (e) {}
-    }
-
-    // 1. SETTINGS
-    onSnapshot(doc(db, pathSettings, 'mainConfig'), async (docSnap) => {
-        if (docSnap.exists()) {
-            const dbData = docSnap.data();
-            siteSettings = mergeValidSettings(siteSettings, dbData);
-            
-            if (!dbData.logoImgBase64 && (!dbData.banners || dbData.banners.length === 0)) {
-                try {
-                    const fallbackSnap = await getDoc(doc(db, fallbackSettingsPath, 'mainConfig'));
-                    if (fallbackSnap.exists()) {
-                        siteSettings = mergeValidSettings(siteSettings, fallbackSnap.data());
-                    }
-                } catch (err) {}
-            }
-            localStorage.setItem('vipercell_settings_backup', JSON.stringify(siteSettings));
-        } else {
-            try {
-                const fallbackSnap = await getDoc(doc(db, fallbackSettingsPath, 'mainConfig'));
-                if (fallbackSnap.exists()) {
-                    siteSettings = mergeValidSettings(siteSettings, fallbackSnap.data());
-                    await setDoc(doc(db, pathSettings, 'mainConfig'), siteSettings, { merge: true });
-                }
-            } catch (err) {}
-        }
-        isSettingsLoaded = true;
-        window.populateAdminSettings();
-        window.renderAdminBanners();
-        window.renderAdminNews();
-        window.renderAdminMembers();
-        applyAdminCustomPwaIcon();
-    });
-
-    // 2. PRODUCTS
-    onSnapshot(collection(db, pathProducts), (snapshot) => {
-        products = [];
-        snapshot.forEach((docSnap) => { products.push({ dbId: docSnap.id, ...docSnap.data() }); });
-        groupedBrands = [];
-        products.forEach(p => {
-            const brandName = p.brand || p.name;
-            const existing = groupedBrands.find(b => b.brandName === brandName);
-            if (existing) {
-                existing.items.push(p);
-                if (p.imgUrlBase64 && !existing.imgUrlBase64) existing.imgUrlBase64 = p.imgUrlBase64;
-                if (p.desc && !existing.desc) existing.desc = p.desc;
-                if (p.requireAppTarget) existing.requireAppTarget = true;
-                if (p.appTargetLabel && !existing.appTargetLabel) existing.appTargetLabel = p.appTargetLabel;
-                if (p.appTargetPlaceholder && !existing.appTargetPlaceholder) existing.appTargetPlaceholder = p.appTargetPlaceholder;
-            } else {
-                groupedBrands.push({
-                    brandName: brandName,
-                    type: p.type || 'app',
-                    imgUrlBase64: p.imgUrlBase64 || '',
-                    desc: p.desc || '',
-                    isGangguan: p.isGangguan || false,
-                    requireAppTarget: Boolean(p.requireAppTarget),
-                    appTargetLabel: p.appTargetLabel || '',
-                    appTargetPlaceholder: p.appTargetPlaceholder || '',
-                    items: [p]
-                });
-            }
-        });
-        window.renderAdminProducts();
-        populateNewsBrandDropdown();
-        
-        const stockableBrands = groupedBrands.filter(b => b.type === 'app' || b.type === 'tools');
-        const filterSel = document.getElementById('view-stock-category');
-        if (filterSel) {
-            const curFil = filterSel.value;
-            let selFilHtml = '<option value="">-- Pilih Brand Untuk Dilihat --</option>';
-            stockableBrands.forEach(b => {
-                const labelType = b.type === 'tools' ? '[Tools]' : '[App]';
-                selFilHtml += `<option value="${window.escapeHtml(b.brandName)}">${labelType} ${window.escapeHtml(b.brandName)}</option>`;
-            });
-            filterSel.innerHTML = selFilHtml;
-            if (stockableBrands.some(b => b.brandName === curFil)) filterSel.value = curFil;
-        }
-        const addSel = document.getElementById('stock-brand-select');
-        if (addSel) {
-            const curAdd = addSel.value;
-            let selAddHtml = '<option value="">-- Pilih Produk Aplikasi / Tools --</option>';
-            stockableBrands.forEach(b => {
-                const labelType = b.type === 'tools' ? '[Tools]' : '[App]';
-                selAddHtml += `<option value="${window.escapeHtml(b.brandName)}">${labelType} ${window.escapeHtml(b.brandName)}</option>`;
-            });
-            addSel.innerHTML = selAddHtml;
-            if (stockableBrands.some(b => b.brandName === curAdd)) addSel.value = curAdd;
-        }
-    });
-
-    // 3. PROMOS
-    onSnapshot(collection(db, pathPromos), (snapshot) => {
-        promos = [];
-        snapshot.forEach((docSnap) => { promos.push({ dbId: docSnap.id, ...docSnap.data() }); });
-        window.renderAdminPromos();
-    });
-    
-    // 4. REVIEWS
-    onSnapshot(collection(db, pathReviews), (snapshot) => {
-        reviewsList = [];
-        snapshot.forEach(docSnap => reviewsList.push({ dbId: docSnap.id, ...docSnap.data() }));
-        reviewsList.sort((a, b) => b.timestamp - a.timestamp);
-        window.renderReviews();
-    });
-
-    // 5. USERS & DEVICE LOCKS
-    onSnapshot(collection(db, pathDeviceLocks), (snapshot) => {
-        deviceLocksMap = {};
-        snapshot.forEach(docSnap => {
-            deviceLocksMap[docSnap.id] = { lockId: docSnap.id, ...docSnap.data() };
-        });
-        window.renderAdminMembers();
-    }, () => {});
-
-    onSnapshot(collection(db, pathUsers), (snapshot) => {
-        allUsersList = [];
-        snapshot.forEach(docSnap => {
-            allUsersList.push({ uid: docSnap.id, ...docSnap.data() });
-        });
-        allUsersList.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-        window.renderAdminMembers();
-    });
-
-    // 6. ORDERS
-    onSnapshot(collection(db, pathOrders), (snapshot) => {
-        let newOrders = [];
-        snapshot.forEach((docSnap) => {
-            let d = { dbId: docSnap.id, ...docSnap.data() };
-            // Jika status PAID dari MacroDroid GAS Webhook, konversi ke SUCCESS
-            if (d.status === 'PAID') {
-                updateDoc(doc(db, pathOrders, d.dbId), { status: 'SUCCESS' }).catch(() => {});
-                d.status = 'SUCCESS';
-            }
-            newOrders.push(d);
-        });
-
-        if (isInitialOrderLoad) {
-            snapshot.forEach((docSnap) => {
-                let data = docSnap.data();
-                previousOrdersData[docSnap.id] = { status: data.status, adminReply: data.adminReply };
-                if (data.status === 'SUCCESS') deductedStockOrderIds.add(docSnap.id);
-            });
-            isInitialOrderLoad = false;
-        } else {
-            snapshot.docChanges().forEach((change) => {
-                if (change.type === "added" || change.type === "modified") {
-                    let data = change.doc.data();
-                    let dbId = change.doc.id; 
-                    if (data.status === 'PAID') data.status = 'SUCCESS';
-                    
-                    let oldData = previousOrdersData[dbId] || {};
-                    let oldStatus = oldData.status;
-                    
-                    if (!oldStatus && (data.status === 'PENDING' || data.status === 'UNPAID' || data.status === 'PENDING_PAYMENT')) {
-                        playNotificationSound('order');
-                        sendAdminNativeNotification('Pesanan Baru Masuk! 🛒', `Invoice ${data.id} sebesar Rp${(data.finalTotal || 0).toLocaleString('id-ID')}`);
-                        window.showToast('Pesanan Baru Masuk!', `Invoice ${data.id} (${data.paymentMethod === 'cash' ? 'Tunai Barcode' : 'QRIS'})`, 'info', () => {
-                            window.switchAdminTabByName('tab-orders');
-                        });
-                    }
-                    else if ((oldStatus === 'PENDING' || oldStatus === 'UNPAID' || oldStatus === 'PENDING_PAYMENT' || !oldStatus) && data.status === 'SUCCESS') {
-                        playNotificationSound('order');
-                        deductProductQuotaOnSuccess(data, dbId);
-
-                        if (!data.adminReply) {
-                            let hasAutoStockItem = data.items && data.items.some(i => i.type === 'app' || i.type === 'tools');
-                            let isManualProcess = data.items && data.items.some(i => i.processType === 'manual');
-                            
-                            if (hasAutoStockItem && !isManualProcess) {
-                                window.autoProcessOrder(data, dbId);
-                            } else {
-                                ensureOrderSubscriptionInitialized(data, dbId);
-                                sendAdminNativeNotification('Pembayaran Lunas (Butuh Proses) ⚡', `Invoice ${data.id} menunggu pengiriman manual Anda.`);
-                                window.showToast('Pembayaran Lunas!', `Invoice ${data.id} menunggu proses manual Anda.`, 'success', () => {
-                                    window.switchAdminTabByName('tab-orders');
-                                    window.promptProcessOrder(dbId);
-                                });
-                            }
-                        }
-                    }
-                    
-                    previousOrdersData[dbId] = { status: data.status, adminReply: data.adminReply };
-                }
-                if (change.type === "removed") {
-                    delete previousOrdersData[change.doc.id];
-                }
-            });
-        }
-        
-        orders = newOrders.sort((a, b) => new Date(b.date) - new Date(a.date));
-        updateSubscriptionCountersAndBadges();
-        window.renderAdminOrders();
-        window.generateAdminReports();
-        window.renderAdminMembers();
-    });
-    
-    // 7. LIVE CHAT
-    listenAdminLiveChat();
-}
-
-/* ============================================================================
- * [FEATURE-08 & FEATURE-09] MULTI-QUOTA SHARING VAULT AUTO-DELIVERY &
- * SUBSCRIPTION DURATION TRACKER / KICK MANAGER
- * ============================================================================ */
-function getOrderDurationDays(order) {
-    if (!order) return 0;
-    if (typeof order.durationDays === 'number' && order.durationDays > 0) return order.durationDays;
-    const item = order.items && order.items[0];
-    if (item && typeof item.durationDays === 'number' && item.durationDays > 0) return item.durationDays;
-    if (item && item.productDbId) {
-        const prod = products.find(p => p.dbId === item.productDbId);
-        if (prod && typeof prod.durationDays === 'number' && prod.durationDays > 0) return prod.durationDays;
-    }
-    return 0;
-}
-
-async function ensureOrderSubscriptionInitialized(orderData, orderDbId) {
-    const durDays = getOrderDurationDays(orderData);
-    if (durDays <= 0 || orderData.subscriptionEndAt) return {};
-
-    const startMs = Date.now();
-    const endMs = startMs + (durDays * 86400000);
-    const subFields = {
-        durationDays: durDays,
-        subscriptionStartAt: startMs,
-        subscriptionEndAt: endMs,
-        subscriptionStatus: 'ACTIVE'
-    };
-    await updateDoc(doc(db, pathOrders, orderDbId), subFields).catch(() => {});
-    return subFields;
-}
-
 function formatRemainingDurationMs(diffMs) {
-    if (diffMs <= 0) return '00h 00j 00m 00d';
-    const totalSec = Math.floor(diffMs / 1000);
-    const days = Math.floor(totalSec / 86400);
-    const hours = Math.floor((totalSec % 86400) / 3600);
-    const mins = Math.floor((totalSec % 3600) / 60);
-    const secs = totalSec % 60;
-    const pad = (n) => (n < 10 ? '0' + n : String(n));
-    return `${days} Hari : ${pad(hours)}j : ${pad(mins)}m : ${pad(secs)}d`;
+    if (diffMs <= 0) return 'WAKTU HABIS (WAJIB KICK!)';
+    const days = Math.floor(diffMs / 86400000);
+    const hours = Math.floor((diffMs % 86400000) / 3600000);
+    const mins = Math.floor((diffMs % 3600000) / 60000);
+    const secs = Math.floor((diffMs % 60000) / 1000);
+
+    if (days > 0) {
+        return `${days} Hari ${hours} Jam ${mins}m`;
+    }
+    return `${hours}j ${mins}m ${secs}d`;
 }
 
-function updateSubscriptionCountersAndBadges() {
-    const now = Date.now();
-    let activeSubCount = 0;
-    let expiredSubCount = 0;
-
-    orders.forEach(o => {
-        if (o.status !== 'SUCCESS') return;
-        const durDays = getOrderDurationDays(o);
-        const endAt = o.subscriptionEndAt || (durDays > 0 ? (new Date(o.date).getTime() + durDays * 86400000) : 0);
-        if (!endAt || o.subscriptionStatus === 'KICKED') return;
-
-        if (now >= endAt) {
-            expiredSubCount++;
-        } else {
-            activeSubCount++;
-        }
-    });
-
-    const activeBadge = document.getElementById('badge-sub-active-count');
-    const expiredBadge = document.getElementById('badge-sub-expired-count');
-    const headerKickBtn = document.getElementById('btn-header-kick-alert');
-    const headerKickCount = document.getElementById('header-kick-count');
-
-    if (activeBadge) activeBadge.innerText = String(activeSubCount);
-    if (expiredBadge) expiredBadge.innerText = String(expiredSubCount);
-    if (headerKickCount) headerKickCount.innerText = String(expiredSubCount);
-    if (headerKickBtn) headerKickBtn.style.display = expiredSubCount > 0 ? 'inline-flex' : 'none';
-
-    const hasPending = orders.some(o => o.status === 'PENDING' || (o.status === 'SUCCESS' && !o.adminReply)) || expiredSubCount > 0;
-    const adminOrderTabBadge = document.getElementById('admin-tab-order-badge');
-    if (adminOrderTabBadge) adminOrderTabBadge.style.display = hasPending ? 'inline-block' : 'none';
-}
-
-function startAdminSubscriptionLiveTicker() {
-    if (subscriptionTickerInterval) clearInterval(subscriptionTickerInterval);
-    subscriptionTickerInterval = setInterval(() => {
+function startLiveSubscriptionTicker() {
+    if (liveSubCountdownInterval) clearInterval(liveSubCountdownInterval);
+    liveSubCountdownInterval = setInterval(() => {
         const now = Date.now();
         document.querySelectorAll('.sub-live-timer').forEach(el => {
             const endAt = parseInt(el.getAttribute('data-end') || '0', 10);
@@ -1353,249 +549,677 @@ function startAdminSubscriptionLiveTicker() {
 
             const diff = endAt - now;
             if (diff <= 0) {
-                el.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> 🚨 DURASI LANGGANAN HABIS — WAJIB KICK!`;
                 el.className = 'sub-countdown-box sub-expired sub-live-timer';
-                const parentTr = el.closest('tr');
-                if (parentTr && !parentTr.classList.contains('row-sub-expired')) {
-                    parentTr.classList.add('row-sub-expired');
-                }
+                el.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> 🚨 DURASI HABIS — WAKTUNYA KICK AKUN!`;
             } else {
+                el.className = 'sub-countdown-box sub-running sub-live-timer';
                 el.innerHTML = `<i class="fa-solid fa-stopwatch"></i> Sisa Durasi: <b>${formatRemainingDurationMs(diff)}</b>`;
             }
         });
     }, 1000);
 }
 
-// Aksi Admin: Tandai Sudah Dikeluarkan (Kick Selesai) + Opsi Kembalikan Slot Sharing & Kirim Email Pengingat
-window.markSubscriptionKicked = function(orderDbId) {
-    const order = orders.find(o => o.dbId === orderDbId);
-    if (!order) return;
+function getOrderDurationDays(order) {
+    if (!order) return 0;
+    if (order.durationDays && order.durationDays > 0) return parseInt(order.durationDays, 10);
+    const item = order.items && order.items[0] ? order.items[0] : null;
+    if (item && item.durationDays && item.durationDays > 0) return parseInt(item.durationDays, 10);
 
-    window.openConfirm(
-        'Konfirmasi Kick Akun Langganan',
-        `Tandai bahwa akun pembeli pada pesanan <b>#${window.escapeHtml(order.id)}</b> sudah dikeluarkan (Kick) dari aplikasi?<br><br><small class="text-muted">Sistem juga akan mengirim email pemberitahuan masa aktif berakhir ke pembeli (jika Webhook GAS aktif).</small>`,
-        async (confirmed) => {
-            if (!confirmed) return;
-            try {
-                await updateDoc(doc(db, pathOrders, orderDbId), {
-                    subscriptionStatus: 'KICKED',
-                    kickedAt: Date.now()
-                });
-
-                // Jika pesanan menggunakan stok Sharing dari koleksi stocks, kembalikan 1 slot kuota jika stok masih ada
-                if (order.usedStockIds && Array.isArray(order.usedStockIds)) {
-                    for (const sId of order.usedStockIds) {
-                        const sRef = doc(db, pathStocks, sId);
-                        const sSnap = await getDoc(sRef).catch(() => null);
-                        if (sSnap && sSnap.exists()) {
-                            const sData = sSnap.data();
-                            if ((sData.maxQuota || 1) > 1 && (sData.usedQuota || 0) > 0) {
-                                const nextUsed = Math.max(0, (sData.usedQuota || 1) - 1);
-                                await updateDoc(sRef, {
-                                    usedQuota: nextUsed,
-                                    status: 'Ready'
-                                }).catch(() => {});
-                            }
-                        }
-                    }
-                }
-
-                triggerAutomatedEmailWebhook(order, '', 'SEND_EXPIRY_REMINDER');
-                window.closeModal('modal-process-order');
-                window.showToast('Kick Selesai!', `Pesanan #${order.id} telah ditandai KICKED.`, 'success');
-            } catch (err) {
-                window.customAlert('Gagal', 'Tidak dapat memperbarui status Kick pesanan.', 'error');
-            }
-        },
-        'success'
-    );
-};
-
-window.markSubscriptionKickedFromModal = function() {
-    const dbId = document.getElementById('proc-order-id')?.value;
-    if (dbId) window.markSubscriptionKicked(dbId);
-};
-
-window.extendOrderSubscriptionDays = async function(addDays, explicitDbId = null) {
-    const dbId = explicitDbId || document.getElementById('proc-order-id')?.value;
-    const order = orders.find(o => o.dbId === dbId);
-    if (!order || !addDays) return;
-
-    const now = Date.now();
-    const currentEnd = order.subscriptionEndAt && order.subscriptionEndAt > now ? order.subscriptionEndAt : now;
-    const newEnd = currentEnd + (addDays * 86400000);
-    const newDuration = (parseInt(order.durationDays || 0, 10)) + addDays;
-
-    try {
-        await updateDoc(doc(db, pathOrders, dbId), {
-            durationDays: newDuration,
-            subscriptionStartAt: order.subscriptionStartAt || now,
-            subscriptionEndAt: newEnd,
-            subscriptionStatus: 'ACTIVE'
-        });
-        window.showToast('Durasi Diperpanjang', `Masa aktif #${order.id} ditambah +${addDays} Hari.`, 'success');
-        if (document.getElementById('modal-process-order')?.classList.contains('active')) {
-            window.promptProcessOrder(dbId);
-        }
-    } catch (e) {
-        window.customAlert('Gagal', 'Gagal memperpanjang durasi langganan.', 'error');
+    if (item) {
+        const matchedProd = products.find(p =>
+            (item.productDbId && p.dbId === item.productDbId) ||
+            (p.brand === item.brandName && p.name === item.exactItemName)
+        );
+        if (matchedProd && matchedProd.durationDays > 0) return parseInt(matchedProd.durationDays, 10);
     }
-};
+    return 0;
+}
 
-async function deductProductQuotaOnSuccess(orderData, orderDbId) {
-    if (deductedStockOrderIds.has(orderDbId) || orderData.stockQuotaDeducted) return;
-    deductedStockOrderIds.add(orderDbId);
+async function ensureOrderSubscriptionInitialized(orderData, orderDbId) {
+    const durDays = getOrderDurationDays(orderData);
+    if (durDays <= 0 || orderData.subscriptionEndAt) return null;
 
-    const item = orderData.items && orderData.items[0];
-    if (!item || !item.productDbId) return;
+    const startMs = orderData.subscriptionStartAt || Date.now();
+    const endMs = startMs + (durDays * 86400000);
+    const patch = {
+        durationDays: durDays,
+        subscriptionStartAt: startMs,
+        subscriptionEndAt: endMs,
+        subscriptionStatus: 'ACTIVE'
+    };
+    await updateDoc(doc(db, pathOrders, orderDbId), patch).catch(() => {});
+    return patch;
+}
 
-    const prodObj = products.find(p => p.dbId === item.productDbId);
-    if (!prodObj || typeof prodObj.stockCount !== 'number') return;
+/* ============================================================================
+ * [FEATURE-02, 03, 17] UNIFIED GAS WEBHOOK CALLER + AUTO-SEND EMAIL & LOCK TOMBOL
+ * ============================================================================ */
+async function callUnifiedGasWebhook(payloadObj) {
+    const webhookUrl = (siteSettings.emailWebhookUrl || '').trim();
+    if (!webhookUrl || !webhookUrl.startsWith('https://script.google.com/')) {
+        throw new Error('URL Google Apps Script belum diisi atau tidak valid di Pengaturan Toko.');
+    }
 
-    const boughtQty = parseInt(item.qty) || 1;
-    const newStockCount = Math.max(0, prodObj.stockCount - boughtQty);
-    const shouldMarkSoldOut = newStockCount === 0 ? true : prodObj.soldOut;
+    const activeSecret = (siteSettings.webhookSecret || 'VIPERCELL_SECRET_2026').trim();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 18000);
 
     try {
-        await updateDoc(doc(db, pathProducts, prodObj.dbId), {
-            stockCount: newStockCount,
-            soldOut: shouldMarkSoldOut
+        const response = await fetch(webhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+                projectId: 'vipercell-fc50e',
+                secret: activeSecret,
+                key: activeSecret,
+                ...payloadObj
+            }),
+            redirect: 'follow',
+            signal: controller.signal
         });
-        await updateDoc(doc(db, pathOrders, orderDbId), { stockQuotaDeducted: true });
-    } catch (e) {
-        console.error("Gagal mengurangi kuota stok varian:", e);
+
+        const rawText = await response.text();
+        let resJson = null;
+        try {
+            resJson = JSON.parse(rawText);
+        } catch (parseErr) {
+            throw new Error('Respons server GAS bukan JSON valid. Pastikan Web App di-deploy sebagai "Anyone".');
+        }
+
+        if (!resJson || (resJson.ok === false && resJson.status !== 'ok')) {
+            if (resJson?.error === 'UNAUTHORIZED_SECRET') {
+                throw new Error('Webhook Secret di Pengaturan Toko tidak cocok dengan WEBHOOK_SECRET di Google Apps Script.');
+            }
+            throw new Error(resJson?.message || resJson?.error || 'Server GAS menolak permintaan.');
+        }
+
+        return resJson;
+    } finally {
+        clearTimeout(timeoutId);
     }
 }
 
-window.autoProcessOrder = async function(orderData, orderDbId) {
-    if (processingAutoOrderIds.has(orderDbId)) return;
-    processingAutoOrderIds.add(orderDbId);
+// [FEATURE-03] Pengiriman Email E-Receipt & Akun + Otomatis Mengunci Status `emailSent: true` di Firestore
+async function triggerAutomatedEmailWebhook(orderData, accountDetailsText, silent = true, explicitOrderDbId = null) {
+    const webhookUrl = (siteSettings.emailWebhookUrl || '').trim();
+    if (!webhookUrl) {
+        if (!silent) {
+            window.customAlert('Webhook Email Belum Diatur', 'Masukkan URL Google Apps Script di tab Pengaturan Toko terlebih dahulu.', 'warning');
+        }
+        return false;
+    }
 
-    const targetItem = orderData.items.find(i => i.type === 'app' || i.type === 'tools');
-    if (!targetItem) {
-        processingAutoOrderIds.delete(orderDbId);
+    const buyerEmail = (orderData.userEmail || orderData.buyerEmail || '').trim();
+    if (!buyerEmail || !buyerEmail.includes('@')) {
+        if (!silent) {
+            window.customAlert('Email Pembeli Kosong', 'Pesanan ini tidak memiliki alamat email tujuan yang valid.', 'warning');
+        }
+        return false;
+    }
+
+    const itemObj = (orderData.items && orderData.items[0]) ? orderData.items[0] : {};
+    const durDays = getOrderDurationDays(orderData);
+    const endAt = orderData.subscriptionEndAt || (durDays > 0 ? (Date.now() + durDays * 86400000) : 0);
+    const finalNominal = Number(orderData.finalTotal || orderData.uniqueTotal || 0);
+
+    try {
+        await callUnifiedGasWebhook({
+            action: 'SEND_ORDER_DELIVERY',
+            orderId: orderData.id,
+            invoice: orderData.id,
+            invoiceId: orderData.id,
+            email: buyerEmail,
+            buyerEmail: buyerEmail,
+            to: buyerEmail,
+            buyerName: orderData.buyerName || buyerEmail.split('@')[0],
+            productName: itemObj.brandName || orderData.productName || itemObj.name || 'Produk Digital',
+            variantName: itemObj.exactItemName || orderData.variantName || itemObj.name || '-',
+            itemName: itemObj.name || 'Produk Vipercell',
+            totalAmount: finalNominal,
+            uniqueTotal: finalNominal,
+            totalFormatted: `Rp ${finalNominal.toLocaleString('id-ID')}`,
+            paymentMethod: (orderData.paymentMethod || 'qris').toUpperCase(),
+            accountDetails: accountDetailsText || orderData.adminReply || 'Pesanan telah selesai diproses.',
+            targetId: itemObj.playerInfo || orderData.targetId || '-',
+            durationDays: durDays,
+            subscriptionEndAt: endAt,
+            date: orderData.date || new Date().toISOString()
+        });
+
+        const resolvedDbId = explicitOrderDbId || orderData.dbId;
+        if (resolvedDbId) {
+            await updateDoc(doc(db, pathOrders, resolvedDbId), {
+                emailSent: true,
+                emailSentAt: Date.now()
+            }).catch(() => {});
+        }
+        orderData.emailSent = true;
+        updateEmailButtonLockStateUI(true);
+
+        if (!silent) {
+            window.showToast('Email Terkirim & Terkunci!', `E-Receipt & detail akun berhasil dikirim ke ${buyerEmail}.`, 'success');
+        }
+        return true;
+    } catch (e) {
+        console.warn("Email Webhook Info:", e.message);
+        if (!silent) {
+            window.customAlert('Gagal Mengirim Email', `${window.escapeHtml(e.message)}`, 'error');
+        }
+        return false;
+    }
+}
+
+// [FEATURE-03] Helper untuk mengunci/membuka tombol Kirim Email di Modal Proses Pesanan
+function updateEmailButtonLockStateUI(isAlreadySent) {
+    const btnEmail = document.getElementById('btn-send-order-email');
+    const badgeEmail = document.getElementById('proc-email-sent-badge');
+    if (btnEmail) {
+        if (isAlreadySent) {
+            btnEmail.disabled = true;
+            btnEmail.className = 'btn btn-outline btn-sm flex-1';
+            btnEmail.innerHTML = '<i class="fa-solid fa-circle-check text-success"></i> Email Sudah Terkirim (Terkunci)';
+        } else {
+            btnEmail.disabled = false;
+            btnEmail.className = 'btn btn-primary btn-sm flex-1';
+            btnEmail.innerHTML = '<i class="fa-solid fa-envelope-circle-check"></i> Kirim Struk & Akun via Email';
+        }
+    }
+    if (badgeEmail) {
+        if (isAlreadySent) {
+            badgeEmail.className = 'status-badge status-success';
+            badgeEmail.innerHTML = '<i class="fa-solid fa-check-double"></i> EMAIL SUDAH TERKIRIM';
+        } else {
+            badgeEmail.className = 'status-badge status-unpaid';
+            badgeEmail.innerHTML = 'BELUM TERKIRIM';
+        }
+    }
+}
+
+// [FEATURE-17] Formatter Kredensial Stok (Mendukung Format Standar, Sharing, dan Produk Email OAuth)
+function formatAdminStockCredentialLine(rawStr, stockMode = 'PRIVATE', slotInfo = '', customAccessUrl = '') {
+    const clean = String(rawStr || '').trim();
+    if (!clean) return '';
+
+    const parts = clean.split('|').map(s => s.trim());
+    const isEmailOAuthFormat = (stockMode === 'EMAIL_OAUTH' || parts.length >= 4);
+
+    if (isEmailOAuthFormat && parts.length >= 4) {
+        const emailAddr = parts[0] || '-';
+        const passStr = parts[1] || '-';
+        const refreshToken = parts[2] || '-';
+        const clientId = parts[3] || '-';
+        const fourPartRaw = `${emailAddr}|${passStr}|${refreshToken}|${clientId}`;
+        const accessLink = parts[4] || customAccessUrl || siteSettings.defaultEmailPortalUrl || '';
+
+        let out = `[PRODUK EMAIL OAUTH${slotInfo}]\n`;
+        out += `FORMAT_UTUH : ${fourPartRaw}\n`;
+        out += `Email       : ${emailAddr}\n`;
+        out += `Password    : ${passStr}\n`;
+        out += `RefreshToken: ${refreshToken}\n`;
+        out += `Client_ID   : ${clientId}`;
+        if (accessLink) {
+            out += `\nLink_Akses  : ${accessLink}`;
+        }
+        return out;
+    }
+
+    if (parts.length >= 2) {
+        return `[DETAIL AKUN ANDA${slotInfo}]\nEmail / ID : ${parts[0] || '-'}\nPassword   : ${parts[1] || '-'}\nKeterangan : ${parts.slice(2).join(' | ') || '-'}`;
+    }
+
+    return `[DETAIL PESANAN${slotInfo}]\n${clean}`;
+}
+
+/* ============================================================================
+ * [FEATURE-03, 17, 18] AUTO-DELIVERY GUDANG STOK + OTOMATIS KIRIM KE EMAIL
+ * Deskripsi : Mengambil stok lokal untuk produk berstatus `auto` atau `ask_auto`,
+ *             mengirimkannya ke E-Receipt, lalu OTOMATIS mengirim email ke pembeli
+ *             dan menyinkronkan jumlah stok produk.
+ * ============================================================================ */
+async function attemptAutoStockDelivery(orderData, orderDbId) {
+    if (processingAutoOrderIds.has(orderDbId)) return;
+    if (orderData.adminReply && orderData.adminReply.trim() !== '') {
+        // Jika sudah ada adminReply tapi email belum terkirim, otomatis kirim email (#3)
+        if (!orderData.emailSent) {
+            triggerAutomatedEmailWebhook(orderData, orderData.adminReply, true, orderDbId);
+        }
         return;
     }
-    
-    const targetBrand = targetItem.brandName || targetItem.name.split(' - ')[0];
-    const exactItemName = targetItem.exactItemName || targetItem.name.replace(`(x${targetItem.qty})`, '').trim();
-    const neededQty = parseInt(targetItem.qty) || 1;
-    const nowMs = Date.now();
+
+    const item = orderData.items && orderData.items[0] ? orderData.items[0] : null;
+    if (!item) return;
+
+    processingAutoOrderIds.add(orderDbId);
+
     const durDays = getOrderDurationDays(orderData);
+    const procType = (item.processType || 'auto').toLowerCase();
+    const nowMs = Date.now();
     const subFields = durDays > 0 ? {
         durationDays: durDays,
         subscriptionStartAt: nowMs,
         subscriptionEndAt: nowMs + (durDays * 86400000),
         subscriptionStatus: 'ACTIVE'
     } : {};
-    
+
+    // [FEATURE-18] Jika mode MANUAL murni (atau game), jangan ambil stok lokal otomatis
+    if (item.type === 'game' || procType === 'manual') {
+        if (Object.keys(subFields).length > 0 && !orderData.subscriptionEndAt) {
+            await updateDoc(doc(db, pathOrders, orderDbId), subFields).catch(() => {});
+        }
+        processingAutoOrderIds.delete(orderDbId);
+        return;
+    }
+
     try {
+        const targetBrand = item.brandName || item.name.split(' - ')[0];
+        const exactItemName = item.exactItemName || item.name.replace(`(x${item.qty})`, '').trim();
+        const neededQty = item.qty || 1;
+        let deliveredText = '';
+
+        // 1. Cek di koleksi `stocks` (Tab Gudang Stok Admin)
         const q = query(
             collection(db, pathStocks),
             where("brand", "==", targetBrand),
             where("itemName", "==", exactItemName),
             where("status", "==", "Ready")
         );
-        const snap = await getDocs(q);
+        const snap = await getDocs(q).catch(() => null);
 
-        // 1. Prioritaskan Stok Mode Kirim Berulang-ulang (Reusable Link/Tools)
-        const reusableDoc = snap.docs.find(d => d.data().isReusable === true);
-        if (reusableDoc) {
-            const rData = reusableDoc.data();
-            const parts = (rData.data || '').split('|');
-            const replyText = `Terima kasih! Pembayaran Anda telah diverifikasi otomatis.\n\n[AKSES LAYANAN / TOOLS DIGITAL (x${neededQty})]\nEmail / Link : ${parts[0] || '-'}\nPassword / Pin : ${parts[1] || '-'}\nPanduan        : ${parts[2] || '-'}\n\nSilakan langsung diakses dan hubungi Live Chat jika ada kendala.`;
+        if (snap && !snap.empty) {
+            const reusableDoc = snap.docs.find(d => d.data().isReusable === true);
+            if (reusableDoc) {
+                const rData = reusableDoc.data();
+                deliveredText = formatAdminStockCredentialLine(rData.data || '', rData.stockFormat || 'REUSABLE', ' (Akses Instan)', rData.accessLink || '');
+                await updateDoc(doc(db, pathStocks, reusableDoc.id), {
+                    sentCount: increment(neededQty),
+                    lastSentAt: nowMs,
+                    lastOrderId: orderData.id
+                });
+            } else {
+                const collected = [];
+                for (const sDoc of snap.docs) {
+                    if (collected.length >= neededQty) break;
+                    const sData = sDoc.data();
+                    const maxQ = parseInt(sData.maxQuota || 1, 10);
+                    const usedQ = parseInt(sData.usedQuota || 0, 10);
 
-            await updateDoc(doc(db, pathStocks, reusableDoc.id), {
-                sentCount: increment(neededQty),
-                lastSentAt: nowMs,
-                lastOrderId: orderData.id
-            });
+                    if (usedQ < maxQ) {
+                        const nextUsed = usedQ + 1;
+                        const slotLabel = maxQ > 1 ? ` (Slot Sharing #${nextUsed}/${maxQ})` : '';
+                        collected.push(formatAdminStockCredentialLine(sData.data || '', sData.stockFormat || sData.mode || 'PRIVATE', slotLabel, sData.accessLink || ''));
+
+                        await updateDoc(doc(db, pathStocks, sDoc.id), {
+                            usedQuota: nextUsed,
+                            status: nextUsed >= maxQ ? 'Used' : 'Ready',
+                            usedAt: nowMs,
+                            orderId: orderData.id,
+                            buyers: arrayUnion({
+                                orderId: orderData.id,
+                                buyerEmail: orderData.userEmail || '',
+                                sentAt: new Date(nowMs).toISOString()
+                            })
+                        });
+                    }
+                }
+                if (collected.length > 0) {
+                    deliveredText = collected.join('\n\n');
+                }
+            }
+        }
+
+        if (deliveredText) {
+            const finalReply = `Terima kasih telah berbelanja di Vipercell!\n\n${deliveredText}\n\nSimpan bukti E-Receipt ini sebagai garansi resmi.`;
             await updateDoc(doc(db, pathOrders, orderDbId), {
-                adminReply: replyText,
-                usedStockIds: [reusableDoc.id],
+                status: 'SUCCESS',
+                adminReply: finalReply,
+                autoDelivered: true,
+                deliveredAt: nowMs,
                 ...subFields
             });
-            triggerAutomatedEmailWebhook({ ...orderData, ...subFields, status: 'SUCCESS' }, replyText);
-            window.showToast('Auto-Delivery (Reusable) Sukses', `Link/Stok berulang terkirim otomatis untuk ${orderData.id}`, 'success');
-            return;
+
+            // [FEATURE-03] Otomatis kirim ke Email begitu stok lokal terkirim!
+            await triggerAutomatedEmailWebhook({ ...orderData, ...subFields, adminReply: finalReply }, finalReply, true, orderDbId);
+            await window.syncAllProductsWithStockVaultV27(false);
+            window.showToast('Auto-Delivery + Email Sukses!', `Stok & Email otomatis terkirim untuk #${orderData.id}`, 'success');
+        } else if (Object.keys(subFields).length > 0 && !orderData.subscriptionEndAt) {
+            await updateDoc(doc(db, pathOrders, orderDbId), subFields).catch(() => {});
         }
-        
-        // 2. Stok Sharing Multi-Kuota (usedQuota < maxQuota) maupun Private (maxQuota = 1)
-        const availableDocs = snap.docs.filter(d => {
-            const sd = d.data();
-            const maxQ = parseInt(sd.maxQuota || 1, 10);
-            const usedQ = parseInt(sd.usedQuota || 0, 10);
-            return usedQ < maxQ;
-        });
-
-        if (availableDocs.length > 0) {
-            let accountDetailsList = [];
-            let usedStockIds = [];
-            let fulfilled = 0;
-
-            for (const stockDoc of availableDocs) {
-                if (fulfilled >= neededQty) break;
-                const stockData = stockDoc.data();
-                const maxQ = parseInt(stockData.maxQuota || 1, 10);
-                let usedQ = parseInt(stockData.usedQuota || 0, 10);
-
-                while (usedQ < maxQ && fulfilled < neededQty) {
-                    usedQ++;
-                    fulfilled++;
-                    const parts = (stockData.data || '').split('|');
-                    const slotTag = maxQ > 1 ? ` (Slot Sharing #${usedQ}/${maxQ})` : '';
-                    const headerTitle = neededQty > 1 ? `[DATA AKUN #${fulfilled}${slotTag}]` : `[DETAIL PESANAN ANDA${slotTag}]`;
-                    accountDetailsList.push(
-                        `${headerTitle}\nEmail : ${parts[0] || '-'}\nPassword : ${parts[1] || '-'}\nProfil/Info : ${parts[2] || '-'}`
-                    );
-                }
-
-                usedStockIds.push(stockDoc.id);
-                await updateDoc(doc(db, pathStocks, stockDoc.id), {
-                    usedQuota: usedQ,
-                    status: usedQ >= maxQ ? 'Used' : 'Ready',
-                    usedAt: nowMs,
-                    orderId: orderData.id,
-                    buyers: arrayUnion({
-                        orderId: orderData.id,
-                        buyerEmail: orderData.userEmail || '',
-                        sentAt: new Date(nowMs).toISOString()
-                    })
-                });
-            }
-
-            if (fulfilled > 0) {
-                const replyText = `Terima kasih! Pembayaran Anda telah terverifikasi otomatis.\n\n${accountDetailsList.join('\n\n')}\n\nSilakan diamankan dan hubungi Live Chat jika ada kendala.`;
-                await updateDoc(doc(db, pathOrders, orderDbId), {
-                    adminReply: replyText,
-                    usedStockIds: usedStockIds,
-                    ...subFields
-                });
-                triggerAutomatedEmailWebhook({ ...orderData, ...subFields, status: 'SUCCESS' }, replyText);
-                window.showToast('Auto-Delivery Vault Sukses', `${fulfilled} slot stok terkirim otomatis untuk ${orderData.id}`, 'success');
-
-                const curView = document.getElementById('view-stock-category')?.value;
-                if (curView === targetBrand) window.renderAdminStocksByCategory();
-                return;
-            }
-        }
-
-        // Jika stok habis/kurang, tetap inisialisasi durasi dan beri peringatan ke Admin
-        await ensureOrderSubscriptionInitialized(orderData, orderDbId);
-        sendAdminNativeNotification('Stok Gudang Kurang! ⚠️', `Invoice ${orderData.id} butuh ${neededQty} stok ${exactItemName}. Segera proses manual!`);
-        window.showToast('Stok Vault Habis!', `Invoice ${orderData.id} butuh ${neededQty} stok ${exactItemName}. Klik untuk proses manual.`, 'error', () => {
-            window.promptProcessOrder(orderDbId);
-        });
     } catch (e) {
-        console.error("Auto Process Gagal: ", e);
+        console.error("Auto Stock Delivery Error:", e);
     } finally {
         setTimeout(() => processingAutoOrderIds.delete(orderDbId), 3000);
     }
+}
+
+/* ============================================================================
+ * [FEATURE-04 & 10] AUTO-DELETE AKUN ANONIM SETIAP 6 JAM (BISA ON/OFF)
+ * & PEMBERSIHAN TANPA MEMICU BUG FALSE-LOGOUT ("Akun Dihapus oleh Admin")
+ * ============================================================================ */
+function startAnonSixHourAutoCleanScheduler() {
+    if (anonSixHourAutoCleanInterval) clearInterval(anonSixHourAutoCleanInterval);
+    // Jalankan pengecekan pertama 8 detik setelah Admin masuk, lalu setiap 10 menit
+    setTimeout(() => window.autoCleanExpiredAnonAccounts6h(false), 8000);
+    anonSixHourAutoCleanInterval = setInterval(() => {
+        window.autoCleanExpiredAnonAccounts6h(false);
+    }, 600000);
+}
+
+window.autoCleanExpiredAnonAccounts6h = async function(isManualTrigger = false) {
+    if (!isManualTrigger && siteSettings.anonAutoDelete6h === false) {
+        return;
+    }
+
+    const now = Date.now();
+    const expiredAnons = allUsersList.filter(u => {
+        if (!u.uid) return false;
+        const isAnon = Boolean(u.isAnonymous || u.isGuest || u.role === 'anonymous');
+        if (!isAnon) return false;
+
+        const startedMs = Number(u.sessionStartedAt || u.createdAt || u.updatedAt || 0);
+        if (!startedMs) return false;
+
+        // Jangan hapus jika akun anonim masih punya pesanan UNPAID/PENDING aktif
+        const hasPendingOrder = orders.some(o => o.userId === u.uid && (o.status === 'UNPAID' || o.status === 'PENDING'));
+        if (hasPendingOrder) return false;
+
+        return (now - startedMs) >= ANON_AUTO_DELETE_TTL_MS;
+    });
+
+    if (expiredAnons.length === 0) {
+        if (isManualTrigger) {
+            window.showToast('Sesi Anonim Bersih', 'Belum ada akun anonim yang melewati batas usia 6 jam.', 'info');
+        }
+        return;
+    }
+
+    let cleanedCount = 0;
+    for (const anon of expiredAnons) {
+        try {
+            // [FEATURE-10] Penting: Hapus dokumen users & chats TANPA memasukkan UID ke `siteSettings.deletedUids`
+            // agar perangkat pembeli tidak pernah terkena false-logout "Akun telah dihapus oleh Admin"!
+            await deleteDoc(doc(db, pathUsers, anon.uid)).catch(() => {});
+            await deleteDoc(doc(db, pathChats, anon.uid)).catch(() => {});
+            if (anon.deviceId) {
+                await deleteDoc(doc(db, pathDeviceLocks, anon.deviceId)).catch(() => {});
+            }
+            cleanedCount++;
+        } catch (e) {}
+    }
+
+    if (cleanedCount > 0) {
+        allUsersList = allUsersList.filter(u => !expiredAnons.some(ex => ex.uid === u.uid));
+        window.renderAdminMembers();
+        if (isManualTrigger) {
+            window.showToast('Auto-Clean 6 Jam Selesai', `${cleanedCount} akun anonim (> 6 jam) berhasil dibersihkan.`, 'success');
+        }
+    }
 };
-/* ======================== END OF [FEATURE-08 & 09] ======================== */
+
+// [FEATURE-10] Fungsi Reset Daftar `deletedUids` Usang agar User Tidak Pernah Mengalami False-Logout
+window.clearStaleDeletedUidsV27 = function() {
+    const currentDeleted = Array.isArray(siteSettings.deletedUids) ? siteSettings.deletedUids : [];
+    window.openConfirm(
+        'Reset Guard UID Lama (Perbaikan False-Logout)',
+        `Saat ini terdapat <b>${currentDeleted.length} UID lama</b> di daftar <code>deletedUids</code>. Membersihkan daftar ini akan memastikan tidak ada pengguna yang tiba-tiba ter-logout dengan pesan <i>"Akun telah dihapus oleh Admin"</i> (daftar blokir perangkat tetap aman). Lanjutkan?`,
+        async (confirmed) => {
+            if (!confirmed) return;
+            try {
+                await setDoc(doc(db, pathSettings, 'mainConfig'), {
+                    deletedUids: []
+                }, { merge: true });
+                siteSettings.deletedUids = [];
+                window.renderAdminMembers();
+                window.showToast('Guard UID Direset!', 'Daftar UID usang telah dibersihkan. Bug false-logout teratasi permanen.', 'success');
+            } catch (e) {
+                window.customAlert('Gagal', 'Gagal mereset daftar deletedUids.', 'error');
+            }
+        },
+        'success'
+    );
+};
 
 // ==========================================
-// KASIR SCANNER BARCODE TUNAI
+// REAL-TIME DATA LISTENERS FIRESTORE
+// ==========================================
+function startAdminListeners() {
+    if (isListening) return;
+    isListening = true;
+    
+    // 1. Settings Listener + Auto-Match Pembayaran QRIS
+    onSnapshot(doc(db, pathSettings, 'mainConfig'), (docSnap) => {
+        if (docSnap.exists()) {
+            const incoming = docSnap.data();
+            siteSettings = { ...siteSettings, ...incoming };
+            window.populateSettingsForm();
+            window.renderAdminNews();
+            applyCustomAdminPwaIcon();
+
+            if (incoming.lastPaymentDetected && incoming.lastPaymentTimestamp) {
+                const ageMs = Date.now() - Number(incoming.lastPaymentTimestamp);
+                if (ageMs < 180000) {
+                    autoMatchIncomingPaymentAmount(Number(incoming.lastPaymentDetected));
+                }
+            }
+
+            if (incoming.lastPaymentMutation && incoming.lastPaymentMutation.timestamp) {
+                const mutObj = incoming.lastPaymentMutation;
+                const mutAge = Date.now() - Number(mutObj.timestamp);
+                if (mutAge < 180000) {
+                    if (Array.isArray(mutObj.candidateAmounts) && mutObj.candidateAmounts.length > 0) {
+                        mutObj.candidateAmounts.forEach(amt => autoMatchIncomingPaymentAmount(Number(amt)));
+                    } else if (mutObj.amount) {
+                        autoMatchIncomingPaymentAmount(Number(mutObj.amount));
+                    }
+                }
+            }
+        }
+    });
+
+    // 1B. Mutations Listener
+    onSnapshot(collection(db, pathMutations), (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+            if (change.type === 'added') {
+                const mut = change.doc.data();
+                const mutTime = Number(mut.receivedAt || mut.createdAt || mut.timestamp || 0);
+                const mutAge = Date.now() - mutTime;
+                if (mutAge < 180000) {
+                    if (Array.isArray(mut.candidateAmounts) && mut.candidateAmounts.length > 0) {
+                        mut.candidateAmounts.forEach(amt => autoMatchIncomingPaymentAmount(Number(amt)));
+                    } else if (mut.amount) {
+                        autoMatchIncomingPaymentAmount(Number(mut.amount));
+                    }
+                }
+            }
+        });
+    }, () => {});
+
+    // 2. Products Listener
+    onSnapshot(collection(db, pathProducts), (snapshot) => {
+        products = [];
+        snapshot.forEach((docSnap) => { products.push({ dbId: docSnap.id, ...docSnap.data() }); });
+        rebuildGroupedBrands();
+        window.renderAdminCatalog();
+        window.populateStockProductSelect();
+    });
+
+    // 3. Orders Listener
+    onSnapshot(collection(db, pathOrders), (snapshot) => {
+        orders = [];
+        let hasNeedAction = false;
+        let newlyDetectedOrder = null;
+        const now = Date.now();
+        
+        snapshot.forEach((docSnap) => {
+            let data = { dbId: docSnap.id, ...docSnap.data() };
+            const orderTime = new Date(data.date).getTime();
+
+            if ((data.status === 'UNPAID' || data.status === 'PENDING_PAYMENT') && (now - orderTime > 900000)) {
+                updateDoc(doc(db, pathOrders, data.dbId), { status: 'EXPIRED' }).catch(() => {});
+                data.status = 'EXPIRED';
+            }
+
+            if (data.status === 'PAID') {
+                updateDoc(doc(db, pathOrders, data.dbId), { status: 'SUCCESS' }).catch(() => {});
+                data.status = 'SUCCESS';
+            }
+
+            orders.push(data);
+
+            const durDays = getOrderDurationDays(data);
+            const isSubExpired = data.status === 'SUCCESS' && data.subscriptionEndAt && now >= data.subscriptionEndAt && data.subscriptionStatus !== 'KICKED';
+
+            if (data.status === 'PENDING' || (data.status === 'SUCCESS' && !data.adminReply) || isSubExpired) {
+                hasNeedAction = true;
+            }
+
+            if (initialOrdersLoaded && !knownOrderIds.has(data.id)) {
+                newlyDetectedOrder = data;
+            }
+            knownOrderIds.add(data.id);
+
+            // [FEATURE-03 & 18] Jika status SUCCESS namun belum ada adminReply, jalankan pengiriman otomatis + email
+            if (data.status === 'SUCCESS' && !data.adminReply) {
+                attemptAutoStockDelivery(data, data.dbId);
+            } else if (data.status === 'SUCCESS' && data.adminReply && !data.emailSent) {
+                // Jika sudah ada adminReply (misal terkirim dari Web User) tapi email belum terkirim, otomatis kirim email!
+                triggerAutomatedEmailWebhook(data, data.adminReply, true, data.dbId);
+            } else if (data.status === 'SUCCESS' && durDays > 0 && !data.subscriptionEndAt) {
+                ensureOrderSubscriptionInitialized(data, data.dbId);
+            }
+        });
+        
+        if (newlyDetectedOrder) {
+            playNotificationSound('order');
+            const itemTitle = newlyDetectedOrder.items?.[0]?.name || 'Pesanan Baru';
+            const totalRp = `Rp${(newlyDetectedOrder.finalTotal || 0).toLocaleString('id-ID')}`;
+            sendAdminNativeNotification(`Pesanan Baru #${newlyDetectedOrder.id}! 🛒`, `${itemTitle} - ${totalRp}`);
+            window.showToast(
+                `Order Baru #${newlyDetectedOrder.id}`,
+                `${itemTitle} (${totalRp})`,
+                'success',
+                () => window.switchAdminTabByName('tab-orders')
+            );
+        }
+
+        initialOrdersLoaded = true;
+        orders.sort((a, b) => new Date(b.date) - new Date(a.date));
+        
+        const badgeOrd = document.getElementById('badge-orders');
+        if (badgeOrd) badgeOrd.style.display = hasNeedAction ? 'inline-block' : 'none';
+        
+        window.generateAdminReports();
+        window.renderAdminOrders();
+        window.renderAdminMembers();
+    });
+
+    // 4. Promos Listener
+    onSnapshot(collection(db, pathPromos), (snapshot) => {
+        promos = [];
+        snapshot.forEach((docSnap) => { promos.push({ dbId: docSnap.id, ...docSnap.data() }); });
+        window.renderAdminPromos();
+    });
+
+    // 5. Reviews Listener
+    onSnapshot(collection(db, pathReviews), (snapshot) => {
+        reviewsData = [];
+        snapshot.forEach((docSnap) => { reviewsData.push({ dbId: docSnap.id, ...docSnap.data() }); });
+        reviewsData.sort((a, b) => b.timestamp - a.timestamp);
+        window.renderAdminReviews();
+    });
+
+    // 6. Stocks Listener + Sinkronisasi Otomatis Katalog Produk (#18)
+    onSnapshot(collection(db, pathStocks), (snapshot) => {
+        stocksData = [];
+        snapshot.forEach((docSnap) => { stocksData.push({ dbId: docSnap.id, ...docSnap.data() }); });
+        window.renderAdminStocks();
+        window.renderAdminCatalog();
+    });
+
+    // 7. Live Chats Listener
+    onSnapshot(collection(db, pathChats), (snapshot) => {
+        allLiveChats = [];
+        let hasUnreadUserMsg = false;
+        let newIncomingChat = null;
+
+        snapshot.forEach((docSnap) => {
+            const cData = { id: docSnap.id, ...docSnap.data() };
+            allLiveChats.push(cData);
+            const msgs = cData.messages || [];
+            const lastMsg = msgs[msgs.length - 1];
+
+            if (lastMsg && lastMsg.sender === 'user') {
+                hasUnreadUserMsg = true;
+                const prevTs = knownChatTimestamps[cData.id] || 0;
+                if (initialChatsLoaded && lastMsg.timestamp > prevTs) {
+                    newIncomingChat = { id: cData.id, user: cData.userInfo || 'Pelanggan', text: lastMsg.text };
+                }
+            }
+            if (lastMsg) {
+                knownChatTimestamps[cData.id] = lastMsg.timestamp;
+            }
+        });
+
+        if (newIncomingChat) {
+            playNotificationSound('chat');
+            sendAdminNativeNotification(`Chat dari ${newIncomingChat.user} 💬`, newIncomingChat.text);
+            const activeTab = document.querySelector('.admin-tab.active');
+            if (!activeTab || activeTab.id !== 'tab-livechat') {
+                window.showToast(
+                    `Pesan Baru: ${newIncomingChat.user}`,
+                    newIncomingChat.text,
+                    'info',
+                    () => {
+                        window.switchAdminTabByName('tab-livechat');
+                        window.openAdminChatDetailDesk(newIncomingChat.id);
+                    }
+                );
+            }
+        }
+
+        initialChatsLoaded = true;
+        allLiveChats.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+        
+        const countBadge = document.getElementById('chat-active-count');
+        if (countBadge) countBadge.innerText = `${allLiveChats.length} Sesi`;
+
+        const navBadge = document.getElementById('badge-chats');
+        if (navBadge) navBadge.style.display = hasUnreadUserMsg ? 'inline-block' : 'none';
+
+        window.renderAdminChatList();
+        if (activeAdminChatId) {
+            window.renderActiveChatMessages();
+        }
+        window.renderAdminMembers();
+    });
+
+    // 8. Users Listener
+    onSnapshot(collection(db, pathUsers), (snapshot) => {
+        allUsersList = [];
+        snapshot.forEach((docSnap) => {
+            allUsersList.push({ uid: docSnap.id, ...docSnap.data() });
+        });
+        allUsersList.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        window.renderAdminMembers();
+    });
+}
+
+async function autoMatchIncomingPaymentAmount(detectedAmount) {
+    if (!detectedAmount || detectedAmount <= 0) return;
+    const unpaidMatch = orders.find(o =>
+        (o.status === 'UNPAID' || o.status === 'PENDING_PAYMENT') &&
+        (Number(o.finalTotal) === detectedAmount || Number(o.uniqueTotal) === detectedAmount)
+    );
+    if (unpaidMatch) {
+        try {
+            await updateDoc(doc(db, pathOrders, unpaidMatch.dbId), { status: 'SUCCESS' });
+            playNotificationSound('order');
+            window.showToast('Mutasi QRIS Cocok!', `Pembayaran Rp${detectedAmount.toLocaleString('id-ID')} otomatis melunasi #${unpaidMatch.id}`, 'success');
+        } catch (e) {}
+    }
+}
+
+// ==========================================
+// PEMINDAI BARCODE KASIR TUNAI
 // ==========================================
 window.openBarcodeScannerModal = function() {
     document.getElementById('manual-barcode-input').value = '';
@@ -1642,15 +1266,15 @@ window.closeBarcodeScannerModal = function() {
 
 window.lookupOrderByBarcodeInput = function(forcedCode = null) {
     const rawCode = forcedCode || document.getElementById('manual-barcode-input')?.value || '';
-    const invCode = rawCode.trim().toUpperCase();
+    const invCode = rawCode.trim().replace(/^#/, '').toUpperCase();
     const resBox = document.getElementById('scanned-order-result');
     if (!invCode || !resBox) return;
 
-    const order = orders.find(o => o.id.toUpperCase() === invCode);
+    const order = orders.find(o => (o.id || '').toUpperCase() === invCode);
     resBox.style.display = 'block';
 
     if (!order) {
-        resBox.innerHTML = `<div class="info-box bg-danger-light border-danger text-danger fw-bold text-xs"><i class="fa-solid fa-circle-xmark"></i> Invoice <b>${window.escapeHtml(invCode)}</b> tidak ditemukan di database!</div>`;
+        resBox.innerHTML = `<div class="info-box bg-danger-light border-danger text-danger fw-bold text-xs"><i class="fa-solid fa-circle-xmark"></i> Invoice <b>#${window.escapeHtml(invCode)}</b> tidak ditemukan di database!</div>`;
         return;
     }
 
@@ -1675,14 +1299,14 @@ window.lookupOrderByBarcodeInput = function(forcedCode = null) {
     resBox.innerHTML = `
         <div class="dashboard-panel mb-0" style="padding: 1rem; background: var(--bg);">
             <div class="flex-between align-center mb-2">
-                <strong class="text-primary" style="font-size:1.05rem;">#${window.escapeHtml(order.id)}</strong>
+                <strong class="text-primary code-mono" style="font-size:1.05rem;">#${window.escapeHtml(order.id)}</strong>
                 <span class="status-badge ${sBadge}">${order.status} (${(order.paymentMethod || 'cash').toUpperCase()})</span>
             </div>
             <div class="text-sm fw-bold text-dark">${window.escapeHtml(item.name || '-')}</div>
             <div class="text-xs text-muted mb-2">${window.escapeHtml(item.playerInfo || '')} &bull; Pembeli: ${window.escapeHtml(order.userEmail || '-')}</div>
             <div class="flex-between align-center" style="padding-top:8px; border-top:1.5px dashed var(--border-subtle);">
                 <span class="text-xs fw-bold text-muted">TAGIHAN TUNAI KASIR:</span>
-                <strong class="text-success" style="font-size:1.3rem; font-family:'Space Grotesk',sans-serif;">Rp${(order.finalTotal || 0).toLocaleString('id-ID')}</strong>
+                <strong class="text-success" style="font-size:1.3rem; font-family:var(--font-heading);">Rp${(order.finalTotal || 0).toLocaleString('id-ID')}</strong>
             </div>
             ${actionBtnHtml}
         </div>
@@ -1703,16 +1327,16 @@ window.approveCashBarcodeDirectly = async function(dbId) {
             window.showToast('Tunai Diterima!', `Silakan kirim pesanan manual untuk ${order.id}.`, 'success');
         } else {
             await updateDoc(doc(db, pathOrders, dbId), { status: 'SUCCESS' });
-            window.showToast('Kasir Tunai Berhasil!', `Pembayaran ${order.id} diterima & stok otomatis sedang dikirim.`, 'success');
+            window.showToast('Kasir Tunai Berhasil!', `Pembayaran ${order.id} diterima & stok otomatis + email sedang dikirim.`, 'success');
         }
     } catch (e) {
         window.customAlert('Gagal', 'Gagal memverifikasi pembayaran kasir.', 'error');
     }
 };
 
-/* ============================================================================
- * [FEATURE-12] DIREKTORI MEMBER & ANONIM + FITUR BLOCK & CASCADE CLEANUP
- * ============================================================================ */
+// ==========================================
+// DIREKTORI MEMBER & ANONIM + PEMBERSIHAN AMAN (#4 & #10)
+// ==========================================
 window.setAdminMemberFilter = function(filterType, btnEl) {
     currentMemberFilter = filterType;
     document.querySelectorAll('#tab-members .filter-pill').forEach(b => b.classList.remove('active'));
@@ -1753,11 +1377,12 @@ window.renderAdminMembers = function() {
     });
 
     const activeUsersArray = Array.from(combinedUsersMap.values());
+    const now = Date.now();
 
     const enrichedUsers = activeUsersArray.map(u => {
         const isAnon = Boolean(u.isAnonymous || u.isGuest || u.role === 'anonymous');
         const uEmail = (u.email || '').toLowerCase();
-        const userOrders = orders.filter(o => o.userId === u.uid || (uEmail && o.userEmail?.toLowerCase() === uEmail));
+        const userOrders = orders.filter(o => o.userId === u.uid || (!isAnon && uEmail && o.userEmail?.toLowerCase() === uEmail));
         const successOrders = userOrders.filter(o => o.status === 'SUCCESS');
         const totalSpent = successOrders.reduce((sum, o) => sum + (o.finalTotal || 0), 0);
 
@@ -1771,10 +1396,14 @@ window.renderAdminMembers = function() {
             (resolvedDevice && blockedDevList.includes(resolvedDevice))
         );
 
+        const startedMs = Number(u.sessionStartedAt || u.createdAt || now);
+        const remain6hMs = Math.max(0, (startedMs + ANON_AUTO_DELETE_TTL_MS) - now);
+
         return {
             ...u,
             isAnon,
             isBlocked,
+            remain6hMs,
             deviceId: resolvedDevice,
             resolvedPhone,
             totalTrx: userOrders.length,
@@ -1785,11 +1414,13 @@ window.renderAdminMembers = function() {
 
     const totalMemberEl = document.getElementById('member-stat-total');
     const totalAnonEl = document.getElementById('member-stat-anon');
+    const anonSubEl = document.getElementById('member-stat-anon-sub');
     const phoneEl = document.getElementById('member-stat-phone');
     const buyerEl = document.getElementById('member-stat-buyers');
 
     if (totalMemberEl) totalMemberEl.innerText = enrichedUsers.filter(u => !u.isAnon).length;
     if (totalAnonEl) totalAnonEl.innerText = enrichedUsers.filter(u => u.isAnon).length;
+    if (anonSubEl) anonSubEl.innerText = siteSettings.anonAutoDelete6h !== false ? 'Auto-Clean 6 Jam: ON' : 'Auto-Clean 6 Jam: OFF';
     if (phoneEl) phoneEl.innerText = enrichedUsers.filter(u => u.resolvedPhone && u.resolvedPhone.trim() !== '').length;
     if (buyerEl) buyerEl.innerText = enrichedUsers.filter(u => u.successTrx > 0).length;
 
@@ -1830,6 +1461,13 @@ window.renderAdminMembers = function() {
             statusRoleBadge = `<span class="status-badge status-failed"><i class="fa-solid fa-ban"></i> DIBLOKIR</span>`;
         }
 
+        let ttlInfoHtml = '';
+        if (u.isAnon && siteSettings.anonAutoDelete6h !== false) {
+            const hrs = Math.floor(u.remain6hMs / 3600000);
+            const mins = Math.floor((u.remain6hMs % 3600000) / 60000);
+            ttlInfoHtml = `<span class="text-xs text-warning fw-bold d-block"><i class="fa-solid fa-hourglass-half"></i> Sisa TTL 6 Jam: ${hrs}j ${mins}m</span>`;
+        }
+
         let cleanWa = phoneStr.replace(/[^0-9]/g, '');
         if (cleanWa.startsWith('0')) cleanWa = '62' + cleanWa.substring(1);
         const waBtnHtml = cleanWa
@@ -1860,6 +1498,7 @@ window.renderAdminMembers = function() {
                         </div>
                         <span class="text-xs text-muted d-block" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"><i class="fa-regular fa-envelope"></i> ${window.escapeHtml(u.email || 'Tanpa Email')}</span>
                         <span class="text-xs text-success fw-bold d-block"><i class="fa-brands fa-whatsapp"></i> ${window.escapeHtml(phoneStr || 'Belum ada No. WA')}</span>
+                        ${ttlInfoHtml}
                     </div>
                 </div>
 
@@ -1874,7 +1513,7 @@ window.renderAdminMembers = function() {
                     </div>
                     <div class="member-meta-item" style="grid-column: 1 / -1; border-top: 1px dashed var(--border-subtle); padding-top: 6px; display:flex; justify-content:space-between;">
                         <span>Bergabung: <b>${joinDate}</b></span>
-                        <span>UID: <b>#${window.escapeHtml(shortUid)}</b></span>
+                        <span>UID: <b class="code-mono">#${window.escapeHtml(shortUid)}</b></span>
                     </div>
                 </div>
             </div>
@@ -1962,7 +1601,6 @@ window.toggleBlockUserAccount = async function(uid, deviceId, shouldBlock) {
                     shouldBlock ? 'warning' : 'success'
                 );
             } catch (err) {
-                console.error("Block Toggle Error:", err);
                 window.customAlert('Error', 'Gagal mengubah status blokir pengguna.', 'error');
             }
         },
@@ -2010,12 +1648,13 @@ window.executeAccountDeletion = async function() {
         let blockedUids = Array.isArray(siteSettings.blockedUids) ? [...siteSettings.blockedUids] : [];
         let blockedDevices = Array.isArray(siteSettings.blockedDevices) ? [...siteSettings.blockedDevices] : [];
 
-        if (!deletedUids.includes(uid)) deletedUids.push(uid);
-
+        // [FEATURE-10] Hanya masukkan ke deletedUids jika Admin TIDAK mencentang "Bebaskan Kunci Perangkat"
         if (!releaseDeviceLock) {
+            if (!deletedUids.includes(uid)) deletedUids.push(uid);
             if (!blockedUids.includes(uid)) blockedUids.push(uid);
             if (deviceId && !blockedDevices.includes(deviceId)) blockedDevices.push(deviceId);
         } else {
+            deletedUids = deletedUids.filter(id => id !== uid);
             blockedUids = blockedUids.filter(id => id !== uid);
             if (deviceId) blockedDevices = blockedDevices.filter(d => d !== deviceId);
         }
@@ -2030,11 +1669,9 @@ window.executeAccountDeletion = async function() {
         siteSettings.blockedUids = blockedUids;
         siteSettings.blockedDevices = blockedDevices;
 
-        await setDoc(doc(db, pathUsers, uid), { isDeleted: true, updatedAt: Date.now() }, { merge: true }).catch(() => {});
         await deleteDoc(doc(db, pathUsers, uid)).catch(() => {});
         await deleteDoc(doc(db, pathChats, uid)).catch(() => {});
 
-        setDoc(doc(db, pathDeletedAccounts, uid), { deletedAt: Date.now(), deletedBy: currentAdminUser?.email || 'admin' }).catch(() => {});
         if (deviceId) {
             if (releaseDeviceLock) {
                 deleteDoc(doc(db, pathDeviceLocks, deviceId)).catch(() => {});
@@ -2058,7 +1695,6 @@ window.executeAccountDeletion = async function() {
         window.closeModal('modal-delete-account');
         window.showToast('Akun Dihapus', 'Akun pengguna berhasil dihapus secara permanen.', 'success');
     } catch (e) {
-        console.error("Delete Account Error:", e);
         window.customAlert('Error', 'Gagal menyelesaikan penghapusan akun.', 'error');
     } finally {
         btn.disabled = false;
@@ -2066,10 +1702,10 @@ window.executeAccountDeletion = async function() {
     }
 };
 
+// [FEATURE-10] Pembersihan Tamu Kosong Tanpa Mengotori `deletedUids` (Mencegah False-Logout)
 window.bulkDeleteInactiveGuests = function() {
-    const deletedList = Array.isArray(siteSettings.deletedUids) ? siteSettings.deletedUids : [];
     const emptyGuests = allUsersList.filter(u => {
-        if (!u.uid || u.isDeleted || deletedList.includes(u.uid)) return false;
+        if (!u.uid) return false;
         const isAnon = Boolean(u.isAnonymous || u.isGuest || u.role === 'anonymous');
         if (!isAnon) return false;
         const hasOrder = orders.some(o => o.userId === u.uid);
@@ -2083,32 +1719,23 @@ window.bulkDeleteInactiveGuests = function() {
 
     window.openConfirm(
         'Bersihkan Akun Tamu Kosong',
-        `Ditemukan <b>${emptyGuests.length} akun Tamu (Anonim)</b> yang belum pernah bertransaksi (0 Transaksi). Hapus semuanya sekarang?`,
+        `Ditemukan <b>${emptyGuests.length} akun Tamu (Anonim)</b> yang belum pernah bertransaksi (0 Transaksi). Hapus bersih semuanya tanpa memblokir perangkat mereka?`,
         async (confirmed) => {
             if (!confirmed) return;
             try {
-                let updatedDeletedUids = Array.isArray(siteSettings.deletedUids) ? [...siteSettings.deletedUids] : [];
                 let count = 0;
-
                 for (const g of emptyGuests) {
-                    if (!updatedDeletedUids.includes(g.uid)) updatedDeletedUids.push(g.uid);
-                    await setDoc(doc(db, pathUsers, g.uid), { isDeleted: true }, { merge: true }).catch(() => {});
                     await deleteDoc(doc(db, pathUsers, g.uid)).catch(() => {});
+                    await deleteDoc(doc(db, pathChats, g.uid)).catch(() => {});
                     if (g.deviceId) {
-                        deleteDoc(doc(db, pathDeviceLocks, g.deviceId)).catch(() => {});
+                        await deleteDoc(doc(db, pathDeviceLocks, g.deviceId)).catch(() => {});
                     }
                     count++;
                 }
 
-                await setDoc(doc(db, pathSettings, 'mainConfig'), {
-                    deletedUids: updatedDeletedUids
-                }, { merge: true });
-
-                siteSettings.deletedUids = updatedDeletedUids;
-                allUsersList = allUsersList.filter(u => !updatedDeletedUids.includes(u.uid));
+                allUsersList = allUsersList.filter(u => !emptyGuests.some(g => g.uid === u.uid));
                 window.renderAdminMembers();
-
-                window.showToast('Selesai Dibersihkan', `${count} akun tamu tanpa transaksi telah dihapus.`, 'success');
+                window.showToast('Selesai Dibersihkan', `${count} akun tamu tanpa transaksi telah dihapus bersih.`, 'success');
             } catch (e) {
                 window.customAlert('Gagal', 'Terjadi kesalahan saat menghapus akun tamu.', 'error');
             }
@@ -2116,7 +1743,6 @@ window.bulkDeleteInactiveGuests = function() {
         'delete'
     );
 };
-/* ======================== END OF [FEATURE-12] ============================= */
 
 // ==========================================
 // RINGKASAN & ANALITIK DASHBOARD
@@ -2194,7 +1820,7 @@ window.generateAdminReports = function() {
                 const badgeClass = o.status === 'SUCCESS' ? 'status-success' : (o.status === 'PENDING' ? 'status-pending' : (o.status === 'UNPAID' ? 'status-unpaid' : 'status-failed'));
                 const itemName = o.items && o.items[0] ? o.items[0].name : '-';
                 rHtml += `<tr class="pointer" onclick="window.promptProcessOrder('${o.dbId}')">
-                    <td><strong>${window.escapeHtml(o.id)}</strong></td>
+                    <td><strong class="code-mono">#${window.escapeHtml(o.id)}</strong></td>
                     <td><span class="text-xs">${window.escapeHtml(itemName)}</span></td>
                     <td class="fw-bold">Rp${(o.finalTotal || 0).toLocaleString('id-ID')}</td>
                     <td><span class="status-badge ${badgeClass}">${o.status}</span></td>
@@ -2206,7 +1832,7 @@ window.generateAdminReports = function() {
 };
 
 // ==========================================
-// MANAJEMEN PESANAN MASUK + COUNTDOWN DURASI + KIRIM EMAIL & WA
+// [FEATURE-02 & 03] MANAJEMEN PESANAN MASUK + AUTO-SEND EMAIL & LOCK TOMBOL
 // ==========================================
 window.setAdminOrderFilter = function(filterType, btnEl) {
     currentOrderFilter = filterType;
@@ -2275,6 +1901,10 @@ window.renderAdminOrders = function() {
         else if (isSubExpired) sBadge = `<span class="status-badge status-failed danger-blink">🚨 WAJIB KICK!</span>`;
         else if (isSubKicked) sBadge = `<span class="status-badge status-anon">SUDAH DI-KICK</span>`;
         else if (o.status === 'SUCCESS') sBadge = `<span class="status-badge status-success">SELESAI</span>`;
+
+        const emailBadgeHtml = o.emailSent
+            ? `<div class="mt-1"><span class="status-badge status-success" style="font-size:0.58rem; padding:1px 6px;"><i class="fa-solid fa-envelope-circle-check"></i> EMAIL TERKIRIM</span></div>`
+            : '';
         
         let itemsDesc = (o.items || []).map(i => {
             const safeTarget = escapeJsStr(i.playerInfo || '');
@@ -2284,14 +1914,13 @@ window.renderAdminOrders = function() {
             return `<strong class="text-dark">${window.escapeHtml(i.name)}</strong><br><span class="text-muted text-xs">${window.escapeHtml(i.playerInfo)}</span>${copyTargetBtn}`;
         }).join('<br>');
 
-        // Kotak Countdown Durasi Langganan (Khusus Admin)
         let subCountdownHtml = '';
         if (isSubExpired) {
             subCountdownHtml = `
                 <div class="sub-countdown-box sub-expired sub-live-timer" data-end="${endAt}" data-substatus="ACTIVE">
                     <i class="fa-solid fa-triangle-exclamation"></i> 🚨 DURASI LANGGANAN HABIS — WAKTUNYA KICK AKUN!
                 </div>
-                ${o.adminReply ? `<div class="text-xs text-muted mt-1" style="font-family:monospace; max-width:340px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Akun: ${window.escapeHtml(o.adminReply.replace(/\n/g, ' | '))}</div>` : ''}`;
+                ${o.adminReply ? `<div class="text-xs text-muted mt-1 code-mono" style="max-width:340px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Akun: ${window.escapeHtml(o.adminReply.replace(/\n/g, ' | '))}</div>` : ''}`;
         } else if (isSubActive) {
             const diff = endAt - now;
             subCountdownHtml = `
@@ -2331,7 +1960,7 @@ window.renderAdminOrders = function() {
         html += `<tr class="${isSubExpired ? 'row-sub-expired' : ''}">
             <td>
                 <div class="flex-gap align-center">
-                    <strong class="text-dark">${window.escapeHtml(o.id)}</strong>
+                    <strong class="text-dark code-mono">#${window.escapeHtml(o.id)}</strong>
                     <button class="btn-icon-only" style="width:24px; height:24px; font-size:0.7rem;" onclick="window.copyTextToClipboard('${escapeJsStr(o.id)}', 'Invoice ID')" title="Salin Invoice"><i class="fa-regular fa-copy"></i></button>
                 </div>
                 <small class="text-muted text-xs">${new Date(o.date).toLocaleString('id-ID')}</small>
@@ -2343,7 +1972,7 @@ window.renderAdminOrders = function() {
             </td>
             <td>${paymentMethodStr}</td>
             <td class="text-primary fw-bold">Rp${(o.finalTotal || 0).toLocaleString('id-ID')}</td>
-            <td>${sBadge}</td>
+            <td>${sBadge}${emailBadgeHtml}</td>
             <td><div class="flex-gap align-center flex-wrap-gap">${actionBtn} ${deleteBtn}</div></td>
         </tr>`;
     });
@@ -2355,7 +1984,7 @@ window.exportOrdersCSV = function() {
         window.customAlert('Data Kosong', 'Belum ada data pesanan untuk diekspor.', 'warning');
         return;
     }
-    const headers = ['Invoice ID', 'Tanggal', 'Email Pembeli', 'No WA', 'Produk', 'Tujuan/Info', 'Metode Bayar', 'Total Bayar (Rp)', 'Status', 'Status Langganan'];
+    const headers = ['Invoice ID', 'Tanggal', 'Email Pembeli', 'No WA', 'Produk', 'Tujuan/Info', 'Metode Bayar', 'Total Bayar (Rp)', 'Status', 'Email Terkirim', 'Status Langganan'];
     const rows = orders.map(o => {
         const itemStr = (o.items || []).map(i => i.name).join('; ');
         const infoStr = (o.items || []).map(i => i.playerInfo).join('; ');
@@ -2369,6 +1998,7 @@ window.exportOrdersCSV = function() {
             o.paymentMethod || 'qris',
             o.finalTotal || 0,
             o.status,
+            o.emailSent ? 'YA' : 'BELUM',
             o.subscriptionStatus || '-'
         ].join(',');
     });
@@ -2377,7 +2007,7 @@ window.exportOrdersCSV = function() {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Laporan_Transaksi_Vipercell_${new Date().toISOString().slice(0,10)}.csv`);
+    link.setAttribute('download', `Laporan_Transaksi_Vipercell_V27_${new Date().toISOString().slice(0,10)}.csv`);
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -2398,1284 +2028,2031 @@ window.cleanExpiredOrders = function() {
                 }
                 window.showToast('Selesai Dibersihkan', `${expiredList.length} pesanan expired/batal telah dihapus.`, 'success');
             } catch (e) {
-                window.customAlert('Gagal', 'Terjadi kesalahan saat menghapus data expired.', 'error');
+                window.customAlert('Error', 'Gagal membersihkan pesanan.', 'error');
             }
         }
-    }, 'delete');
+    });
 };
 
-window.promptProcessOrder = async function(dbId) {
+window.promptProcessOrder = function(dbId) {
     const order = orders.find(o => o.dbId === dbId);
     if (!order) return;
     
-    document.getElementById('proc-order-id').value = dbId;
-
+    document.getElementById('proc-order-dbid').value = dbId;
+    document.getElementById('proc-admin-reply').value = order.adminReply || '';
+    
     const memberMatch = allUsersList.find(u => u.uid === order.userId || (order.userEmail && u.email?.toLowerCase() === order.userEmail.toLowerCase()));
-    const buyerEmail = order.userEmail || (memberMatch ? memberMatch.email : '');
     const buyerPhone = order.userPhone || (memberMatch ? (memberMatch.phone || memberMatch.whatsapp || '') : '');
 
-    const emailInp = document.getElementById('proc-buyer-email');
-    const phoneInp = document.getElementById('proc-buyer-phone');
-    if (emailInp) emailInp.value = buyerEmail || '';
-    if (phoneInp) phoneInp.value = buyerPhone || '';
-    
-    const summaryEl = document.getElementById('proc-ereceipt-summary');
-    if (summaryEl) {
-        const badgeCls = order.status === 'SUCCESS' ? 'status-success' : (order.status === 'PENDING' ? 'status-pending' : 'status-unpaid');
-        summaryEl.innerHTML = `
-            <div>
-                <span class="text-xs text-muted fw-bold d-block">INVOICE #${window.escapeHtml(order.id)} &bull; ${new Date(order.date).toLocaleString('id-ID')}</span>
-                <strong class="text-dark" style="font-size:0.95rem;"><i class="fa-regular fa-envelope"></i> ${window.escapeHtml(buyerEmail || '-')}</strong>
-            </div>
-            <div style="text-align:right;">
-                <span class="status-badge ${badgeCls} mb-1">${order.status} (${(order.paymentMethod || 'qris').toUpperCase()})</span>
-                <div class="text-primary fw-bold" style="font-size:1.15rem; font-family:'Space Grotesk',sans-serif;">Rp${(order.finalTotal || 0).toLocaleString('id-ID')}</div>
-            </div>
-        `;
-    }
+    let itemsHtml = (order.items || []).map(i => `<div><b>${window.escapeHtml(i.name)}</b><br><span class="text-muted">${window.escapeHtml(i.playerInfo)}</span></div>`).join('<hr style="margin:6px 0; border-color:var(--border-subtle);">');
+    document.getElementById('proc-order-summary').innerHTML = `
+        <div class="flex-between mb-1">
+            <span>Invoice: <b class="text-primary code-mono">#${window.escapeHtml(order.id)}</b></span>
+            <span>Total: <b class="text-success">Rp${(order.finalTotal || 0).toLocaleString('id-ID')}</b></span>
+        </div>
+        <div class="text-xs mb-1">Email Pembeli: <b>${window.escapeHtml(order.userEmail || '-')}</b></div>
+        <div class="text-xs mb-2">No. WhatsApp: <b class="text-success">${window.escapeHtml(buyerPhone || 'Tidak dicantumkan')}</b></div>
+        ${itemsHtml}
+    `;
 
-    // Panel Kontrol Durasi Langganan di dalam Modal
-    const subBox = document.getElementById('proc-subscription-box');
-    const subTxt = document.getElementById('proc-sub-countdown-text');
+    // [FEATURE-03] Periksa apakah email sudah pernah terkirim untuk pesanan ini -> kunci tombol jika sudah terkirim!
+    updateEmailButtonLockStateUI(Boolean(order.emailSent));
+
     const durDays = getOrderDurationDays(order);
-    if (subBox && subTxt) {
-        if (durDays > 0) {
-            subBox.style.display = 'block';
-            const endAt = order.subscriptionEndAt || (new Date(order.date).getTime() + durDays * 86400000);
-            const remain = endAt - Date.now();
-            if (order.subscriptionStatus === 'KICKED') {
-                subTxt.innerHTML = `<span class="text-muted">Sudah Dikeluarkan (KICKED)</span>`;
-            } else if (remain <= 0) {
-                subTxt.innerHTML = `<span class="text-danger">🚨 DURASI HABIS (${durDays} Hari) — Wajib Kick Sekarang!</span>`;
-            } else {
-                subTxt.innerHTML = `<span class="text-primary">Aktif (${durDays} Hari) &bull; Sisa: ${formatRemainingDurationMs(remain)}</span>`;
-            }
+    const subBox = document.getElementById('proc-subscription-box');
+    const subBadge = document.getElementById('proc-sub-status-badge');
+    const subTimerTxt = document.getElementById('proc-sub-timer-text');
+    const btnKick = document.getElementById('btn-proc-mark-kicked');
+
+    if (durDays > 0 && subBox) {
+        subBox.style.display = 'block';
+        const endAt = order.subscriptionEndAt || (new Date(order.date).getTime() + durDays * 86400000);
+        const now = Date.now();
+        const isKicked = order.subscriptionStatus === 'KICKED';
+        const isExpired = !isKicked && now >= endAt;
+
+        if (isKicked) {
+            subBadge.className = 'status-badge status-anon';
+            subBadge.innerText = 'SUDAH DI-KICK';
+            subTimerTxt.innerHTML = `Durasi ${durDays} Hari telah berakhir dan akun sudah ditandai dikeluarkan (Kick).`;
+            if (btnKick) btnKick.style.display = 'none';
+        } else if (isExpired) {
+            subBadge.className = 'status-badge status-failed danger-blink';
+            subBadge.innerText = 'WAJIB KICK SEKARANG!';
+            subTimerTxt.innerHTML = `<span class="text-danger">Masa aktif ${durDays} Hari telah habis pada ${new Date(endAt).toLocaleString('id-ID')}. Segera keluarkan pengguna dari akun aplikasi!</span>`;
+            if (btnKick) btnKick.style.display = 'inline-flex';
         } else {
-            subBox.style.display = 'none';
+            subBadge.className = 'status-badge status-success';
+            subBadge.innerText = `AKTIF (${durDays} HARI)`;
+            subTimerTxt.innerHTML = `Sisa Waktu: <b class="text-success">${formatRemainingDurationMs(endAt - now)}</b> (Berakhir: ${new Date(endAt).toLocaleDateString('id-ID')})`;
+            if (btnKick) btnKick.style.display = 'inline-flex';
         }
+    } else if (subBox) {
+        subBox.style.display = 'none';
     }
-
-    let defaultReply = order.adminReply || `Terima kasih telah berbelanja di Vipercell! Pesanan #${order.id} Anda telah berhasil diproses.`;
-    document.getElementById('proc-reply').value = defaultReply;
     
-    const list = document.getElementById('proc-items-list');
-    list.innerHTML = '<strong class="text-dark mb-1 d-block">Rincian Item & Data Tujuan:</strong>' +
-        order.items.map(i => `<div class="text-sm fw-bold text-primary">${window.escapeHtml(i.name)} (${i.processType || 'auto'})</div><div class="text-xs text-muted">${window.escapeHtml(i.playerInfo)}</div>`).join('<hr style="margin:6px 0;">');
-    
-    const hasStockable = order.items.some(i => i.type === 'app' || i.type === 'tools');
-    const stockSec = document.getElementById('proc-stock-section');
-    const stockSel = document.getElementById('proc-stock-select');
-    
-    if (hasStockable) {
-        stockSec.style.display = 'block';
-        stockSel.innerHTML = '<option value="">Memuat stok Ready dari Gudang...</option>';
-        
-        const targetItem = order.items.find(i => i.type === 'app' || i.type === 'tools');
-        const targetBrand = targetItem.brandName || targetItem.name.split(' - ')[0];
-        const exactItemName = targetItem.exactItemName || targetItem.name.replace(`(x${targetItem.qty})`, '').trim();
-        
-        try {
-            const q = query(collection(db, pathStocks), where("brand", "==", targetBrand), where("itemName", "==", exactItemName), where("status", "==", "Ready"));
-            const snap = await getDocs(q);
-            
-            if (snap.empty) {
-                stockSel.innerHTML = '<option value="">-- Gudang Stok Varian Ini Kosong (Ketik Manual di Bawah) --</option>';
-            } else {
-                let selHtml = '<option value="">-- Jangan Pakai Stok Gudang (Ketik Manual) --</option>';
-                window.tempProcessStocks = [];
-                snap.forEach((s) => {
-                    const data = { dbId: s.id, ...s.data() };
-                    const maxQ = parseInt(data.maxQuota || 1, 10);
-                    const usedQ = parseInt(data.usedQuota || 0, 10);
-                    if (!data.isReusable && usedQ >= maxQ) return;
-
-                    window.tempProcessStocks.push(data);
-                    const em = (data.data || '').split('|')[0];
-                    let modeTag = '[Private 1x]';
-                    if (data.isReusable) modeTag = '[Reusable ∞]';
-                    else if (maxQ > 1) modeTag = `[Sharing ${usedQ}/${maxQ}]`;
-
-                    selHtml += `<option value="${data.dbId}">${modeTag} ${window.escapeHtml(em)}</option>`;
-                });
-                stockSel.innerHTML = selHtml;
-                
-                stockSel.onchange = function() {
-                    const sId = this.value; if (!sId) return;
-                    const sData = window.tempProcessStocks.find(x => x.dbId === sId);
-                    if (sData) {
-                        const parts = (sData.data || '').split('|');
-                        document.getElementById('proc-reply').value = `[DETAIL PESANAN #${order.id}]\nEmail : ${parts[0] || '-'}\nPassword : ${parts[1] || '-'}\nProfil/Info : ${parts[2] || '-'}`;
-                    }
-                };
-                if (!order.adminReply && window.tempProcessStocks.length > 0) {
-                    stockSel.value = window.tempProcessStocks[0].dbId;
-                    stockSel.onchange();
-                }
-            }
-        } catch (e) {
-            stockSel.innerHTML = '<option value="">Gagal memuat stok.</option>';
-        }
-    } else {
-        stockSec.style.display = 'none';
-    }
     window.openModal('modal-process-order');
 };
 
-window.applyOrderMessageTemplate = function(templateType) {
-    const dbId = document.getElementById('proc-order-id').value;
+// Tombol bantu bagi Admin untuk menarik 1 stok Ready dari gudang langsung ke textarea pesanan
+window.pullAvailableStockIntoOrderModal = async function() {
+    const dbId = document.getElementById('proc-order-dbid').value;
     const order = orders.find(o => o.dbId === dbId);
-    const inv = order ? order.id : 'VP-XXXXXX';
-    const itemName = order && order.items && order.items[0] ? order.items[0].name : 'Layanan Vipercell';
-    const targetInfo = order && order.items && order.items[0] ? order.items[0].playerInfo : '-';
-    const totalRp = order ? (order.finalTotal || 0).toLocaleString('id-ID') : '0';
+    if (!order || !order.items || !order.items[0]) return;
 
-    const replyBox = document.getElementById('proc-reply');
-    if (!replyBox) return;
+    const item = order.items[0];
+    const targetBrand = item.brandName || item.name.split(' - ')[0];
+    const exactItemName = item.exactItemName || item.name.replace(`(x${item.qty})`, '').trim();
 
-    if (templateType === 'game') {
-        replyBox.value = `[TOP UP GAME BERHASIL - #${inv}]\nProduk : ${itemName}\nTujuan : ${targetInfo}\nStatus : SUKSES TERKIRIM\n\nSilakan cek langsung di dalam akun game Anda. Terima kasih telah berbelanja di Vipercell!`;
-    } else if (templateType === 'app') {
-        replyBox.value = `[AKUN APLIKASI PREMIUM - #${inv}]\nEmail : \nPassword : \nProfil/Info : Bergaransi Resmi Vipercell\n\nSilakan login dan jangan mengubah data profil yang telah ditentukan. Hubungi CS jika butuh bantuan.`;
-    } else if (templateType === 'tools') {
-        replyBox.value = `[AKSES TOOLS DIGITAL - #${inv}]\nLink Akses : https://\nKode/Pin : -\nPanduan : Silakan buka tautan di atas untuk mengakses layanan.\n\nTerima kasih telah berbelanja di Vipercell!`;
-    } else if (templateType === 'remind') {
-        replyBox.value = `Halo kak, kami dari Admin Vipercell ingin menginformasikan bahwa pesanan #${inv} (${itemName}) sebesar Rp${totalRp} sedang menunggu konfirmasi pembayaran. Silakan selesaikan pembayaran atau hubungi Live Chat kami jika butuh bantuan.`;
-    }
-};
+    const matchedStock = stocksData.find(s =>
+        s.status === 'Ready' &&
+        (s.brand || '').toLowerCase() === (targetBrand || '').toLowerCase() &&
+        (s.itemName || '').toLowerCase() === (exactItemName || '').toLowerCase()
+    );
 
-window.sendOrderNotificationToEmail = async function() {
-    const dbId = document.getElementById('proc-order-id').value;
-    const order = orders.find(o => o.dbId === dbId);
-    const targetEmail = document.getElementById('proc-buyer-email')?.value.trim() || '';
-    const replyText = document.getElementById('proc-reply')?.value.trim() || '';
-
-    if (!targetEmail || !targetEmail.includes('@')) {
-        window.customAlert('Email Kosong', 'Masukkan alamat email pembeli yang valid terlebih dahulu.', 'warning');
+    if (!matchedStock) {
+        window.customAlert('Stok Gudang Kosong', `Tidak ditemukan stok berstatus Ready di Gudang Stok untuk varian <b>${window.escapeHtml(targetBrand)} - ${window.escapeHtml(exactItemName)}</b>.`, 'warning');
         return;
     }
 
-    const inv = order ? order.id : 'VP-XXXXXX';
-    const itemTitle = order && order.items && order.items[0] ? order.items[0].name : 'Pesanan Vipercell';
-    const totalRp = order ? (order.finalTotal || 0).toLocaleString('id-ID') : '0';
-
-    const btn = document.getElementById('btn-send-order-email');
-    const ogHtml = btn ? btn.innerHTML : '';
-    const gasUrl = document.getElementById('set-email-webhook')?.value.trim() || (siteSettings.emailWebhookUrl || '').trim();
-
-    if (gasUrl && order) {
-        if (btn) {
-            btn.disabled = true;
-            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Mengirim via GAS...`;
-        }
-        try {
-            const sent = await triggerAutomatedEmailWebhook({ ...order, userEmail: targetEmail }, replyText, 'SEND_ORDER_DELIVERY');
-            if (sent) {
-                window.showToast('Email Otomatis Terkirim!', `E-Receipt & data akun berhasil dikirim ke ${targetEmail} via GAS Webhook.`, 'success');
-                return;
-            }
-        } finally {
-            if (btn && ogHtml) {
-                btn.disabled = false;
-                btn.innerHTML = ogHtml;
-            }
-        }
-    }
-
-    const subject = `Bukti & Data Pesanan Vipercell #${inv} - ${itemTitle}`;
-    const body = `Halo Pelanggan Vipercell,\n\nTerima kasih telah berbelanja di Vipercell! Berikut rincian transaksi Anda:\n\nNomor Invoice : #${inv}\nProduk        : ${itemTitle}\nTotal Tagihan : Rp${totalRp}\n\n=== RINCIAN PESANAN / DATA AKUN ===\n${replyText}\n===================================\n\nJika ada kendala atau pertanyaan, silakan balas pesan ini atau hubungi Live Chat di website Vipercell.\n\nSalam hangat,\nAdmin Vipercell`;
-
-    window.open(`mailto:${encodeURIComponent(targetEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
+    const formatted = formatAdminStockCredentialLine(
+        matchedStock.data || '',
+        matchedStock.stockFormat || matchedStock.mode || 'PRIVATE',
+        '',
+        matchedStock.accessLink || ''
+    );
+    document.getElementById('proc-admin-reply').value = formatted;
+    window.showToast('Stok Ditarik ke Kolom', 'Data stok berhasil dimasukkan ke kolom pengiriman. Klik Simpan & Selesaikan untuk mengirim.', 'info');
 };
 
-window.sendOrderNotificationToWA = function() {
-    const dbId = document.getElementById('proc-order-id').value;
-    const order = orders.find(o => o.dbId === dbId);
-    let rawPhone = document.getElementById('proc-buyer-phone')?.value.trim() || '';
-    const replyText = document.getElementById('proc-reply')?.value.trim() || '';
-
-    if (!rawPhone) {
-        window.customAlert('Nomor WA Kosong', 'Silakan ketik nomor WhatsApp pembeli pada kolom Nomor WhatsApp di atas.', 'warning');
-        return;
+window.markSubscriptionKicked = async function(dbId) {
+    try {
+        await updateDoc(doc(db, pathOrders, dbId), {
+            subscriptionStatus: 'KICKED',
+            kickedAt: Date.now()
+        });
+        window.showToast('Kick Selesai!', 'Akun telah ditandai sudah dikeluarkan dari langganan.', 'success');
+    } catch (e) {
+        window.customAlert('Error', 'Gagal memperbarui status langganan.', 'error');
     }
-
-    let cleanWa = rawPhone.replace(/[^0-9]/g, '');
-    if (cleanWa.startsWith('0')) cleanWa = '62' + cleanWa.substring(1);
-
-    const inv = order ? order.id : 'VP-XXXXXX';
-    const itemTitle = order && order.items && order.items[0] ? order.items[0].name : 'Pesanan Vipercell';
-    const totalRp = order ? (order.finalTotal || 0).toLocaleString('id-ID') : '0';
-
-    const waMessage = `*VIPERCELL OFFICIAL STORE*\nHalo kak, berikut rincian pesanan Anda:\n\n*No. Invoice :* #${inv}\n*Produk :* ${itemTitle}\n*Total :* Rp${totalRp}\n\n*DATA PESANAN / AKUN :*\n${replyText}\n\n_Terima kasih telah berbelanja di Vipercell!_`;
-
-    window.open(`https://wa.me/${cleanWa}?text=${encodeURIComponent(waMessage)}`, '_blank');
 };
 
-window.markOrderComplete = async function(statusType) {
-    const dbId = document.getElementById('proc-order-id').value;
-    const reply = document.getElementById('proc-reply').value.trim();
-    const buyerEmail = document.getElementById('proc-buyer-email')?.value.trim() || '';
-    const buyerPhone = document.getElementById('proc-buyer-phone')?.value.trim() || '';
+window.markSubscriptionKickedFromModal = async function() {
+    const dbId = document.getElementById('proc-order-dbid').value;
+    if (!dbId) return;
+    await window.markSubscriptionKicked(dbId);
+    window.closeModal('modal-process-order');
+};
+
+window.extendSubscriptionDays = async function(extraDays = 30) {
+    const dbId = document.getElementById('proc-order-dbid').value;
     const order = orders.find(o => o.dbId === dbId);
     if (!order) return;
-    
-    const btn = document.getElementById(statusType === 'SUCCESS' ? 'btn-proc-success' : 'btn-proc-fail');
-    const ogHtml = btn.innerHTML;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Memproses...</span>';
-    btn.disabled = true;
-    
+
+    const now = Date.now();
+    const baseTime = (order.subscriptionEndAt && order.subscriptionEndAt > now) ? order.subscriptionEndAt : now;
+    const newEndAt = baseTime + (extraDays * 86400000);
+    const newDur = (getOrderDurationDays(order) || 0) + extraDays;
+
     try {
-        let usedStockIds = order.usedStockIds || [];
-        let subFields = {};
-
-        if (statusType === 'SUCCESS') {
-            if (order.items.some(i => i.type === 'app' || i.type === 'tools')) {
-                const stockSel = document.getElementById('proc-stock-select');
-                if (stockSel && stockSel.value) {
-                    const chosenStock = window.tempProcessStocks.find(x => x.dbId === stockSel.value);
-                    usedStockIds = [stockSel.value];
-                    if (chosenStock && chosenStock.isReusable) {
-                        await updateDoc(doc(db, pathStocks, stockSel.value), {
-                            sentCount: increment(1),
-                            lastSentAt: Date.now(),
-                            lastOrderId: order.id
-                        });
-                    } else if (chosenStock) {
-                        const maxQ = parseInt(chosenStock.maxQuota || 1, 10);
-                        const nextUsed = parseInt(chosenStock.usedQuota || 0, 10) + 1;
-                        await updateDoc(doc(db, pathStocks, stockSel.value), {
-                            usedQuota: nextUsed,
-                            status: nextUsed >= maxQ ? 'Used' : 'Ready',
-                            usedAt: Date.now(),
-                            orderId: order.id,
-                            buyers: arrayUnion({
-                                orderId: order.id,
-                                buyerEmail: buyerEmail || order.userEmail || '',
-                                sentAt: new Date().toISOString()
-                            })
-                        });
-                    }
-                }
-            }
-            await deductProductQuotaOnSuccess(order, dbId);
-            subFields = await ensureOrderSubscriptionInitialized(order, dbId);
-        }
-        
-        processingAutoOrderIds.add(dbId);
         await updateDoc(doc(db, pathOrders, dbId), {
-            status: statusType,
-            userEmail: buyerEmail || order.userEmail || '',
-            userPhone: buyerPhone || order.userPhone || '',
-            adminReply: statusType === 'SUCCESS' ? reply : '',
-            usedStockIds: usedStockIds,
-            ...subFields
+            durationDays: newDur,
+            subscriptionEndAt: newEndAt,
+            subscriptionStatus: 'ACTIVE'
         });
+        window.showToast('Durasi Diperpanjang!', `Masa aktif pesanan #${order.id} ditambah +${extraDays} hari.`, 'success');
+        window.closeModal('modal-process-order');
+    } catch (e) {
+        window.customAlert('Error', 'Gagal memperpanjang durasi langganan.', 'error');
+    }
+};
 
-        if (statusType === 'SUCCESS') {
-            triggerAutomatedEmailWebhook({ ...order, ...subFields, userEmail: buyerEmail || order.userEmail, status: 'SUCCESS' }, reply);
+window.sendExpiryReminderEmail = async function() {
+    const dbId = document.getElementById('proc-order-dbid').value;
+    const order = orders.find(o => o.dbId === dbId);
+    if (!order) return;
+
+    const itemObj = (order.items && order.items[0]) ? order.items[0] : {};
+    const endAt = order.subscriptionEndAt || Date.now();
+
+    try {
+        await callUnifiedGasWebhook({
+            action: 'SEND_EXPIRY_REMINDER',
+            orderId: order.id,
+            invoice: order.id,
+            email: order.userEmail,
+            buyerEmail: order.userEmail,
+            buyerName: order.buyerName || (order.userEmail || '').split('@')[0],
+            itemName: itemObj.name || 'Layanan Premium Vipercell',
+            productName: itemObj.brandName || itemObj.name || 'Layanan Premium',
+            totalAmount: order.finalTotal || 0,
+            subscriptionEndAt: endAt,
+            accountDetails: `Pengingat Masa Aktif Langganan: Paket ${itemObj.name || ''} Anda akan segera berakhir pada ${new Date(endAt).toLocaleDateString('id-ID')}. Silakan lakukan perpanjangan di Vipercell agar akses akun tetap aktif.`
+        });
+        window.showToast('Pengingat Terkirim!', `Email pengingat perpanjangan dikirim ke ${order.userEmail}.`, 'success');
+    } catch (err) {
+        window.customAlert('Gagal', `${window.escapeHtml(err.message)}`, 'error');
+    }
+};
+
+window.sendExpiryReminderWhatsApp = function() {
+    const dbId = document.getElementById('proc-order-dbid').value;
+    const order = orders.find(o => o.dbId === dbId);
+    if (!order) return;
+
+    const memberMatch = allUsersList.find(u => u.uid === order.userId || (order.userEmail && u.email?.toLowerCase() === order.userEmail.toLowerCase()));
+    let phone = order.userPhone || (memberMatch ? (memberMatch.phone || memberMatch.whatsapp || '') : '');
+    let cleanWa = phone.replace(/[^0-9]/g, '');
+    if (!cleanWa) {
+        window.customAlert('Nomor WA Kosong', 'Pembeli ini tidak mencantumkan nomor WhatsApp.', 'warning');
+        return;
+    }
+    if (cleanWa.startsWith('0')) cleanWa = '62' + cleanWa.substring(1);
+
+    const itemName = order.items?.[0]?.name || 'Layanan Vipercell';
+    const endStr = order.subscriptionEndAt ? new Date(order.subscriptionEndAt).toLocaleDateString('id-ID') : 'hari ini';
+    const msg = `Halo kak! Mengingatkan bahwa masa aktif langganan *${itemName}* (Invoice *#${order.id}*) berakhir pada *${endStr}*.\n\nApakah kakak ingin memperpanjang langganan agar tidak ter-kick dari sistem? Terima kasih! 🙏`;
+    window.open(`https://wa.me/${cleanWa}?text=${encodeURIComponent(msg)}`, '_blank');
+};
+
+// [FEATURE-02 & 03] Tombol Kirim Email Manual di Admin -> Setelah Terkirim Langsung Terkunci
+window.sendOrderDeliveryViaEmail = async function() {
+    const dbId = document.getElementById('proc-order-dbid').value;
+    const replyText = document.getElementById('proc-admin-reply').value.trim();
+    const order = orders.find(o => o.dbId === dbId);
+    if (!order) return;
+
+    if (order.emailSent === true) {
+        updateEmailButtonLockStateUI(true);
+        window.showToast('Sudah Terkirim', 'Email untuk pesanan ini sudah pernah dikirim sebelumnya.', 'info');
+        return;
+    }
+
+    const btn = document.getElementById('btn-send-order-email');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Mengirim Email...';
+    }
+
+    await updateDoc(doc(db, pathOrders, dbId), { adminReply: replyText }).catch(() => {});
+    const sentOk = await triggerAutomatedEmailWebhook(order, replyText, false, dbId);
+
+    if (!sentOk && btn) {
+        updateEmailButtonLockStateUI(false);
+    }
+};
+
+window.sendOrderDeliveryViaWhatsApp = async function() {
+    const dbId = document.getElementById('proc-order-dbid').value;
+    const replyText = document.getElementById('proc-admin-reply').value.trim();
+    const order = orders.find(o => o.dbId === dbId);
+    if (!order) return;
+
+    await updateDoc(doc(db, pathOrders, dbId), { adminReply: replyText }).catch(() => {});
+
+    const memberMatch = allUsersList.find(u => u.uid === order.userId || (order.userEmail && u.email?.toLowerCase() === order.userEmail.toLowerCase()));
+    let phone = order.userPhone || (memberMatch ? (memberMatch.phone || memberMatch.whatsapp || '') : '');
+    let cleanWa = phone.replace(/[^0-9]/g, '');
+
+    if (!cleanWa) {
+        window.customAlert('Nomor WA Tidak Tersedia', 'Pembeli ini belum mencantumkan nomor WhatsApp pada pesanan maupun profilnya.', 'warning');
+        return;
+    }
+    if (cleanWa.startsWith('0')) cleanWa = '62' + cleanWa.substring(1);
+
+    const itemName = order.items && order.items[0] ? order.items[0].name : 'Pesanan Vipercell';
+    const waText = `*STRUK & DATA AKUN VIPERCELL*\n\n` +
+                   `No. Invoice : *#${order.id}*\n` +
+                   `Produk : *${itemName}*\n` +
+                   `Total Bayar : *Rp${(order.finalTotal || 0).toLocaleString('id-ID')}*\n` +
+                   `Status : *LUNAS / SUKSES*\n\n` +
+                   `*DETAIL AKUN / PESANAN ANDA:*\n` +
+                   `${replyText || 'Pesanan Anda telah selesai diproses.'}\n\n` +
+                   `Terima kasih telah berbelanja di Vipercell! 🙏`;
+
+    window.open(`https://wa.me/${cleanWa}?text=${encodeURIComponent(waText)}`, '_blank');
+};
+
+/* ============================================================================
+ * [FEATURE-03] SAAT ADMIN MENEKAN "SELESAIKAN & KIRIM" (`markOrderComplete('SUCCESS')`),
+ * LANGSUNG OTOMATIS KIRIM EMAIL & KUNCI TOMBOL EMAIL AGAR TIDAK BISA DITEKAN LAGI!
+ * ============================================================================ */
+window.markOrderComplete = async function(newStatus) {
+    const dbId = document.getElementById('proc-order-dbid').value;
+    const replyText = document.getElementById('proc-admin-reply').value.trim();
+    if (!dbId) return;
+    
+    const order = orders.find(o => o.dbId === dbId);
+    const durDays = getOrderDurationDays(order);
+    const now = Date.now();
+
+    const updatePayload = {
+        status: newStatus,
+        adminReply: replyText
+    };
+
+    if (newStatus === 'SUCCESS' && durDays > 0 && order && !order.subscriptionEndAt) {
+        updatePayload.durationDays = durDays;
+        updatePayload.subscriptionStartAt = now;
+        updatePayload.subscriptionEndAt = now + (durDays * 86400000);
+        updatePayload.subscriptionStatus = 'ACTIVE';
+    }
+
+    const btnSuccess = document.getElementById('btn-mark-order-success');
+    const ogBtnHtml = btnSuccess ? btnSuccess.innerHTML : '';
+    if (btnSuccess && newStatus === 'SUCCESS') {
+        btnSuccess.disabled = true;
+        btnSuccess.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Menyimpan & Mengirim Email...</span>';
+    }
+
+    try {
+        await updateDoc(doc(db, pathOrders, dbId), updatePayload);
+
+        if (newStatus === 'SUCCESS' && order) {
+            // Jika belum terkirim email, langsung kirim email otomatis detik itu juga & kunci tombol!
+            if (!order.emailSent) {
+                const emailOk = await triggerAutomatedEmailWebhook({ ...order, ...updatePayload }, replyText, true, dbId);
+                if (emailOk) {
+                    window.showToast('Pesanan Selesai & Email Terkirim!', `Status #${order.id} diubah ke SUCCESS dan struk telah dikirim ke ${order.userEmail}.`, 'success');
+                } else {
+                    window.showToast('Pesanan Selesai', `Status #${order.id} berhasil diubah menjadi SUCCESS.`, 'success');
+                }
+            } else {
+                updateEmailButtonLockStateUI(true);
+                window.showToast('Pesanan Diperbarui', `Status #${order.id} disimpan (Email sudah pernah terkirim sebelumnya).`, 'success');
+            }
+        } else {
+            window.showToast('Status Diperbarui', `Pesanan berhasil diubah menjadi ${newStatus}.`, 'success');
         }
 
         window.closeModal('modal-process-order');
-        
-        if (statusType === 'SUCCESS') window.showToast('Transaksi Selesai', `Invoice ${order.id} telah diselesaikan & dikirim.`, 'success');
-        else window.showToast('Dibatalkan', `Invoice ${order.id} ditandai gagal.`, 'info');
     } catch (e) {
         window.customAlert('Error', 'Gagal memperbarui status pesanan.', 'error');
     } finally {
-        btn.innerHTML = ogHtml; btn.disabled = false;
-        setTimeout(() => processingAutoOrderIds.delete(dbId), 2000);
-    }
-};
-
-window.promptDeleteOrder = function(dbId, invoiceId) {
-    window.openConfirm("Hapus Pesanan", `Hapus permanen data Invoice <b>${window.escapeHtml(invoiceId)}</b>?`, async (confirmed) => {
-        if (confirmed) {
-            await deleteDoc(doc(db, pathOrders, dbId));
-            window.showToast("Terhapus", `Invoice ${invoiceId} berhasil dihapus.`, "success");
+        if (btnSuccess && ogBtnHtml) {
+            btnSuccess.disabled = false;
+            btnSuccess.innerHTML = ogBtnHtml;
         }
-    }, 'delete');
-};
-
-/* ============================================================================
- * [FEATURE-08] GUDANG STOK VAULT MULTI-KUOTA SHARING (1 AKUN = N PEMBELI)
- * ============================================================================ */
-window.toggleStockQuotaInput = function() {
-    const mode = document.getElementById('stock-mode-select')?.value || 'PRIVATE';
-    const quotaBox = document.getElementById('stock-sharing-quota-box');
-    const reusableChk = document.getElementById('stock-reusable-toggle');
-
-    if (quotaBox) quotaBox.style.display = mode === 'SHARING' ? 'block' : 'none';
-    if (reusableChk) reusableChk.checked = (mode === 'REUSABLE');
-};
-
-window.updateAdminStockItemSelect = function() {
-    const brandName = document.getElementById('stock-brand-select').value;
-    const itemSel = document.getElementById('stock-item-select');
-    const modeSel = document.getElementById('stock-mode-select');
-    let html = '<option value="">-- Pilih Varian Item --</option>';
-    if (!brandName) { itemSel.innerHTML = html; return; }
-    
-    const brand = groupedBrands.find(b => b.brandName === brandName);
-    if (brand) {
-        if (modeSel) {
-            if (brand.type === 'tools') modeSel.value = 'REUSABLE';
-            else if (brand.brandName.toLowerCase().includes('sharing')) modeSel.value = 'SHARING';
-            else modeSel.value = 'PRIVATE';
-            window.toggleStockQuotaInput();
-        }
-        brand.items.forEach(i => {
-            html += `<option value="${window.escapeHtml(i.name)}">${window.escapeHtml(i.name)}</option>`;
-        });
-    }
-    itemSel.innerHTML = html;
-};
-
-window.renderAdminStocksByCategory = async function() {
-    const brand = document.getElementById('view-stock-category').value;
-    const tb = document.getElementById('admin-stock-list');
-    const mobContainer = document.getElementById('admin-stock-mobile-cards');
-    const readyCountEl = document.getElementById('stock-ready-count');
-    const sharingCountEl = document.getElementById('stock-sharing-count');
-    const reusableCountEl = document.getElementById('stock-reusable-count');
-    const usedCountEl = document.getElementById('stock-used-count');
-    
-    if (!brand) {
-        if (readyCountEl) readyCountEl.innerText = '0';
-        if (sharingCountEl) sharingCountEl.innerText = '0';
-        if (reusableCountEl) reusableCountEl.innerText = '0';
-        if (usedCountEl) usedCountEl.innerText = '0';
-        if (tb) tb.innerHTML = '<tr><td colspan="6" class="text-center text-muted" style="padding: 3rem;">Pilih kategori brand di atas untuk menampilkan daftar stok.</td></tr>';
-        if (mobContainer) mobContainer.innerHTML = '<div class="text-center text-muted p-3">Pilih kategori brand di atas untuk menampilkan daftar stok.</div>';
-        return;
-    }
-    
-    if (tb) tb.innerHTML = '<tr><td colspan="6" class="text-center" style="padding: 2rem;"><i class="fa-solid fa-spinner fa-spin"></i> Memuat data gudang stok...</td></tr>';
-    if (mobContainer) mobContainer.innerHTML = '<div class="text-center p-3"><i class="fa-solid fa-spinner fa-spin"></i> Memuat data gudang stok...</div>';
-    
-    try {
-        const q = query(collection(db, pathStocks), where("brand", "==", brand));
-        const snap = await getDocs(q);
-        let localStocks = [];
-        snap.forEach(d => localStocks.push({ dbId: d.id, ...d.data() }));
-        
-        let totalReadySlots = 0;
-        let sharingDocsCount = 0;
-        let reusableDocsCount = 0;
-        let usedDocsCount = 0;
-
-        localStocks.forEach(s => {
-            const maxQ = parseInt(s.maxQuota || 1, 10);
-            const usedQ = parseInt(s.usedQuota || 0, 10);
-            if (s.status === 'Ready' && s.isReusable) {
-                reusableDocsCount++;
-            } else if (s.status === 'Ready' && usedQ < maxQ) {
-                totalReadySlots += (maxQ - usedQ);
-                if (maxQ > 1) sharingDocsCount++;
-            } else {
-                usedDocsCount++;
-            }
-        });
-
-        if (readyCountEl) readyCountEl.innerText = String(totalReadySlots);
-        if (sharingCountEl) sharingCountEl.innerText = String(sharingDocsCount);
-        if (reusableCountEl) reusableCountEl.innerText = String(reusableDocsCount);
-        if (usedCountEl) usedCountEl.innerText = String(usedDocsCount);
-
-                if (localStocks.length === 0) {
-            if (tb) tb.innerHTML = '<tr><td colspan="6" class="text-center text-muted" style="padding:2rem;">Belum ada stok untuk produk ini.</td></tr>';
-            if (mobContainer) mobContainer.innerHTML = '<div class="text-center text-muted p-3">Belum ada stok untuk produk ini.</div>';
-            return;
-        }
-        
-        localStocks.sort((a, b) => b.createdAt - a.createdAt);
-        let tableHtml = '';
-        let mobHtml = '';
-
-        localStocks.forEach((s, i) => {
-            const parts = (s.data || '').split('|');
-            const em = parts[0] || '-';
-            const pw = parts[1] || '-';
-            const dur = parts[2] || '-';
-            const safeCredCopy = escapeJsStr(`${em} | ${pw}`);
-
-            const maxQ = parseInt(s.maxQuota || 1, 10);
-            const usedQ = parseInt(s.usedQuota || 0, 10);
-            const pctUsed = Math.min(100, Math.round((usedQ / maxQ) * 100));
-
-            let badge = '';
-            let quotaProgressHtml = '';
-
-            if (s.status === 'Ready' && s.isReusable) {
-                badge = `<span class="status-badge status-tools"><i class="fa-solid fa-infinity"></i> REUSABLE (${s.sentCount || 0}x Terkirim)</span>`;
-            } else if (maxQ > 1) {
-                const isFull = usedQ >= maxQ || s.status !== 'Ready';
-                badge = isFull
-                    ? `<span class="status-badge status-failed"><i class="fa-solid fa-users"></i> SHARING HABIS (${usedQ}/${maxQ})</span>`
-                    : `<span class="status-badge status-success"><i class="fa-solid fa-users"></i> SHARING READY (${usedQ}/${maxQ} Terpakai)</span>`;
-                quotaProgressHtml = `
-                    <div class="stock-quota-bar-mini">
-                        <div class="stock-quota-fill-mini" style="width:${pctUsed}%; background:${isFull ? 'var(--danger)' : 'var(--primary)'};"></div>
-                    </div>
-                    <small class="text-muted text-xs d-block mt-1">Sisa Slot: <b>${Math.max(0, maxQ - usedQ)}</b> dari <b>${maxQ}</b> Pembeli</small>`;
-            } else if (s.status === 'Ready' && usedQ < maxQ) {
-                badge = `<span class="status-badge status-success">PRIVATE READY (0/1)</span>`;
-            } else {
-                badge = `<span class="status-badge status-failed">TERJUAL ${s.orderId ? `(#${window.escapeHtml(s.orderId)})` : ''}</span>`;
-            }
-
-            tableHtml += `<tr>
-                <td><strong>${i + 1}</strong></td>
-                <td><strong class="text-dark">${window.escapeHtml(s.brand)}</strong><br><small class="text-primary fw-bold">${window.escapeHtml(s.itemName || '-')}</small></td>
-                <td>
-                    <strong class="text-dark">${window.escapeHtml(em)}</strong>
-                    <button class="btn-icon-only" style="width:22px; height:22px; font-size:0.65rem; margin-left:4px;" onclick="window.copyTextToClipboard('${safeCredCopy}', 'Data Stok')"><i class="fa-regular fa-copy"></i></button>
-                    <br><small class="text-muted">${window.escapeHtml(pw)}</small>
-                </td>
-                <td class="text-dark text-xs">${window.escapeHtml(dur)}</td>
-                <td>
-                    ${badge}
-                    ${quotaProgressHtml}
-                </td>
-                <td>
-                    <div class="flex-gap">
-                        <button class="btn-icon-only" style="width:30px; height:30px;" onclick="window.changeStockMaxQuotaPrompt('${s.dbId}', ${maxQ}, ${usedQ})" title="Atur Kuota Pembeli (Sharing)"><i class="fa-solid fa-users-gear"></i></button>
-                        <button class="btn-icon-only" style="width:30px; height:30px;" onclick="window.toggleStockReusableMode('${s.dbId}', ${!s.isReusable})" title="Ubah Mode Reusable Tanpa Batas"><i class="fa-solid fa-repeat"></i></button>
-                        <button aria-label="Hapus Stok" class="btn-icon-only text-danger" style="width:30px; height:30px;" onclick="window.deleteStock('${s.dbId}')"><i class="fa-solid fa-trash"></i></button>
-                    </div>
-                </td>
-            </tr>`;
-
-            mobHtml += `
-            <div class="stock-mob-card">
-                <div class="stock-mob-top">
-                    <strong class="text-dark text-sm">#${i + 1} &bull; ${window.escapeHtml(s.itemName || s.brand)}</strong>
-                    ${badge}
-                </div>
-                <div class="stock-mob-cred">
-                    <div>
-                        <div><b>Email/Link:</b> ${window.escapeHtml(em)}</div>
-                        <div><b>Pass/Kode:</b> ${window.escapeHtml(pw)}</div>
-                    </div>
-                    <button class="btn-icon-only" style="width:32px; height:32px; flex-shrink:0;" onclick="window.copyTextToClipboard('${safeCredCopy}', 'Data Stok')">
-                        <i class="fa-regular fa-copy"></i>
-                    </button>
-                </div>
-                ${quotaProgressHtml}
-                <div class="stock-mob-foot">
-                    <span><i class="fa-solid fa-circle-info"></i> ${window.escapeHtml(dur)}</span>
-                    <div class="flex-gap">
-                        <button class="btn btn-outline btn-sm" style="padding:3px 8px; min-height:28px;" onclick="window.changeStockMaxQuotaPrompt('${s.dbId}', ${maxQ}, ${usedQ})">
-                            <i class="fa-solid fa-users-gear"></i> Kuota (${maxQ})
-                        </button>
-                        <button class="btn btn-outline btn-sm" style="padding:3px 8px; min-height:28px;" onclick="window.toggleStockReusableMode('${s.dbId}', ${!s.isReusable})">
-                            <i class="fa-solid fa-repeat"></i> ${s.isReusable ? '1x' : '∞'}
-                        </button>
-                        <button class="btn btn-danger btn-sm" style="padding:3px 10px; min-height:28px;" onclick="window.deleteStock('${s.dbId}')">
-                            <i class="fa-solid fa-trash"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>`;
-        });
-
-        if (tb) tb.innerHTML = tableHtml;
-        if (mobContainer) mobContainer.innerHTML = mobHtml;
-    } catch (e) {
-        if (tb) tb.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Gagal mengambil data stok.</td></tr>';
-        if (mobContainer) mobContainer.innerHTML = '<div class="text-center text-danger p-3">Gagal mengambil data stok.</div>';
     }
 };
 
-window.changeStockMaxQuotaPrompt = async function(dbId, currentMax = 1, currentUsed = 0) {
-    const input = prompt(`Ubah kuota maksimal pembeli (Sharing) untuk baris akun ini:\n(Saat ini terpakai: ${currentUsed} pembeli)`, String(currentMax));
-    if (input === null) return;
-    const newMax = parseInt(input, 10);
-    if (isNaN(newMax) || newMax < 1) {
-        window.customAlert('Input Tidak Valid', 'Kuota minimal adalah 1 pembeli.', 'warning');
-        return;
-    }
-    try {
-        await updateDoc(doc(db, pathStocks, dbId), {
-            maxQuota: newMax,
-            stockMode: newMax > 1 ? 'SHARING' : 'PRIVATE',
-            status: currentUsed < newMax ? 'Ready' : 'Used'
-        });
-        window.showToast('Kuota Diperbarui', `Kuota akun diubah menjadi ${newMax} pembeli.`, 'success');
-        window.renderAdminStocksByCategory();
-    } catch (e) {
-        window.customAlert('Gagal', 'Tidak dapat mengubah kuota stok.', 'error');
-    }
-};
-
-window.toggleStockReusableMode = async function(dbId, newReusableState) {
-    try {
-        await updateDoc(doc(db, pathStocks, dbId), {
-            isReusable: Boolean(newReusableState),
-            status: 'Ready'
-        });
-        window.showToast('Mode Stok Diubah', newReusableState ? 'Stok disetel ke Mode Kirim Berulang-ulang (∞).' : 'Stok disetel ke Mode Kuota/Sekali Pakai.', 'success');
-        window.renderAdminStocksByCategory();
-    } catch (e) {
-        window.customAlert('Gagal', 'Gagal mengubah mode stok.', 'error');
-    }
-};
-
-window.addStockMassal = async function() {
-    const brand = document.getElementById('stock-brand-select').value;
-    const itemName = document.getElementById('stock-item-select').value;
-    const stockMode = document.getElementById('stock-mode-select')?.value || 'PRIVATE';
-    const defaultSharingQuota = Math.max(1, parseInt(document.getElementById('stock-sharing-quota')?.value || '5', 10));
-    const rawData = document.getElementById('stock-bulk-input').value.trim();
-    
-    if (!brand || !itemName || !rawData) {
-        window.customAlert('Data Belum Lengkap', 'Pilih produk, varian item, dan masukkan minimal 1 baris data akun atau link tools.', 'warning');
-        return;
-    }
-    
-    const btn = document.getElementById('btn-add-stock');
-    const ogHtml = btn.innerHTML;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Menyimpan...</span>';
-    btn.disabled = true;
-    try {
-        const lines = rawData.split('\n').filter(l => l.trim() !== '');
-        let count = 0;
-        let totalSlotsAdded = 0;
-
-        for (const rawLine of lines) {
-            let lineText = rawLine.trim();
-            let lineMaxQuota = stockMode === 'SHARING' ? defaultSharingQuota : 1;
-            const isReusable = (stockMode === 'REUSABLE');
-
-            // Cek jika baris memiliki sintaks kustom kuota "|| N" di ujung (Contoh: email|pass|profil || 4)
-            if (lineText.includes('||')) {
-                const splitQuota = lineText.split('||');
-                lineText = splitQuota[0].trim();
-                const parsedQ = parseInt(splitQuota[1].trim(), 10);
-                if (!isNaN(parsedQ) && parsedQ >= 1) {
-                    lineMaxQuota = parsedQ;
-                }
-            }
-
-            const cleanLine = lineText.includes('|') ? lineText : `${lineText}|-|Akses Otomatis`;
-            await addDoc(collection(db, pathStocks), {
-                brand: brand,
-                itemName: itemName,
-                data: cleanLine,
-                stockMode: isReusable ? 'REUSABLE' : (lineMaxQuota > 1 ? 'SHARING' : 'PRIVATE'),
-                maxQuota: isReusable ? 999999 : lineMaxQuota,
-                usedQuota: 0,
-                buyers: [],
-                isReusable: isReusable,
-                sentCount: 0,
-                status: 'Ready',
-                createdAt: Date.now()
-            });
-            count++;
-            totalSlotsAdded += lineMaxQuota;
-        }
-        document.getElementById('stock-bulk-input').value = '';
-        
-        const viewSel = document.getElementById('view-stock-category');
-        if (viewSel) {
-            viewSel.value = brand;
-            window.renderAdminStocksByCategory();
-        }
-        
-        const modeDesc = stockMode === 'REUSABLE'
-            ? '(Mode Kirim Berulang ∞)'
-            : (stockMode === 'SHARING' ? `(Mode Sharing: Total ${totalSlotsAdded} Slot Pembeli)` : '(Mode Private 1x Pakai)');
-
-        window.customAlert('Berhasil Disimpan', `<b>${count} baris akun ${modeDesc}</b> berhasil ditambahkan ke gudang <b>${window.escapeHtml(brand)} - ${window.escapeHtml(itemName)}</b>.`, 'success');
-    } catch (e) {
-        window.customAlert('Error', 'Gagal menambah stok ke database.', 'error');
-    } finally {
-        btn.innerHTML = ogHtml; btn.disabled = false;
-    }
-};
-
-window.deleteStock = async function(dbId) {
-    window.openConfirm('Hapus Stok', 'Hapus baris stok ini secara permanen?', async (confirmed) => {
-        if (confirmed) {
-            await deleteDoc(doc(db, pathStocks, dbId));
-            window.showToast('Terhapus', 'Stok berhasil dihapus.', 'info');
-            window.renderAdminStocksByCategory(); 
-        }
-    }, 'delete');
-};
-
-window.deleteUsedStocksByCategory = async function() {
-    const brand = document.getElementById('view-stock-category').value;
-    if (!brand) {
-        window.customAlert('Pilih Kategori', 'Pilih kategori produk terlebih dahulu di dropdown.', 'warning');
-        return;
-    }
-    window.openConfirm('Bersihkan Stok Terjual', `Hapus semua stok berstatus <b>Terjual (Used)</b> pada produk <b>${window.escapeHtml(brand)}</b>?`, async (confirmed) => {
+window.promptDeleteOrder = function(dbId, invId) {
+    window.openConfirm('Hapus Pesanan Permanen', `Yakin ingin menghapus data pesanan <b>#${window.escapeHtml(invId)}</b> dari database?`, async (confirmed) => {
         if (confirmed) {
             try {
-                const q = query(collection(db, pathStocks), where("brand", "==", brand), where("status", "==", "Used"));
-                const snap = await getDocs(q);
-                let delCount = 0;
-                for (const d of snap.docs) {
-                    await deleteDoc(doc(db, pathStocks, d.id));
-                    delCount++;
-                }
-                window.showToast('Gudang Dibersihkan', `${delCount} stok terjual berhasil dihapus.`, 'success');
-                window.renderAdminStocksByCategory();
+                await deleteDoc(doc(db, pathOrders, dbId));
+                window.showToast('Terhapus', `Pesanan #${invId} telah dihapus.`, 'info');
             } catch (e) {
-                window.customAlert('Gagal', 'Gagal membersihkan stok terjual.', 'error');
+                window.customAlert('Error', 'Gagal menghapus pesanan.', 'error');
             }
         }
-    }, 'delete');
+    });
 };
-/* ======================== END OF [FEATURE-08] ============================= */
 
 // ==========================================
-// MANAJEMEN ULASAN PEMBELI
+// LIVE CHAT WORKSPACE ADMIN
 // ==========================================
-window.renderReviews = function() {
-    const list = document.getElementById('admin-reviews-list');
-    if (!list) return;
-    
-    if (reviewsList.length === 0) {
-        list.innerHTML = '<div class="text-center text-muted w-100 dashboard-panel" style="padding: 3rem;"><i class="fa-solid fa-comment-slash" style="font-size:2.5rem; margin-bottom:10px; display:block;"></i>Belum ada ulasan dari pembeli.</div>';
+window.renderAdminChatList = function() {
+    const listEl = document.getElementById('admin-chat-list');
+    if (!listEl) return;
+
+    if (allLiveChats.length === 0) {
+        listEl.innerHTML = '<div class="p-3 text-center text-muted text-xs">Belum ada percakapan masuk.</div>';
         return;
     }
-    
+
     let html = '';
-    reviewsList.forEach(r => {
-        let stars = '';
-        for (let i = 0; i < 5; i++) {
-            stars += `<i class="fa-${i < r.rating ? 'solid' : 'regular'} fa-star text-warning text-xs"></i>`;
-        }
-        
-        const invTag = r.orderId ? `<span class="status-badge status-unpaid">#${window.escapeHtml(r.orderId)}</span>` : '';
-        const adminReplyHtml = r.adminReply 
-            ? `<div class="mt-2 text-sm bg-primary-light border-primary" style="padding:10px 12px; border-radius:8px;">
-                 <strong class="text-primary"><i class="fa-solid fa-reply"></i> Balasan Admin:</strong><br>
-                 <span class="text-dark">${window.escapeHtml(r.adminReply)}</span>
-               </div>` 
-            : '';
+    allLiveChats.forEach(chat => {
+        const msgs = chat.messages || [];
+        const lastMsg = msgs[msgs.length - 1];
+        const previewText = lastMsg ? lastMsg.text : 'Belum ada pesan';
+        const isUnread = lastMsg && lastMsg.sender === 'user';
+        const isActive = activeAdminChatId === chat.id;
+        const userName = chat.userInfo || `Pelanggan #${chat.id.slice(-4)}`;
 
         html += `
-        <div class="dashboard-panel flex-between align-start-mobile mb-2" style="padding: 1.2rem; gap: 15px;">
-            <div style="flex:1;">
-                <div class="flex-wrap-gap align-center mb-1">
-                    <strong class="text-dark" style="font-size:1rem;">${window.escapeHtml(r.userName || 'Pelanggan')}</strong>
-                    <small class="text-muted">(${window.escapeHtml(r.userEmail || '-')})</small>
-                    ${invTag}
+            <div class="wa-chat-item ${isActive ? 'active' : ''}" onclick="window.openAdminChatDetailDesk('${escapeJsStr(chat.id)}')">
+                <div class="wa-avatar">${window.escapeHtml(userName.charAt(0).toUpperCase())}</div>
+                <div style="flex:1; min-width:0;">
+                    <div class="flex-between align-center">
+                        <strong class="text-dark" style="font-size:0.9rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${window.escapeHtml(userName)}</strong>
+                        ${isUnread ? '<span class="status-badge status-failed" style="font-size:0.6rem; padding:2px 6px;">BARU</span>' : ''}
+                    </div>
+                    <p class="text-muted text-xs m-0" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${window.escapeHtml(previewText)}</p>
                 </div>
-                <div class="mb-2">${stars} <span class="text-primary fw-bold text-sm ms-2">${window.escapeHtml(r.brandName)}</span></div>
-                <p class="bg-bg border-border text-dark" style="padding:10px 12px; border-radius:8px; margin:0; font-size:0.9rem;">"${window.escapeHtml(r.text)}"</p>
-                ${adminReplyHtml}
-                <small class="text-muted text-xs d-block mt-2"><i class="fa-regular fa-clock"></i> ${new Date(r.timestamp).toLocaleString('id-ID')}</small>
             </div>
-            
-            <div class="flex-gap align-center">
-                <button class="btn btn-primary btn-sm" onclick="window.promptReplyReview('${r.dbId}')">
-                    <i class="fa-solid fa-reply"></i> ${r.adminReply ? 'Edit Balasan' : 'Balas'}
-                </button>
-                <button class="btn btn-danger btn-sm" onclick="window.deleteReview('${r.dbId}')">
-                    <i class="fa-solid fa-trash"></i>
-                </button>
-            </div>
-        </div>`;
+        `;
     });
-    list.innerHTML = html;
+    listEl.innerHTML = html;
 };
 
-window.promptReplyReview = function(dbId) {
-    const rev = reviewsList.find(r => r.dbId === dbId);
-    if (!rev) return;
+window.openAdminChatDetailDesk = function(chatId) {
+    activeAdminChatId = chatId;
+    const container = document.getElementById('wa-layout-container');
+    if (container) container.classList.add('chat-open');
 
-    document.getElementById('reply-review-id').value = dbId;
-    document.getElementById('reply-review-text').innerText = `"${rev.text}"`;
-    document.getElementById('reply-review-input').value = rev.adminReply || '';
-    
-    window.openModal('modal-reply-review');
+    document.getElementById('admin-chat-empty').style.display = 'none';
+    document.getElementById('admin-chat-view').style.display = 'flex';
+
+    window.renderAdminChatList();
+    window.renderActiveChatMessages();
 };
 
-window.submitReviewReply = async function() {
-    const dbId = document.getElementById('reply-review-id').value;
-    const replyTxt = document.getElementById('reply-review-input').value.trim();
-    if (!replyTxt) return window.customAlert('Peringatan', 'Kolom balasan tidak boleh kosong.', 'warning');
-    
-    const btn = document.getElementById('btn-save-review-reply');
-    const og = btn.innerHTML;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'; btn.disabled = true;
-    try {
-        await updateDoc(doc(db, pathReviews, dbId), { adminReply: replyTxt });
-        window.closeModal('modal-reply-review');
-        window.showToast('Tersimpan', 'Balasan ulasan berhasil dipublikasikan.', 'success');
-    } catch (e) {
-        window.customAlert('Error', 'Gagal menyimpan balasan ulasan.', 'error');
-    } finally {
-        btn.innerHTML = og; btn.disabled = false;
+window.closeMobileChatView = function() {
+    const container = document.getElementById('wa-layout-container');
+    if (container) container.classList.remove('chat-open');
+    activeAdminChatId = null;
+};
+
+window.renderActiveChatMessages = function() {
+    const chat = allLiveChats.find(c => c.id === activeAdminChatId);
+    const msgBox = document.getElementById('admin-chat-messages');
+    if (!chat || !msgBox) return;
+
+    document.getElementById('active-chat-user').innerText = chat.userInfo || `Pelanggan #${chat.id.slice(-4)}`;
+    const msgs = chat.messages || [];
+
+    if (msgs.length === 0) {
+        msgBox.innerHTML = '<div class="text-center text-muted text-xs p-3">Belum ada riwayat pesan. Ketik pesan di bawah untuk memulai percakapan.</div>';
+        return;
+    }
+
+    let html = '';
+    msgs.forEach(m => {
+        const roleClass = m.sender === 'admin' ? 'admin' : 'user';
+        const timeStr = m.timestamp ? new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+        html += `
+            <div class="chat-msg ${roleClass}">
+                <div>${window.escapeHtml(m.text).replace(/\n/g, '<br>')}</div>
+                <span class="chat-time">${timeStr}</span>
+            </div>
+        `;
+    });
+    msgBox.innerHTML = html;
+    msgBox.scrollTop = msgBox.scrollHeight;
+};
+
+window.insertQuickReply = function(text) {
+    const inp = document.getElementById('admin-chat-input');
+    if (inp) {
+        inp.value = text;
+        inp.focus();
     }
 };
 
-window.deleteReview = async function(dbId) {
-    window.openConfirm('Hapus Ulasan', 'Hapus ulasan pembeli ini secara permanen?', async (confirmed) => {
+window.sendAdminReply = async function() {
+    if (!activeAdminChatId) return;
+    const input = document.getElementById('admin-chat-input');
+    const text = input.value.trim();
+    if (!text) return;
+
+    input.value = '';
+    try {
+        const chatRef = doc(db, pathChats, activeAdminChatId);
+        await setDoc(chatRef, {
+            updatedAt: Date.now(),
+            messages: arrayUnion({
+                sender: 'admin',
+                text: text,
+                timestamp: Date.now()
+            })
+        }, { merge: true });
+    } catch (e) {
+        window.customAlert('Gagal', 'Tidak dapat mengirim balasan chat.', 'error');
+    }
+};
+
+window.deleteActiveChat = function() {
+    if (!activeAdminChatId) return;
+    window.openConfirm('Akhiri & Hapus Sesi Chat', 'Yakin ingin menghapus seluruh riwayat obrolan dengan pelanggan ini?', async (confirmed) => {
         if (confirmed) {
-            await deleteDoc(doc(db, pathReviews, dbId));
-            window.showToast('Terhapus', 'Ulasan berhasil dihapus.', 'info');
+            try {
+                await deleteDoc(doc(db, pathChats, activeAdminChatId));
+                activeAdminChatId = null;
+                document.getElementById('admin-chat-view').style.display = 'none';
+                document.getElementById('admin-chat-empty').style.display = 'flex';
+                window.closeMobileChatView();
+                window.showToast('Sesi Dihapus', 'Riwayat obrolan berhasil dibersihkan.', 'info');
+            } catch (e) {
+                window.customAlert('Error', 'Gagal menghapus obrolan.', 'error');
+            }
         }
-    }, 'delete');
+    });
 };
 
-/* ============================================================================
- * [FEATURE-04, FEATURE-05 & FEATURE-09] MANAJEMEN KATALOG, BUILDER VARIAN,
- * DURASI HARI, DESKRIPSI VARIAN OPSIONAL & INPUT DATA TUJUAN APP OPSIONAL
- * ============================================================================ */
-window.setAdminProdFilter = function(filterType, btnEl) {
-    currentAdminProdFilter = filterType;
-    document.querySelectorAll('#tab-products .filter-pill').forEach(b => b.classList.remove('active'));
-    if (btnEl) btnEl.classList.add('active');
-    window.renderAdminProducts();
+// ==========================================
+// [FEATURE-17 & 18] KATALOG PRODUK, SINKRONISASI OTOMATIS STOK & 3 MODE PENGIRIMAN
+// ==========================================
+function rebuildGroupedBrands() {
+    groupedBrands = [];
+    products.forEach(p => {
+        const bName = p.brand || p.name;
+        const exist = groupedBrands.find(b => b.brandName === bName);
+        if (exist) {
+            exist.items.push(p);
+            if (p.imgUrlBase64 && !exist.imgUrlBase64) exist.imgUrlBase64 = p.imgUrlBase64;
+            if (p.desc && !exist.desc) exist.desc = p.desc;
+            if (p.requireAppTarget) exist.requireAppTarget = true;
+            if (p.appTargetLabel && !exist.appTargetLabel) exist.appTargetLabel = p.appTargetLabel;
+            if (p.appTargetPlaceholder && !exist.appTargetPlaceholder) exist.appTargetPlaceholder = p.appTargetPlaceholder;
+        } else {
+            groupedBrands.push({
+                brandName: bName,
+                type: p.type || 'app',
+                imgUrlBase64: p.imgUrlBase64 || '',
+                desc: p.desc || '',
+                isGangguan: p.isGangguan || false,
+                requireAppTarget: Boolean(p.requireAppTarget),
+                appTargetLabel: p.appTargetLabel || '',
+                appTargetPlaceholder: p.appTargetPlaceholder || '',
+                items: [p]
+            });
+        }
+    });
+}
+
+// Hitung jumlah stok Ready di koleksi `stocks` untuk suatu Brand & Varian
+function countReadyStockSlotsForVariant(brandName, itemName) {
+    let totalSlots = 0;
+    stocksData.forEach(s => {
+        if (s.status !== 'Ready') return;
+        if ((s.brand || '').toLowerCase() !== (brandName || '').toLowerCase()) return;
+        if ((s.itemName || '').toLowerCase() !== (itemName || '').toLowerCase()) return;
+
+        if (s.isReusable === true) {
+            totalSlots += 999;
+        } else {
+            const maxQ = parseInt(s.maxQuota || 1, 10);
+            const usedQ = parseInt(s.usedQuota || 0, 10);
+            totalSlots += Math.max(0, maxQ - usedQ);
+        }
+    });
+    return totalSlots;
+}
+
+// [FEATURE-18] Sinkronisasi otomatis stok produk dengan Gudang Stok (`stocks`)
+// Jika mode = 'auto' dan stok ditambahkan di Tab Stok, produk otomatis aktif (`soldOut: false` & `stockCount` terisi)!
+// Jika mode = 'manual', produk tetap dikontrol manual dan tidak ikut terjual otomatis sampai Admin mengubahnya ke Otomatis!
+window.syncAllProductsWithStockVaultV27 = async function(showToastNotify = false) {
+    let updatedCount = 0;
+    for (const p of products) {
+        if (!p.dbId) continue;
+        const bName = p.brand || p.name;
+        const procType = (p.processType || 'auto').toLowerCase();
+        const readySlots = countReadyStockSlotsForVariant(bName, p.name);
+
+        if (procType === 'auto') {
+            const shouldBeSoldOut = readySlots <= 0 ? Boolean(p.soldOut) : false;
+            if (p.stockCount !== readySlots || (readySlots > 0 && p.soldOut === true)) {
+                await updateDoc(doc(db, pathProducts, p.dbId), {
+                    stockCount: readySlots,
+                    soldOut: shouldBeSoldOut
+                }).catch(() => {});
+                updatedCount++;
+            }
+        } else if (procType === 'ask_auto') {
+            // Mode Tanya & Otomatis: selalu bisa dibeli (soldOut = false jika ada stok atau buka tanya)
+            if (p.stockCount !== readySlots) {
+                await updateDoc(doc(db, pathProducts, p.dbId), {
+                    stockCount: readySlots,
+                    soldOut: false
+                }).catch(() => {});
+                updatedCount++;
+            }
+        }
+    }
+    if (showToastNotify) {
+        window.showToast('Sinkronisasi Selesai', `${updatedCount} variasi produk telah disinkronkan dengan Gudang Stok.`, 'success');
+    }
 };
 
-window.renderAdminProducts = function() {
-    const container = document.getElementById('admin-prod-list');
-    if (!container) return;
+window.renderAdminCatalog = function() {
+    const grid = document.getElementById('admin-catalog-grid');
+    if (!grid) return;
 
-    const searchQ = (document.getElementById('admin-search-prod')?.value || '').trim().toLowerCase();
-    let list = currentAdminProdFilter === 'all' ? groupedBrands : groupedBrands.filter(b => b.type === currentAdminProdFilter);
+    const searchQ = (document.getElementById('admin-search-product')?.value || '').trim().toLowerCase();
+    let list = [...groupedBrands];
 
     if (searchQ) {
-        list = list.filter(b => b.brandName.toLowerCase().includes(searchQ) || b.items.some(i => i.name.toLowerCase().includes(searchQ)));
+        list = list.filter(b =>
+            b.brandName.toLowerCase().includes(searchQ) ||
+            b.type.toLowerCase().includes(searchQ) ||
+            b.items.some(i => i.name.toLowerCase().includes(searchQ))
+        );
     }
 
     if (list.length === 0) {
-        container.innerHTML = `<div class="dashboard-panel text-center text-muted" style="grid-column: 1/-1; padding: 2.5rem;">Tidak ada produk ditemukan pada kategori/pencarian ini.</div>`;
+        grid.innerHTML = '<div class="dashboard-panel text-center text-muted" style="grid-column: 1/-1;">Belum ada produk di katalog.</div>';
         return;
     }
-    
+
     let html = '';
     list.forEach(b => {
         const safeJsBrand = escapeJsStr(b.brandName);
+        const typeLabel = b.type === 'game' ? 'GAME' : (b.type === 'tools' ? 'TOOLS / EMAIL' : 'APLIKASI');
         const imgHtml = b.imgUrlBase64
-            ? `<img src="${b.imgUrlBase64}" style="width:56px; height:56px; object-fit:cover; border-radius:14px; border:var(--brutal-border);" loading="lazy" alt="${window.escapeHtml(b.brandName)}">`
-            : `<div style="width:56px; height:56px; background:var(--primary); color:white; display:flex; justify-content:center; align-items:center; border-radius:14px; border:var(--brutal-border); font-weight:900; font-size:1.4rem;">${window.escapeHtml(b.brandName.charAt(0))}</div>`;
-        
-        const itemsCount = b.items.length;
-        const isSoldOut = b.items.every(i => i.soldOut || (typeof i.stockCount === 'number' && i.stockCount === 0));
-        const prices = b.items.map(i => i.priceNum || 0).filter(p => p > 0);
-        const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
-        const hasDurationItem = b.items.some(i => i.durationDays && i.durationDays > 0);
-        
-        let typeBadge = '<span class="status-badge status-unpaid">📱 APLIKASI</span>';
-        if (b.type === 'game') typeBadge = '<span class="status-badge status-pending">🎮 GAME</span>';
-        else if (b.type === 'tools') typeBadge = '<span class="status-badge status-tools">🛠️ TOOLS</span>';
+            ? `<img src="${b.imgUrlBase64}" class="catalog-thumb" alt="${window.escapeHtml(b.brandName)}">`
+            : `<div class="catalog-thumb flex-center fw-900" style="background:var(--primary); color:#fff; font-size:1.3rem;">${window.escapeHtml(b.brandName.charAt(0))}</div>`;
 
-        let statusBadgeHtml = isSoldOut ? '<span class="status-badge status-failed">HABIS</span>' : '<span class="status-badge status-success">AKTIF</span>';
-        if (b.isGangguan) statusBadgeHtml = '<span class="status-badge status-pending">GANGGUAN</span>';
-        const durBadgeHtml = hasDurationItem ? '<span class="status-badge status-tools"><i class="fa-solid fa-stopwatch"></i> BERDURASI</span>' : '';
-        
+        const autoCount = b.items.filter(i => (i.processType || 'auto') === 'auto').length;
+        const askAutoCount = b.items.filter(i => i.processType === 'ask_auto').length;
+        const manualCount = b.items.filter(i => i.processType === 'manual').length;
+
+        const totalVaultReady = b.items.reduce((acc, it) => acc + countReadyStockSlotsForVariant(b.brandName, it.name), 0);
+
         html += `
-        <div class="admin-prod-card">
+        <div class="catalog-card">
             <div>
-                <div class="admin-prod-card-head">
+                <div class="catalog-card-top mb-2">
                     ${imgHtml}
-                    <div style="flex:1; overflow:hidden;">
-                        <div class="flex-wrap-gap mb-1">${typeBadge} ${statusBadgeHtml} ${durBadgeHtml}</div>
-                        <strong class="text-dark" style="font-size:1.08rem; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${window.escapeHtml(b.brandName)}</strong>
-                        <span class="text-xs text-muted fw-bold">${itemsCount} Varian &bull; Mulai Rp${minPrice.toLocaleString('id-ID')}</span>
+                    <div style="flex:1; min-width:0;">
+                        <div class="flex-between align-center mb-1">
+                            <span class="status-badge status-pending" style="font-size:0.62rem;">${typeLabel}</span>
+                            ${b.isGangguan ? '<span class="status-badge status-failed" style="font-size:0.62rem;">GANGGUAN</span>' : '<span class="status-badge status-success" style="font-size:0.62rem;">AKTIF</span>'}
+                        </div>
+                        <h4 class="m-0 text-dark" style="font-size:1.05rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${window.escapeHtml(b.brandName)}</h4>
+                        <span class="text-xs text-muted">${b.items.length} Variasi &bull; Stok Gudang: <b class="text-primary">${totalVaultReady >= 999 ? '∞' : totalVaultReady}</b></span>
                     </div>
                 </div>
+                <div class="flex-wrap-gap mb-2" style="gap:4px;">
+                    ${autoCount > 0 ? `<span class="status-badge status-success" style="font-size:0.6rem;">⚡ ${autoCount} Auto</span>` : ''}
+                    ${askAutoCount > 0 ? `<span class="status-badge status-vip" style="font-size:0.6rem;">💬⚡ ${askAutoCount} Tanya/Auto</span>` : ''}
+                    ${manualCount > 0 ? `<span class="status-badge status-unpaid" style="font-size:0.6rem;">👨‍💻 ${manualCount} Manual</span>` : ''}
+                </div>
             </div>
-            <div class="admin-prod-card-actions">
-                <button class="btn btn-primary btn-sm flex-1" onclick="window.openProductGroupModal('${safeJsBrand}')">
-                    <i class="fa-solid fa-pen-to-square"></i> Edit Varian & Durasi
+            <div class="flex-gap mt-2">
+                <button class="btn btn-outline btn-sm flex-1" onclick="window.openEditBrandModal('${safeJsBrand}')">
+                    <i class="fa-solid fa-pen-to-square"></i> Kelola Variasi
                 </button>
-                <button class="btn btn-danger btn-sm" onclick="window.deleteProductGroup('${safeJsBrand}')" title="Hapus Produk">
+                <button class="btn btn-danger btn-sm" onclick="window.deleteBrandEntirely('${safeJsBrand}')" title="Hapus Seluruh Brand">
                     <i class="fa-solid fa-trash"></i>
                 </button>
             </div>
         </div>`;
     });
-    container.innerHTML = html;
+    grid.innerHTML = html;
 };
 
-window.toggleInputTypeBox = function() {
+window.toggleManageGameInput = function() {
     const type = document.getElementById('manage-prod-type').value;
-    const inputGroup = document.getElementById('group-tipe-input');
-    const appTargetGroup = document.getElementById('group-app-target-config');
+    const gameWrap = document.getElementById('manage-game-input-wrap');
+    const appWrap = document.getElementById('manage-app-input-wrap');
 
-    if (inputGroup) {
-        inputGroup.style.display = (type === 'game' || type === 'tools') ? 'block' : 'none';
-    }
-    if (appTargetGroup) {
-        appTargetGroup.style.display = (type === 'app') ? 'block' : 'none';
-    }
+    if (gameWrap) gameWrap.style.display = (type === 'game' || type === 'tools') ? 'block' : 'none';
+    if (appWrap) appWrap.style.display = (type === 'app') ? 'block' : 'none';
 };
 
-window.toggleAppTargetCustomFields = function() {
-    const chk = document.getElementById('manage-prod-require-app-target');
-    const box = document.getElementById('app-target-custom-fields');
-    if (box) {
-        box.style.display = (chk && chk.checked) ? 'grid' : 'none';
-    }
+window.toggleAppTargetLabelInput = function() {
+    const checked = document.getElementById('manage-app-require-target')?.checked;
+    const cfg = document.getElementById('manage-app-target-config');
+    if (cfg) cfg.style.display = checked ? 'grid' : 'none';
 };
 
-window.selectInputType = function(val, el) {
-    document.querySelectorAll('#group-tipe-input .type-card').forEach(c => c.classList.remove('active'));
-    if (el) {
-        el.classList.add('active');
-        const radio = el.querySelector('input');
-        if (radio) radio.checked = true;
-    }
-};
+window.openAddProductModal = function() {
+    document.getElementById('modal-prod-title').innerHTML = '<i class="fa-solid fa-plus text-primary"></i> Tambah Brand / Produk Baru V27';
+    document.getElementById('manage-orig-brand').value = '';
+    document.getElementById('manage-brand-name').value = '';
+    document.getElementById('manage-prod-type').value = 'app';
+    document.getElementById('manage-input-type').value = 'id_zone';
+    document.getElementById('manage-prod-desc').value = '';
+    document.getElementById('manage-brand-gangguan').checked = false;
 
-function updateProdModalPreviewImg(b64) {
-    const imgPrev = document.getElementById('manage-prod-img-preview');
-    const placeholder = document.getElementById('manage-prod-img-placeholder');
-    if (b64) {
-        if (imgPrev) { imgPrev.src = b64; imgPrev.style.display = 'block'; }
-        if (placeholder) placeholder.style.display = 'none';
-    } else {
-        if (imgPrev) { imgPrev.src = ''; imgPrev.style.display = 'none'; }
-        if (placeholder) placeholder.style.display = 'flex';
-    }
-}
-
-window.openProductGroupModal = function(brandName = null) {
-    currentGroupNominals = [];
-    const reqAppChk = document.getElementById('manage-prod-require-app-target');
-    const targetLblInp = document.getElementById('manage-prod-target-label');
-    const targetPhInp = document.getElementById('manage-prod-target-placeholder');
-
-    if (brandName) {
-        const group = groupedBrands.find(b => b.brandName === brandName);
-        if (group) {
-            document.getElementById('modal-prod-title').innerHTML = `<i class="fa-solid fa-pen-to-square text-primary"></i> Edit Produk: ${window.escapeHtml(brandName)}`;
-            document.getElementById('manage-prod-old-brand').value = brandName;
-            document.getElementById('manage-prod-type').value = group.type || 'app';
-            document.getElementById('manage-prod-brand').value = group.brandName;
-            document.getElementById('manage-prod-img-base64').value = group.imgUrlBase64 || '';
-            document.getElementById('manage-prod-desc').value = group.desc || '';
-            document.getElementById('manage-prod-file-name').innerText = group.imgUrlBase64 ? 'Ikon tersimpan (Klik gambar untuk mengganti)' : 'Klik kotak kamera untuk upload ikon';
-            updateProdModalPreviewImg(group.imgUrlBase64 || '');
-            
-            const gangguanEl = document.getElementById('manage-prod-gangguan');
-            if (gangguanEl) gangguanEl.checked = group.isGangguan || false;
-
-            const firstItem = group.items[0] || {};
-            if (reqAppChk) reqAppChk.checked = Boolean(group.requireAppTarget || firstItem.requireAppTarget);
-            if (targetLblInp) targetLblInp.value = group.appTargetLabel || firstItem.appTargetLabel || '';
-            if (targetPhInp) targetPhInp.value = group.appTargetPlaceholder || firstItem.appTargetPlaceholder || '';
-            window.toggleAppTargetCustomFields();
-            
-            currentGroupNominals = group.items.map(i => ({
-                dbId: i.dbId,
-                name: i.name,
-                priceNum: i.priceNum,
-                durationDays: typeof i.durationDays === 'number' ? i.durationDays : 0,
-                variantDesc: i.variantDesc || i.description || '',
-                stockCount: typeof i.stockCount === 'number' ? i.stockCount : null,
-                processType: i.processType || 'auto',
-                soldOut: i.soldOut || false
-            }));
-            
-            const allSoldOut = currentGroupNominals.length > 0 && currentGroupNominals.every(n => n.soldOut);
-            document.getElementById('manage-prod-soldout').checked = allSoldOut;
-            
-            let inpType = firstItem.inputType || (group.type === 'game' ? 'id_zone' : 'none');
-            const targetEl = document.querySelector(`#group-tipe-input .type-card input[value="${inpType}"]`);
-            if (targetEl) window.selectInputType(inpType, targetEl.parentElement);
-        }
-    } else {
-        document.getElementById('modal-prod-title').innerHTML = '<i class="fa-solid fa-box-open text-primary"></i> Tambah Produk Baru';
-        document.getElementById('manage-prod-old-brand').value = '';
-        document.getElementById('manage-prod-type').value = 'app';
-        document.getElementById('manage-prod-brand').value = '';
-        document.getElementById('manage-prod-desc').value = '';
-        document.getElementById('manage-prod-img-base64').value = '';
-        document.getElementById('manage-prod-file-name').innerText = 'Klik kotak kamera untuk mengunggah ikon (Auto WebP).';
-        updateProdModalPreviewImg('');
-        document.getElementById('manage-prod-soldout').checked = false;
-        
-        const gangguanEl = document.getElementById('manage-prod-gangguan');
-        if (gangguanEl) gangguanEl.checked = false;
-
-        if (reqAppChk) reqAppChk.checked = false;
-        if (targetLblInp) targetLblInp.value = '';
-        if (targetPhInp) targetPhInp.value = '';
-        window.toggleAppTargetCustomFields();
-        
-        const defaultEl = document.querySelector(`#group-tipe-input .type-card input[value="none"]`);
-        if (defaultEl) window.selectInputType('none', defaultEl.parentElement);
-    }
+    const reqAppEl = document.getElementById('manage-app-require-target');
+    const lblAppEl = document.getElementById('manage-app-target-label');
+    const phAppEl = document.getElementById('manage-app-target-ph');
+    if (reqAppEl) reqAppEl.checked = false;
+    if (lblAppEl) lblAppEl.value = '';
+    if (phAppEl) phAppEl.value = '';
+    window.toggleAppTargetLabelInput();
     
-    window.toggleInputTypeBox();
-    window.clearTempNominalInput();
+    tempManageImgBase64 = '';
+    const prevImg = document.getElementById('preview-manage-img');
+    if (prevImg) { prevImg.src = ''; prevImg.style.display = 'none'; }
+    
+    tempProductVariants = [];
+    window.cancelEditTempNominal();
+    window.toggleManageGameInput();
     window.renderTempNominals();
     window.openModal('modal-manage-product');
 };
 
-window.clearTempNominalInput = function() {
-    document.getElementById('temp-nom-name').value = '';
-    document.getElementById('temp-nom-price').value = '';
-    const durInp = document.getElementById('temp-nom-duration');
-    if (durInp) durInp.value = '';
-    const stockInp = document.getElementById('temp-nom-stock');
-    if (stockInp) stockInp.value = '';
-    const descInp = document.getElementById('temp-nom-desc');
-    if (descInp) descInp.value = '';
-    document.getElementById('temp-nom-status').value = 'auto';
-    document.getElementById('temp-nom-index').value = '-1';
-    document.getElementById('btn-add-item').innerHTML = '<i class="fa-solid fa-plus"></i> <span>Tambah Varian</span>';
-    document.getElementById('btn-cancel-edit-item').style.display = 'none';
+window.openEditBrandModal = function(brandName) {
+    const bObj = groupedBrands.find(b => b.brandName === brandName);
+    if (!bObj) return;
+
+    document.getElementById('modal-prod-title').innerHTML = `<i class="fa-solid fa-pen-to-square text-primary"></i> Edit Produk: ${window.escapeHtml(brandName)}`;
+    document.getElementById('manage-orig-brand').value = brandName;
+    document.getElementById('manage-brand-name').value = bObj.brandName;
+    document.getElementById('manage-prod-type').value = bObj.type || 'app';
+    document.getElementById('manage-input-type').value = bObj.items[0]?.inputType || 'id_zone';
+    document.getElementById('manage-prod-desc').value = bObj.desc || '';
+    document.getElementById('manage-brand-gangguan').checked = Boolean(bObj.isGangguan);
+
+    const firstIt = bObj.items[0] || {};
+    const reqAppEl = document.getElementById('manage-app-require-target');
+    const lblAppEl = document.getElementById('manage-app-target-label');
+    const phAppEl = document.getElementById('manage-app-target-ph');
+    if (reqAppEl) reqAppEl.checked = Boolean(bObj.requireAppTarget || firstIt.requireAppTarget);
+    if (lblAppEl) lblAppEl.value = bObj.appTargetLabel || firstIt.appTargetLabel || '';
+    if (phAppEl) phAppEl.value = bObj.appTargetPlaceholder || firstIt.appTargetPlaceholder || '';
+    window.toggleAppTargetLabelInput();
+
+    tempManageImgBase64 = bObj.imgUrlBase64 || '';
+    const prevImg = document.getElementById('preview-manage-img');
+    if (tempManageImgBase64 && prevImg) {
+        prevImg.src = tempManageImgBase64;
+        prevImg.style.display = 'block';
+    } else if (prevImg) {
+        prevImg.style.display = 'none';
+    }
+
+    tempProductVariants = bObj.items.map(i => ({
+        dbId: i.dbId || null,
+        name: i.name,
+        priceNum: i.priceNum || 0,
+        variantDesc: i.variantDesc || i.description || '',
+        durationDays: parseInt(i.durationDays || 0, 10),
+        processType: i.processType || 'auto',
+        stockMode: i.stockMode || 'PRIVATE',
+        soldOut: Boolean(i.soldOut),
+        manualLockSoldOut: Boolean(i.manualLockSoldOut)
+    }));
+
+    window.cancelEditTempNominal();
+    window.toggleManageGameInput();
+    window.renderTempNominals();
+    window.openModal('modal-manage-product');
+};
+
+window.addTempNominal = function() {
+    const name = document.getElementById('temp-nom-name').value.trim();
+    const price = parseInt(document.getElementById('temp-nom-price').value, 10) || 0;
+    const desc = (document.getElementById('temp-nom-desc')?.value || '').trim();
+    const durationDays = parseInt(document.getElementById('temp-nom-duration')?.value || '0', 10) || 0;
+    const statusMode = document.getElementById('temp-nom-status').value;
+    const stockMode = document.getElementById('temp-nom-stock-mode')?.value || 'PRIVATE';
+    const editIdx = parseInt(document.getElementById('edit-variant-idx')?.value || '-1', 10);
+
+    if (!name || price <= 0) {
+        window.customAlert('Data Variasi Belum Lengkap', 'Masukkan nama variasi dan harga jual yang valid.', 'warning');
+        return;
+    }
+
+    if (editIdx >= 0 && editIdx < tempProductVariants.length) {
+        tempProductVariants[editIdx].name = name;
+        tempProductVariants[editIdx].priceNum = price;
+        tempProductVariants[editIdx].variantDesc = desc;
+        tempProductVariants[editIdx].durationDays = durationDays;
+        tempProductVariants[editIdx].processType = statusMode;
+        tempProductVariants[editIdx].stockMode = stockMode;
+        window.showToast('Variasi Diperbarui', `Variasi "${name}" berhasil diperbarui.`, 'info');
+    } else {
+        tempProductVariants.push({
+            dbId: null,
+            name: name,
+            priceNum: price,
+            variantDesc: desc,
+            durationDays: durationDays,
+            processType: statusMode,
+            stockMode: stockMode,
+            soldOut: false,
+            manualLockSoldOut: false
+        });
+    }
+
+    window.cancelEditTempNominal();
+    window.renderTempNominals();
 };
 
 window.editTempNominal = function(idx) {
-    const item = currentGroupNominals[idx];
-    if (!item) return;
-    document.getElementById('temp-nom-name').value = item.name;
-    document.getElementById('temp-nom-price').value = item.priceNum;
-    const durInp = document.getElementById('temp-nom-duration');
-    if (durInp) durInp.value = item.durationDays > 0 ? item.durationDays : '';
-    const stockInp = document.getElementById('temp-nom-stock');
-    if (stockInp) stockInp.value = typeof item.stockCount === 'number' ? item.stockCount : '';
-    const descInp = document.getElementById('temp-nom-desc');
-    if (descInp) descInp.value = item.variantDesc || '';
-    document.getElementById('temp-nom-status').value = item.processType;
-    document.getElementById('temp-nom-index').value = idx;
-    document.getElementById('btn-add-item').innerHTML = '<i class="fa-solid fa-check"></i> <span>Update Varian</span>';
-    document.getElementById('btn-cancel-edit-item').style.display = 'inline-flex';
-};
+    const v = tempProductVariants[idx];
+    if (!v) return;
 
-window.cloneTempNominal = function(idx) {
-    const item = currentGroupNominals[idx];
-    if (!item) return;
-    currentGroupNominals.splice(idx + 1, 0, {
-        dbId: null,
-        name: item.name + ' (Copy)',
-        priceNum: item.priceNum,
-        durationDays: item.durationDays || 0,
-        variantDesc: item.variantDesc || '',
-        stockCount: item.stockCount,
-        processType: item.processType,
-        soldOut: item.soldOut
-    });
-    window.renderTempNominals();
-    window.showToast('Varian Dikloning', 'Silakan sesuaikan nama atau harga varian hasil duplikasi.', 'info');
-};
+    document.getElementById('edit-variant-idx').value = idx;
+    document.getElementById('temp-nom-name').value = v.name || '';
+    document.getElementById('temp-nom-price').value = v.priceNum || '';
+    if (document.getElementById('temp-nom-desc')) document.getElementById('temp-nom-desc').value = v.variantDesc || '';
+    if (document.getElementById('temp-nom-duration')) document.getElementById('temp-nom-duration').value = v.durationDays || 0;
+    document.getElementById('temp-nom-status').value = v.processType || 'auto';
+    if (document.getElementById('temp-nom-stock-mode')) document.getElementById('temp-nom-stock-mode').value = v.stockMode || 'PRIVATE';
 
-window.adjustAllTempPrices = function(deltaAmount) {
-    if (currentGroupNominals.length === 0) return;
-    currentGroupNominals.forEach(n => {
-        const nextPrice = (n.priceNum || 0) + deltaAmount;
-        n.priceNum = nextPrice > 500 ? nextPrice : 500;
-    });
-    window.renderTempNominals();
-    window.showToast('Harga Disesuaikan', `Seluruh varian diubah sebesar ${deltaAmount > 0 ? '+' : ''}Rp${deltaAmount.toLocaleString('id-ID')}`, 'info');
-};
+    const titleEl = document.getElementById('form-variant-title');
+    const btnAdd = document.getElementById('btn-add-variant-item');
+    const btnCancel = document.getElementById('btn-cancel-variant-edit');
 
-window.sortTempNominalsByPrice = function() {
-    currentGroupNominals.sort((a, b) => (a.priceNum || 0) - (b.priceNum || 0));
-    window.renderTempNominals();
-};
-
-window.addOrUpdateTempNominal = function() {
-    const idx = parseInt(document.getElementById('temp-nom-index').value);
-    const name = document.getElementById('temp-nom-name').value.trim();
-    const priceNum = parseInt(document.getElementById('temp-nom-price').value) || 0;
-    const durationDays = Math.max(0, parseInt(document.getElementById('temp-nom-duration')?.value || '0', 10) || 0);
-    const rawStock = document.getElementById('temp-nom-stock')?.value.trim() || '';
-    const stockCount = rawStock !== '' && !isNaN(parseInt(rawStock)) ? Math.max(0, parseInt(rawStock)) : null;
-    const variantDesc = document.getElementById('temp-nom-desc')?.value.trim() || '';
-    const processType = document.getElementById('temp-nom-status').value || 'auto';
-
-    if (!name || priceNum <= 0) {
-        window.customAlert('Input Belum Lengkap', 'Nama Varian dan Harga Jual harus diisi dengan benar.', 'warning');
-        return;
+    if (titleEl) titleEl.innerHTML = `<i class="fa-solid fa-pen text-warning"></i> Edit Variasi: ${window.escapeHtml(v.name)}`;
+    if (btnAdd) {
+        btnAdd.className = 'btn btn-success btn-sm flex-2';
+        btnAdd.innerHTML = `<i class="fa-solid fa-check"></i> Update Variasi Ini`;
     }
-    
-    if (idx >= 0) {
-        currentGroupNominals[idx].name = name;
-        currentGroupNominals[idx].priceNum = priceNum;
-        currentGroupNominals[idx].durationDays = durationDays;
-        currentGroupNominals[idx].variantDesc = variantDesc;
-        currentGroupNominals[idx].stockCount = stockCount;
-        currentGroupNominals[idx].processType = processType;
-        if (stockCount === 0) currentGroupNominals[idx].soldOut = true;
-    } else {
-        currentGroupNominals.push({
-            dbId: null,
-            name,
-            priceNum,
-            durationDays,
-            variantDesc,
-            stockCount,
-            processType,
-            soldOut: stockCount === 0
-        });
+    if (btnCancel) btnCancel.style.display = 'inline-flex';
+};
+
+window.cancelEditTempNominal = function() {
+    if (document.getElementById('edit-variant-idx')) document.getElementById('edit-variant-idx').value = '-1';
+    document.getElementById('temp-nom-name').value = '';
+    document.getElementById('temp-nom-price').value = '';
+    if (document.getElementById('temp-nom-desc')) document.getElementById('temp-nom-desc').value = '';
+    if (document.getElementById('temp-nom-duration')) document.getElementById('temp-nom-duration').value = '0';
+    document.getElementById('temp-nom-status').value = 'auto';
+    if (document.getElementById('temp-nom-stock-mode')) document.getElementById('temp-nom-stock-mode').value = 'PRIVATE';
+
+    const titleEl = document.getElementById('form-variant-title');
+    const btnAdd = document.getElementById('btn-add-variant-item');
+    const btnCancel = document.getElementById('btn-cancel-variant-edit');
+
+    if (titleEl) titleEl.innerHTML = `<i class="fa-solid fa-tags"></i> Tambah / Edit Variasi Paket Layanan`;
+    if (btnAdd) {
+        btnAdd.className = 'btn btn-warning btn-sm flex-2';
+        btnAdd.innerHTML = `<i class="fa-solid fa-plus"></i> Tambahkan ke Daftar Variasi`;
     }
-    
-    window.clearTempNominalInput();
-    document.getElementById('manage-prod-soldout').checked = false; 
-    window.renderTempNominals();
-};
-
-window.removeTempNominal = function(index) {
-    currentGroupNominals.splice(index, 1);
-    window.renderTempNominals();
-};
-
-window.toggleIndividualSoldOut = function(index, isChecked) {
-    currentGroupNominals[index].soldOut = isChecked;
-    const allSoldOut = currentGroupNominals.length > 0 && currentGroupNominals.every(n => n.soldOut);
-    document.getElementById('manage-prod-soldout').checked = allSoldOut;
-};
-
-window.toggleAllSoldOut = function(isChecked) {
-    currentGroupNominals.forEach(n => n.soldOut = isChecked);
-    window.renderTempNominals();
+    if (btnCancel) btnCancel.style.display = 'none';
 };
 
 window.renderTempNominals = function() {
-    const container = document.getElementById('manage-prod-nominals-list');
-    const countSpan = document.getElementById('temp-nom-count');
-    if (countSpan) countSpan.innerText = currentGroupNominals.length;
-    if (!container) return;
-    
-    if (currentGroupNominals.length === 0) {
-        container.innerHTML = `<div class="text-center text-muted text-sm" style="padding: 14px;">Belum ada varian harga. Isi form di atas lalu klik <b>Tambah Varian</b>.</div>`;
+    const listEl = document.getElementById('temp-nominal-list');
+    if (!listEl) return;
+
+    if (tempProductVariants.length === 0) {
+        listEl.innerHTML = '<div class="text-xs text-muted text-center p-2">Belum ada variasi paket ditambahkan.</div>';
         return;
     }
-    
+
+    const currentBrandName = document.getElementById('manage-brand-name')?.value.trim() || document.getElementById('manage-orig-brand')?.value || '';
+
     let html = '';
-    currentGroupNominals.forEach((nom, index) => {
-        const isSold = nom.soldOut ? 'checked' : '';
-        const badgeType = nom.processType === 'manual'
-            ? `<span class="status-badge status-pending" style="font-size:0.6rem; padding:2px 6px;">MANUAL</span>`
-            : `<span class="status-badge status-success" style="font-size:0.6rem; padding:2px 6px;">OTOMATIS</span>`;
-        const durBadge = nom.durationDays > 0
-            ? `<span class="status-badge status-primary" style="font-size:0.6rem; padding:2px 6px; background:rgba(37,99,235,0.14); color:var(--primary-light);"><i class="fa-regular fa-clock"></i> ${nom.durationDays} Hari</span>`
-            : '';
-        const stockLabel = typeof nom.stockCount === 'number'
-            ? `<span class="status-badge status-tools" style="font-size:0.6rem; padding:2px 6px;">Stok: ${nom.stockCount}</span>`
-            : `<span class="text-muted text-xs">Stok: ∞</span>`;
-        const descLine = nom.variantDesc
-            ? `<div class="text-muted text-xs mt-1"><i class="fa-regular fa-file-lines"></i> ${window.escapeHtml(nom.variantDesc)}</div>`
-            : '';
+    tempProductVariants.forEach((v, idx) => {
+        const durBadge = v.durationDays > 0 ? `<span class="status-badge status-pending" style="font-size:0.6rem; padding:2px 6px;"><i class="fa-regular fa-clock"></i> ${v.durationDays} Hari</span>` : '';
+
+        let modeBadge = '<span class="status-badge status-success" style="font-size:0.6rem;">⚡ AUTO</span>';
+        if (v.processType === 'manual') {
+            modeBadge = '<span class="status-badge status-unpaid" style="font-size:0.6rem;">👨‍💻 MANUAL</span>';
+        } else if (v.processType === 'ask_auto') {
+            modeBadge = '<span class="status-badge status-vip" style="font-size:0.6rem;">💬⚡ TANYA & AUTO</span>';
+        }
+
+        const formatBadge = v.stockMode === 'EMAIL_OAUTH'
+            ? `<span class="status-badge status-email-oauth" style="font-size:0.6rem;"><i class="fa-solid fa-envelope-open-text"></i> FORMAT EMAIL</span>`
+            : (v.stockMode === 'SHARING' ? `<span class="status-badge status-pending" style="font-size:0.6rem;">👥 SHARING</span>` : '');
+
+        const vaultSlots = countReadyStockSlotsForVariant(currentBrandName, v.name);
+        const vaultBadge = `<span class="status-badge status-anon" style="font-size:0.6rem;">Stok Gudang: ${vaultSlots >= 999 ? '∞' : vaultSlots}</span>`;
 
         html += `
-        <div class="flex-between align-center bg-surface" style="padding: 10px 12px; border-radius: 10px; border: 1.5px solid var(--border); margin-bottom: 8px; flex-wrap:wrap; gap:8px;">
-            <div style="flex:1; min-width:200px;">
-                <div class="fw-bold text-dark text-sm">${window.escapeHtml(nom.name)} ${badgeType} ${durBadge} ${stockLabel}</div>
-                <div class="text-primary fw-bold text-xs">Rp${nom.priceNum.toLocaleString('id-ID')}</div>
-                ${descLine}
+        <div class="flex-between align-center p-2" style="background:var(--surface); border:1.5px solid var(--border); border-radius:8px; gap:8px; flex-wrap:wrap;">
+            <div style="flex:1; min-width:180px;">
+                <div class="flex-gap align-center flex-wrap-gap">
+                    <strong class="text-dark text-sm">${window.escapeHtml(v.name)}</strong>
+                    <span class="text-primary fw-bold text-xs">Rp${v.priceNum.toLocaleString('id-ID')}</span>
+                    ${modeBadge}
+                    ${formatBadge}
+                    ${durBadge}
+                    ${vaultBadge}
+                </div>
+                ${v.variantDesc ? `<div class="text-xs text-muted mt-1"><i class="fa-solid fa-circle-info"></i> ${window.escapeHtml(v.variantDesc)}</div>` : ''}
             </div>
             <div class="flex-gap align-center">
-                <label class="text-xs text-danger fw-bold pointer flex-gap align-center" style="margin-right:4px;">
-                    <input type="checkbox" class="large-checkbox" style="width:16px; height:16px;" onchange="window.toggleIndividualSoldOut(${index}, this.checked)" ${isSold}> Habis
-                </label>
-                <button class="btn-icon-only" style="width:30px; height:30px;" onclick="window.cloneTempNominal(${index})" title="Duplikat Varian"><i class="fa-regular fa-clone"></i></button>
-                <button class="btn-icon-only" style="width:30px; height:30px;" onclick="window.editTempNominal(${index})" title="Edit Varian"><i class="fa-solid fa-pen"></i></button>
-                <button class="btn-icon-only text-danger" style="width:30px; height:30px;" onclick="window.removeTempNominal(${index})" title="Hapus Varian"><i class="fa-solid fa-trash"></i></button>
+                <button type="button" class="btn btn-sm ${v.soldOut ? 'btn-danger' : 'btn-success'}" onclick="window.toggleTempVariantSoldOut(${idx})" title="Ubah Status Stok Habis / Ready">
+                    ${v.soldOut ? 'Stok Habis' : 'Ready'}
+                </button>
+                <button type="button" class="btn-icon-only text-primary" style="width:32px; height:32px;" onclick="window.editTempNominal(${idx})" title="Edit Variasi">
+                    <i class="fa-solid fa-pen"></i>
+                </button>
+                <button type="button" class="btn-icon-only text-danger" style="width:32px; height:32px;" onclick="window.removeTempNominal(${idx})" title="Hapus Variasi">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
             </div>
         </div>`;
     });
-    container.innerHTML = html;
+    listEl.innerHTML = html;
 };
 
-window.saveProductGroup = async function() {
-    const type = document.getElementById('manage-prod-type').value;
-    const brand = document.getElementById('manage-prod-brand').value.trim();
-    const desc = document.getElementById('manage-prod-desc').value.trim();
-    const imgBase64 = document.getElementById('manage-prod-img-base64').value;
-    const oldBrand = document.getElementById('manage-prod-old-brand').value;
-    
-    const gangguanEl = document.getElementById('manage-prod-gangguan');
-    const isGangguan = gangguanEl ? gangguanEl.checked : false;
-
-    const requireAppTarget = type === 'app' && Boolean(document.getElementById('manage-prod-require-app-target')?.checked);
-    const appTargetLabel = document.getElementById('manage-prod-target-label')?.value.trim() || '';
-    const appTargetPlaceholder = document.getElementById('manage-prod-target-placeholder')?.value.trim() || '';
-    
-    let inputType = 'none';
-    const checkedType = document.querySelector('input[name="manage_input_type"]:checked');
-    if (checkedType) inputType = checkedType.value;
-    
-    if (!brand) { window.customAlert('Error', 'Nama Brand / Produk wajib diisi.', 'error'); return; }
-    if (currentGroupNominals.length === 0) { window.customAlert('Error', 'Tambahkan minimal 1 varian harga ke dalam produk ini.', 'error'); return; }
-    
-    const btn = document.getElementById('btn-save-group');
-    const ogHtml = btn.innerHTML;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Menyimpan Produk...</span>';
-    btn.disabled = true;
-    try {
-        const oldGroup = groupedBrands.find(b => b.brandName === oldBrand);
-        const oldDbIds = oldGroup ? oldGroup.items.map(i => i.dbId) : [];
-        const newDbIds = currentGroupNominals.map(n => n.dbId).filter(id => id);
-        
-        const toDelete = oldDbIds.filter(id => !newDbIds.includes(id));
-        for (const id of toDelete) { await deleteDoc(doc(db, pathProducts, id)); }
-        
-        for (const nom of currentGroupNominals) {
-            const prodData = {
-                type: type,
-                brand: brand,
-                name: nom.name,
-                priceNum: nom.priceNum,
-                durationDays: nom.durationDays || 0,
-                hasDuration: Boolean(nom.durationDays && nom.durationDays > 0),
-                variantDesc: nom.variantDesc || '',
-                description: nom.variantDesc || '',
-                stockCount: typeof nom.stockCount === 'number' ? nom.stockCount : null,
-                processType: nom.processType || 'auto',
-                imgUrlBase64: imgBase64,
-                desc: desc,
-                soldOut: nom.soldOut,
-                requireAppTarget: requireAppTarget,
-                appTargetLabel: requireAppTarget ? appTargetLabel : '',
-                appTargetPlaceholder: requireAppTarget ? appTargetPlaceholder : '',
-                inputType: (type === 'game' || type === 'tools') ? inputType : (requireAppTarget ? 'app_target' : null),
-                isGangguan: isGangguan 
-            };
-            if (nom.dbId) await updateDoc(doc(db, pathProducts, nom.dbId), prodData);
-            else await addDoc(collection(db, pathProducts), prodData);
-        }
-        
-        window.closeModal('modal-manage-product');
-        window.showToast('Produk Tersimpan', `Seluruh varian ${brand} berhasil diperbarui.`, 'success');
-    } catch (e) {
-        window.customAlert('Error', 'Gagal menyimpan grup produk.', 'error');
-    } finally {
-        btn.innerHTML = ogHtml; btn.disabled = false;
+window.toggleTempVariantSoldOut = function(idx) {
+    if (tempProductVariants[idx]) {
+        tempProductVariants[idx].soldOut = !tempProductVariants[idx].soldOut;
+        tempProductVariants[idx].manualLockSoldOut = tempProductVariants[idx].soldOut;
+        window.renderTempNominals();
     }
 };
 
-window.deleteProductGroup = function(brandName) {
-    window.openConfirm("Hapus Brand Produk", `Hapus seluruh varian item dalam brand <b>${window.escapeHtml(brandName)}</b>?`, async (confirmed) => {
-        if (confirmed) {
-            const group = groupedBrands.find(b => b.brandName === brandName);
-            if (group) {
-                for (const item of group.items) { await deleteDoc(doc(db, pathProducts, item.dbId)); }
-                window.showToast('Terhapus', `Produk ${brandName} telah dihapus.`, 'info');
-            }
-        }
-    }, 'delete');
+window.removeTempNominal = function(idx) {
+    tempProductVariants.splice(idx, 1);
+    window.cancelEditTempNominal();
+    window.renderTempNominals();
 };
 
-const manageProdImgEl = document.getElementById('manage-prod-img-file');
-if (manageProdImgEl) {
-    manageProdImgEl.addEventListener('change', function(e) {
-        if (e.target.files[0]) {
-            document.getElementById('manage-prod-file-name').innerText = 'File: ' + e.target.files[0].name;
-            window.resizeImageBase64(e.target.files[0], (b64) => {
-                document.getElementById('manage-prod-img-base64').value = b64;
-                updateProdModalPreviewImg(b64);
-            }, 600, 600);
+window.saveManagedProduct = async function() {
+    const origBrand = document.getElementById('manage-orig-brand').value;
+    const brandName = document.getElementById('manage-brand-name').value.trim();
+    const prodType = document.getElementById('manage-prod-type').value;
+    const inputType = document.getElementById('manage-input-type').value;
+    const desc = document.getElementById('manage-prod-desc').value.trim();
+    const isGangguan = document.getElementById('manage-brand-gangguan').checked;
+
+    const requireAppTarget = prodType === 'app' ? Boolean(document.getElementById('manage-app-require-target')?.checked) : false;
+    const appTargetLabel = requireAppTarget ? (document.getElementById('manage-app-target-label')?.value.trim() || '') : '';
+    const appTargetPlaceholder = requireAppTarget ? (document.getElementById('manage-app-target-ph')?.value.trim() || '') : '';
+
+    if (!brandName || tempProductVariants.length === 0) {
+        window.customAlert('Belum Lengkap', 'Nama brand dan minimal 1 variasi layanan wajib diisi.', 'warning');
+        return;
+    }
+
+    const btn = document.getElementById('btn-save-managed-prod');
+    const ogHtml = btn.innerHTML;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Menyimpan...</span>';
+    btn.disabled = true;
+
+    try {
+        if (origBrand) {
+            const oldItems = products.filter(p => (p.brand || p.name) === origBrand);
+            const keepDbIds = tempProductVariants.map(v => v.dbId).filter(Boolean);
+            for (const oldItem of oldItems) {
+                if (!keepDbIds.includes(oldItem.dbId)) {
+                    await deleteDoc(doc(db, pathProducts, oldItem.dbId));
+                }
+            }
+        }
+
+        for (const v of tempProductVariants) {
+            const readyVaultCount = countReadyStockSlotsForVariant(brandName, v.name);
+            const procMode = v.processType || 'auto';
+
+            // [FEATURE-18] Jika mode auto dan ada stok di Tab Stok, otomatis soldOut = false & stockCount = readyVaultCount
+            const effectiveSoldOut = (procMode === 'auto' && readyVaultCount > 0)
+                ? false
+                : Boolean(v.soldOut);
+
+            const payload = {
+                brand: brandName,
+                name: v.name,
+                priceNum: v.priceNum,
+                variantDesc: v.variantDesc || '',
+                durationDays: parseInt(v.durationDays || 0, 10),
+                type: prodType,
+                inputType: prodType === 'app' ? (requireAppTarget ? 'app_target' : 'none') : inputType,
+                requireAppTarget: requireAppTarget,
+                appTargetLabel: appTargetLabel,
+                appTargetPlaceholder: appTargetPlaceholder,
+                desc: desc,
+                imgUrlBase64: tempManageImgBase64,
+                isGangguan: isGangguan,
+                processType: procMode,
+                stockMode: v.stockMode || 'PRIVATE',
+                stockCount: (procMode === 'auto' || procMode === 'ask_auto') ? readyVaultCount : (v.soldOut ? 0 : null),
+                soldOut: effectiveSoldOut,
+                manualLockSoldOut: procMode === 'manual' ? effectiveSoldOut : false
+            };
+
+            if (v.dbId) {
+                await updateDoc(doc(db, pathProducts, v.dbId), payload);
+            } else {
+                await addDoc(collection(db, pathProducts), payload);
+            }
+        }
+
+        window.closeModal('modal-manage-product');
+        window.showToast('Produk Tersimpan!', `Katalog ${brandName} berhasil diperbarui.`, 'success');
+    } catch (e) {
+        console.error(e);
+        window.customAlert('Error', 'Gagal menyimpan data produk.', 'error');
+    } finally {
+        btn.innerHTML = ogHtml;
+        btn.disabled = false;
+    }
+};
+
+window.deleteBrandEntirely = function(brandName) {
+    window.openConfirm('Hapus Seluruh Brand', `Yakin ingin menghapus seluruh produk dan variasi untuk <b>${window.escapeHtml(brandName)}</b>?`, async (confirmed) => {
+        if (confirmed) {
+            try {
+                const itemsToDelete = products.filter(p => (p.brand || p.name) === brandName);
+                for (const item of itemsToDelete) {
+                    await deleteDoc(doc(db, pathProducts, item.dbId));
+                }
+                window.showToast('Terhapus', `Produk ${brandName} telah dihapus dari katalog.`, 'info');
+            } catch (e) {
+                window.customAlert('Error', 'Gagal menghapus brand.', 'error');
+            }
         }
     });
-}
-/* ======================== END OF [FEATURE-04 & 05] ======================== */
+};
 
-/* ============================================================================
- * [FEATURE-06] STUDIO VOUCHER & PROMO (2-KOLOM + LIVE PREVIEW + PRESET CEPAT)
- * ============================================================================ */
+// ==========================================
+// [FEATURE-17 & 18] GUDANG STOK OTOMATIS + FORMAT PRODUK EMAIL OAUTH
+// ==========================================
+window.populateStockProductSelect = function() {
+    const sel = document.getElementById('stock-product-select');
+    if (!sel) return;
+
+    const currentVal = sel.value;
+    let html = '<option value="">-- Pilih Varian Produk (Auto / Tanya & Auto) --</option>';
+    products.forEach(p => {
+        const bName = p.brand || p.name;
+        const modeTag = p.processType === 'manual' ? ' [MANUAL-LOCKED]' : (p.processType === 'ask_auto' ? ' [TANYA & AUTO]' : ' [AUTO]');
+        const emailTag = p.stockMode === 'EMAIL_OAUTH' ? ' 📧' : '';
+        html += `<option value="${window.escapeHtml(bName)}|||${window.escapeHtml(p.name)}">${window.escapeHtml(bName)} - ${window.escapeHtml(p.name)}${emailTag}${modeTag}</option>`;
+    });
+    sel.innerHTML = html;
+    if (currentVal) sel.value = currentVal;
+};
+
+window.toggleStockModeHelper = function() {
+    const mode = document.getElementById('stock-mode-select')?.value || 'PRIVATE';
+    const quotaWrap = document.getElementById('stock-sharing-quota-wrap');
+    const emailOAuthWrap = document.getElementById('stock-email-oauth-wrap');
+    const helper = document.getElementById('stock-mode-helper');
+    const textarea = document.getElementById('stock-data-input');
+
+    if (quotaWrap) {
+        quotaWrap.style.display = (mode === 'SHARING') ? 'block' : 'none';
+    }
+    if (emailOAuthWrap) {
+        emailOAuthWrap.style.display = (mode === 'EMAIL_OAUTH') ? 'block' : 'none';
+        const portalInp = document.getElementById('stock-email-portal-url');
+        if (portalInp && !portalInp.value && siteSettings.defaultEmailPortalUrl) {
+            portalInp.value = siteSettings.defaultEmailPortalUrl;
+        }
+    }
+
+    if (!helper || !textarea) return;
+
+    if (mode === 'EMAIL_OAUTH') {
+        textarea.placeholder = "user1@outlook.com|Pass123!|M.C542_BAY.0.U.-Ci...|9e5f94bc-e8a4-4e73-b8be-63364c29d753\nuser2@hotmail.com|Pass456!|M.C542_BAY.0.U.-Cj...|9e5f94bc-e8a4-4e73-b8be-63364c29d753";
+        helper.innerHTML = `📧 <b>Format Produk Email OAuth:</b> Masukkan 1 akun per baris dengan format <code>email|password|refresh_token|client_id</code>. Pembeli akan mendapat tombol <b>Salin Format Utuh</b> & <b>Link Akses Ambil Kode Tanpa Login</b>.`;
+    } else if (mode === 'SHARING') {
+        textarea.placeholder = "netflix_sharing1@gmail.com | PassNetflix123 | Gunakan Profil Kosong - Dilarang Ubah Sandi";
+        helper.innerHTML = `👥 <b>Mode Sharing Multi-Kuota:</b> 1 baris akun dapat dibeli oleh beberapa orang sesuai angka Kuota di atas. Status baru berubah menjadi <b>Habis</b> setelah kuota penuh.`;
+    } else if (mode === 'REUSABLE') {
+        textarea.placeholder = "https://drive.google.com/drive/folders/xxxxx | Password Zip: VIPER2026 | Tutorial lengkap di dalam folder";
+        helper.innerHTML = `♾️ <b>Mode Reusable (Tanpa Batas):</b> 1 baris link/tools ini tidak akan pernah habis dan akan selalu dikirim otomatis setiap kali ada pembeli.`;
+    } else {
+        textarea.placeholder = "akun_private1@gmail.com | Pass123 | Garansi 30 Hari\nakun_private2@gmail.com | Pass456 | Garansi 30 Hari";
+        helper.innerHTML = `🔒 <b>Mode Standar Private:</b> 1 baris = 1 akun untuk 1 pembeli. Begitu terjual, stok baris tersebut langsung berstatus <b>Terpakai</b>.`;
+    }
+};
+
+window.addStockMassal = async function() {
+    const prodVal = document.getElementById('stock-product-select').value;
+    const modeVal = document.getElementById('stock-mode-select')?.value || 'PRIVATE';
+    const maxQuotaVal = parseInt(document.getElementById('stock-max-quota')?.value || '5', 10);
+    const emailPortalUrl = (document.getElementById('stock-email-portal-url')?.value || siteSettings.defaultEmailPortalUrl || '').trim();
+    const rawLines = document.getElementById('stock-data-input').value.trim();
+
+    if (!prodVal || !rawLines) {
+        window.customAlert('Data Kosong', 'Pilih varian produk dan masukkan minimal 1 baris data stok.', 'warning');
+        return;
+    }
+
+    const [brand, itemName] = prodVal.split('|||');
+    const lines = rawLines.split('\n').map(l => l.trim()).filter(l => l !== '');
+
+    if (lines.length === 0) return;
+
+    const isReusable = (modeVal === 'REUSABLE');
+    const isSharing = (modeVal === 'SHARING');
+    const isEmailOAuth = (modeVal === 'EMAIL_OAUTH');
+    const finalMaxQuota = isSharing ? Math.max(2, maxQuotaVal) : 1;
+
+    try {
+        for (const line of lines) {
+            await addDoc(collection(db, pathStocks), {
+                brand: brand,
+                itemName: itemName,
+                data: line,
+                mode: modeVal,
+                stockFormat: modeVal,
+                accessLink: isEmailOAuth ? emailPortalUrl : '',
+                isReusable: isReusable,
+                maxQuota: finalMaxQuota,
+                usedQuota: 0,
+                sentCount: 0,
+                status: 'Ready',
+                createdAt: Date.now()
+            });
+        }
+
+        // [FEATURE-18] Begitu stok ditambahkan di Tab Stok, otomatis perbarui produk terkait:
+        // Jika produk berstatus `auto` atau `ask_auto` (atau jika mode EMAIL_OAUTH dipilih, perbarui stockMode),
+        // stok produk otomatis tersedia (`soldOut: false`)!
+        const matchedProd = products.find(p => (p.brand || p.name) === brand && p.name === itemName);
+        if (matchedProd && matchedProd.dbId) {
+            const procType = (matchedProd.processType || 'auto').toLowerCase();
+            const addedSlots = isReusable ? 999 : (lines.length * finalMaxQuota);
+            const currentSlots = countReadyStockSlotsForVariant(brand, itemName) + addedSlots;
+
+            const prodUpdate = {};
+            if (isEmailOAuth) prodUpdate.stockMode = 'EMAIL_OAUTH';
+            else if (isSharing) prodUpdate.stockMode = 'SHARING';
+
+            if (procType !== 'manual') {
+                prodUpdate.stockCount = currentSlots;
+                prodUpdate.soldOut = false;
+            }
+            if (Object.keys(prodUpdate).length > 0) {
+                await updateDoc(doc(db, pathProducts, matchedProd.dbId), prodUpdate).catch(() => {});
+            }
+        }
+
+        document.getElementById('stock-data-input').value = '';
+        const modeLabel = isEmailOAuth ? 'Produk Email OAuth' : (isSharing ? `Sharing (Kuota ${finalMaxQuota}/akun)` : (isReusable ? 'Reusable Tanpa Batas' : 'Private'));
+        window.showToast('Stok Ditambahkan & Aktif!', `${lines.length} stok ${modeLabel} berhasil masuk ke gudang dan stok produk otomatis aktif.`, 'success');
+    } catch (e) {
+        window.customAlert('Error', 'Gagal menyimpan stok ke database.', 'error');
+    }
+};
+
+window.setAdminStockFilter = function(filterType, btnEl) {
+    currentStockFilter = filterType;
+    document.querySelectorAll('#tab-stocks .filter-pill').forEach(b => b.classList.remove('active'));
+    if (btnEl) btnEl.classList.add('active');
+    window.renderAdminStocks();
+};
+
+// [FEATURE-17] Copy Format Utuh Produk Email (`email|password|refresh_token|client_id`) 1-Klik di Admin
+window.copyRawPipeStockV27 = function(rawStr) {
+    if (!rawStr) return;
+    const parts = String(rawStr).split('|').map(s => s.trim());
+    const cleanFourPart = parts.length >= 4 ? `${parts[0]}|${parts[1]}|${parts[2]}|${parts[3]}` : rawStr;
+    navigator.clipboard.writeText(cleanFourPart).then(() => {
+        window.showToast('Format Email Utuh Disalin!', 'Format email|password|refresh_token|client_id telah disalin ke papan klip.', 'success');
+    });
+};
+
+window.renderAdminStocks = function() {
+    const tbody = document.getElementById('admin-stock-list');
+    const mobileContainer = document.getElementById('admin-stock-mobile-cards');
+    if (!tbody) return;
+
+    const readyStocks = stocksData.filter(s => s.status === 'Ready');
+    const usedStocks = stocksData.filter(s => s.status !== 'Ready');
+    const emailOAuthStocks = stocksData.filter(s => s.status === 'Ready' && (s.stockFormat === 'EMAIL_OAUTH' || s.mode === 'EMAIL_OAUTH' || (s.data && s.data.split('|').length >= 4)));
+    let totalAvailableSlots = 0;
+
+    readyStocks.forEach(s => {
+        if (s.isReusable) {
+            totalAvailableSlots += 99;
+        } else {
+            const maxQ = parseInt(s.maxQuota || 1, 10);
+            const usedQ = parseInt(s.usedQuota || 0, 10);
+            totalAvailableSlots += Math.max(0, maxQ - usedQ);
+        }
+    });
+
+    const elReady = document.getElementById('stock-stat-ready');
+    const elEmail = document.getElementById('stock-stat-email');
+    const elSlots = document.getElementById('stock-stat-slots');
+    const elUsed = document.getElementById('stock-stat-used');
+
+    if (elReady) elReady.innerText = readyStocks.length;
+    if (elEmail) elEmail.innerText = emailOAuthStocks.length;
+    if (elSlots) elSlots.innerText = totalAvailableSlots;
+    if (elUsed) elUsed.innerText = usedStocks.length;
+
+    const searchQ = (document.getElementById('admin-search-stock')?.value || '').trim().toLowerCase();
+
+    let filtered = stocksData.filter(s => {
+        const isEmailFmt = (s.stockFormat === 'EMAIL_OAUTH' || s.mode === 'EMAIL_OAUTH' || (s.data && s.data.split('|').length >= 4));
+        if (currentStockFilter === 'READY') return s.status === 'Ready';
+        if (currentStockFilter === 'EMAIL_OAUTH') return isEmailFmt;
+        if (currentStockFilter === 'SHARING') return (parseInt(s.maxQuota || 1, 10) > 1) && !s.isReusable;
+        if (currentStockFilter === 'REUSABLE') return s.isReusable === true;
+        if (currentStockFilter === 'USED') return s.status !== 'Ready';
+        return true;
+    });
+
+    if (searchQ) {
+        filtered = filtered.filter(s =>
+            (s.brand || '').toLowerCase().includes(searchQ) ||
+            (s.itemName || '').toLowerCase().includes(searchQ) ||
+            (s.data || '').toLowerCase().includes(searchQ)
+        );
+    }
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted" style="padding:2rem;">Tidak ada data stok pada filter ini.</td></tr>';
+        if (mobileContainer) mobileContainer.innerHTML = '<div class="text-center text-muted p-3 text-xs">Tidak ada data stok pada filter ini.</div>';
+        return;
+    }
+
+    let tableHtml = '';
+    let mobileHtml = '';
+
+    filtered.forEach(s => {
+        const isReady = s.status === 'Ready';
+        const maxQ = parseInt(s.maxQuota || 1, 10);
+        const usedQ = parseInt(s.usedQuota || 0, 10);
+        const isSharing = maxQ > 1 && !s.isReusable;
+        const isEmailOAuth = (s.stockFormat === 'EMAIL_OAUTH' || s.mode === 'EMAIL_OAUTH' || (s.data && s.data.split('|').length >= 4));
+
+        let modeBadge = `<span class="status-badge status-anon">🔒 PRIVATE</span>`;
+        let quotaInfo = `1x Pakai (${usedQ}/1)`;
+
+        if (s.isReusable) {
+            modeBadge = `<span class="status-badge status-pending">♾️ REUSABLE</span>`;
+            quotaInfo = `Terkirim: <b>${s.sentCount || 0}x</b> (Unlimited)`;
+        } else if (isEmailOAuth) {
+            modeBadge = `<span class="status-badge status-email-oauth"><i class="fa-solid fa-envelope-open-text"></i> EMAIL OAUTH</span>`;
+            quotaInfo = `Format Pipe Utuh (${usedQ}/${maxQ})`;
+        } else if (isSharing) {
+            modeBadge = `<span class="status-badge status-unpaid">👥 SHARING</span>`;
+            quotaInfo = `Terpakai: <b>${usedQ} / ${maxQ} Orang</b>`;
+        }
+
+        const statusBadge = isReady
+            ? `<span class="status-badge status-success">READY</span>`
+            : `<span class="status-badge status-failed">HABIS (${s.orderId || 'Terpakai'})</span>`;
+
+        const editQuotaBtn = isSharing
+            ? `<button class="btn btn-outline btn-sm" onclick="window.changeStockMaxQuotaPrompt('${s.dbId}', ${maxQ}, ${usedQ})" title="Ubah Kapasitas Kuota Sharing"><i class="fa-solid fa-sliders"></i> Kuota</button>`
+            : '';
+
+        const safeDataJs = escapeJsStr(s.data || '');
+        const copyPipeBtn = isEmailOAuth
+            ? `<button class="btn btn-primary btn-sm" onclick="window.copyRawPipeStockV27('${safeDataJs}')" title="Salin Format Utuh email|password|refresh_token|client_id"><i class="fa-regular fa-copy"></i> Copy Format Utuh</button>`
+            : `<button class="btn btn-outline btn-sm" onclick="window.copyTextToClipboard('${safeDataJs}', 'Data Stok')" title="Salin Isi Stok"><i class="fa-regular fa-copy"></i></button>`;
+
+        const portalLinkHtml = (isEmailOAuth && (s.accessLink || siteSettings.defaultEmailPortalUrl))
+            ? `<div class="mt-1"><a href="${window.escapeHtml(s.accessLink || siteSettings.defaultEmailPortalUrl)}" target="_blank" rel="noopener noreferrer" class="text-xs fw-bold text-primary"><i class="fa-solid fa-up-right-from-square"></i> Link Web Ambil Kode Tanpa Login</a></div>`
+            : '';
+
+        tableHtml += `
+        <tr>
+            <td>
+                <strong class="text-dark">${window.escapeHtml(s.brand)}</strong><br>
+                <span class="text-muted text-xs">${window.escapeHtml(s.itemName)}</span>
+            </td>
+            <td>
+                <div class="raw-pipe-pill" style="max-width: 390px;">${window.escapeHtml(s.data)}</div>
+                ${portalLinkHtml}
+            </td>
+            <td>
+                ${modeBadge}
+                <div class="text-xs text-muted mt-1">${quotaInfo}</div>
+            </td>
+            <td>${statusBadge}</td>
+            <td>
+                <div class="flex-gap align-center flex-wrap-gap">
+                    ${copyPipeBtn}
+                    ${editQuotaBtn}
+                    <button class="btn-icon-only text-danger" style="width:32px; height:32px;" onclick="window.deleteStockItem('${s.dbId}')" title="Hapus Stok">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>`;
+
+        mobileHtml += `
+        <div class="stock-m-card">
+            <div class="flex-between align-center mb-1">
+                <div>
+                    <strong class="text-dark d-block" style="font-size:0.92rem;">${window.escapeHtml(s.brand)}</strong>
+                    <span class="text-xs text-muted">${window.escapeHtml(s.itemName)}</span>
+                </div>
+                ${statusBadge}
+            </div>
+            <div class="raw-pipe-pill mb-2">${window.escapeHtml(s.data)}</div>
+            ${portalLinkHtml}
+            <div class="flex-between align-center flex-wrap-gap mt-2">
+                <div>
+                    ${modeBadge}
+                    <span class="text-xs text-muted ml-1">${quotaInfo}</span>
+                </div>
+                <div class="flex-gap">
+                    ${copyPipeBtn}
+                    ${editQuotaBtn}
+                    <button class="btn btn-danger btn-sm" onclick="window.deleteStockItem('${s.dbId}')">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+        </div>`;
+    });
+
+    tbody.innerHTML = tableHtml;
+    if (mobileContainer) mobileContainer.innerHTML = mobileHtml;
+};
+
+// [FEATURE-01] Menggantikan native prompt() dengan halaman penuh `#modal-edit-quota`
+window.changeStockMaxQuotaPrompt = function(stockDbId, currentMax, currentUsed) {
+    document.getElementById('edit-quota-stock-id').value = stockDbId;
+    document.getElementById('edit-quota-used-val').value = currentUsed;
+    document.getElementById('edit-quota-new-max').value = currentMax;
+    const helper = document.getElementById('edit-quota-helper');
+    if (helper) {
+        helper.innerHTML = `Saat ini sudah terpakai oleh <b>${currentUsed} pembeli</b>. Masukkan angka kapasitas maksimal baru.`;
+    }
+    window.openModal('modal-edit-quota');
+};
+
+window.saveStockMaxQuotaFromModal = async function() {
+    const stockDbId = document.getElementById('edit-quota-stock-id').value;
+    const currentUsed = parseInt(document.getElementById('edit-quota-used-val').value || '0', 10);
+    const newMax = parseInt(document.getElementById('edit-quota-new-max').value || '1', 10);
+
+    if (!stockDbId || isNaN(newMax) || newMax < 1) {
+        window.customAlert('Angka Tidak Valid', 'Masukkan angka kuota minimal 1.', 'warning');
+        return;
+    }
+
+    const newStatus = currentUsed >= newMax ? 'Used' : 'Ready';
+    try {
+        await updateDoc(doc(db, pathStocks, stockDbId), {
+            maxQuota: newMax,
+            status: newStatus
+        });
+        await window.syncAllProductsWithStockVaultV27(false);
+        window.closeModal('modal-edit-quota');
+        window.showToast('Kuota Diperbarui', `Kapasitas kuota sharing berhasil diubah menjadi ${newMax} orang.`, 'success');
+    } catch (e) {
+        window.customAlert('Error', 'Gagal memperbarui kuota stok.', 'error');
+    }
+};
+
+window.deleteStockItem = async function(dbId) {
+    try {
+        await deleteDoc(doc(db, pathStocks, dbId));
+        await window.syncAllProductsWithStockVaultV27(false);
+        window.showToast('Stok Dihapus', '1 item stok telah dihapus dan jumlah stok produk disinkronkan.', 'info');
+    } catch (e) {
+        window.customAlert('Error', 'Gagal menghapus stok.', 'error');
+    }
+};
+
+window.cleanUsedStocks = function() {
+    const usedList = stocksData.filter(s => s.status !== 'Ready');
+    if (usedList.length === 0) {
+        window.customAlert('Gudang Bersih', 'Tidak ada stok berstatus Terpakai/Habis saat ini.', 'info');
+        return;
+    }
+    window.openConfirm('Bersihkan Stok Terpakai', `Hapus <b>${usedList.length} item stok</b> yang sudah terpakai dari gudang?`, async (confirmed) => {
+        if (confirmed) {
+            for (const s of usedList) {
+                await deleteDoc(doc(db, pathStocks, s.dbId)).catch(() => {});
+            }
+            window.showToast('Selesai', 'Stok terpakai telah dibersihkan.', 'success');
+        }
+    });
+};
+
+// ==========================================
+// [FEATURE-13 & 19] STUDIO VOUCHER PROMO (SEMUA USER VS MEMBER RESMI & 1 EMAIL 1X)
+// ==========================================
+function populatePromoBrandSelect() {
+    const sel = document.getElementById('manage-promo-brand');
+    if (!sel) return;
+    let html = '<option value="all">Semua Katalog Produk</option>';
+    groupedBrands.forEach(b => {
+        html += `<option value="${window.escapeHtml(b.brandName)}">Khusus ${window.escapeHtml(b.brandName)}</option>`;
+    });
+    sel.innerHTML = html;
+}
+
+window.openAddPromoModal = function() {
+    populatePromoBrandSelect();
+    document.getElementById('modal-promo-title').innerHTML = '<i class="fa-solid fa-ticket text-primary"></i> Buat Kampanye Voucher Promo Baru V27';
+    document.getElementById('manage-promo-dbid').value = '';
+    document.getElementById('manage-promo-code').value = '';
+    document.getElementById('manage-promo-type').value = 'nominal';
+    document.getElementById('manage-promo-amount').value = '';
+    document.getElementById('manage-promo-quota').value = '50';
+    document.getElementById('manage-promo-minorder').value = '0';
+    document.getElementById('manage-promo-brand').value = 'all';
+    document.getElementById('manage-promo-user').value = 'all';
+    document.getElementById('manage-promo-expiry').value = '';
+    const oneEmailEl = document.getElementById('manage-promo-one-per-email');
+    if (oneEmailEl) oneEmailEl.checked = true;
+    document.getElementById('btn-save-promo-text').innerText = 'Simpan & Aktifkan Voucher Promo';
+
+    window.updatePromoLivePreview();
+    window.openModal('modal-manage-promo');
+};
+
+window.openEditPromoModal = function(dbId) {
+    const p = promos.find(x => x.dbId === dbId);
+    if (!p) return;
+
+    populatePromoBrandSelect();
+    document.getElementById('modal-promo-title').innerHTML = `<i class="fa-solid fa-pen-to-square text-primary"></i> Edit Voucher: ${window.escapeHtml(p.code)}`;
+    document.getElementById('manage-promo-dbid').value = p.dbId;
+    document.getElementById('manage-promo-code').value = p.code || '';
+    document.getElementById('manage-promo-type').value = p.type || 'nominal';
+    document.getElementById('manage-promo-amount').value = p.amount || 0;
+    document.getElementById('manage-promo-quota').value = p.maxUses || 50;
+    document.getElementById('manage-promo-minorder').value = p.minOrder || 0;
+    document.getElementById('manage-promo-brand').value = p.targetBrand || 'all';
+    document.getElementById('manage-promo-user').value = p.memberOnly ? 'member' : (p.targetUser || 'all');
+    document.getElementById('manage-promo-expiry').value = p.expiryDate || '';
+    const oneEmailEl = document.getElementById('manage-promo-one-per-email');
+    if (oneEmailEl) oneEmailEl.checked = p.onePerEmail !== false;
+    document.getElementById('btn-save-promo-text').innerText = 'Simpan Perubahan Voucher';
+
+    window.updatePromoLivePreview();
+    window.openModal('modal-manage-promo');
+};
+
 window.generateRandomPromoCode = function() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    let res = 'VIPER';
-    for (let i = 0; i < 4; i++) res += chars.charAt(Math.floor(Math.random() * chars.length));
+    let randomPart = '';
+    for (let i = 0; i < 5; i++) {
+        randomPart += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
     const inp = document.getElementById('manage-promo-code');
     if (inp) {
-        inp.value = res;
+        inp.value = `VIPER${randomPart}`;
         window.updatePromoLivePreview();
     }
 };
 
-window.setPromoQuickPreset = function(type, amountVal) {
-    const typeEl = document.getElementById('manage-promo-type');
-    const amtEl = document.getElementById('manage-promo-amount');
-    if (typeEl) typeEl.value = type;
-    if (amtEl) amtEl.value = amountVal;
-    window.updatePromoLivePreview();
+window.updatePromoLivePreview = function() {
+    const code = (document.getElementById('manage-promo-code')?.value || 'VIPER27').trim().toUpperCase();
+    const type = document.getElementById('manage-promo-type')?.value || 'nominal';
+    const amount = parseInt(document.getElementById('manage-promo-amount')?.value || '0', 10);
+    const minOrder = parseInt(document.getElementById('manage-promo-minorder')?.value || '0', 10);
+    const brand = document.getElementById('manage-promo-brand')?.value || 'all';
+    const userTarget = document.getElementById('manage-promo-user')?.value || 'all';
+    const onePerEmail = document.getElementById('manage-promo-one-per-email')?.checked !== false;
+
+    const codeEl = document.getElementById('promo-prev-code');
+    const valEl = document.getElementById('promo-prev-value');
+    const badgeEl = document.getElementById('promo-prev-badge');
+    const minEl = document.getElementById('promo-prev-min');
+    const targetEl = document.getElementById('promo-prev-target');
+    const userEl = document.getElementById('promo-prev-user');
+    const emailRuleEl = document.getElementById('promo-prev-email-rule');
+
+    if (codeEl) codeEl.innerText = code || 'VIPER27';
+    if (valEl) {
+        valEl.innerText = type === 'percent' ? `Diskon ${amount}%` : `Potongan Rp${amount.toLocaleString('id-ID')}`;
+    }
+    if (badgeEl) {
+        badgeEl.innerText = userTarget === 'member' ? 'KHUSUS MEMBER RESMI' : (type === 'percent' ? 'VOUCHER PERSENTASE' : 'VOUCHER POTONGAN HARGA');
+    }
+    if (minEl) {
+        minEl.innerHTML = `<i class="fa-solid fa-cart-shopping"></i> ${minOrder > 0 ? `Min. Rp${minOrder.toLocaleString('id-ID')}` : 'Tanpa Min. Belanja'}`;
+    }
+    if (targetEl) {
+        targetEl.innerHTML = `<i class="fa-solid fa-layer-group"></i> ${brand === 'all' ? 'Semua Produk' : brand}`;
+    }
+    if (userEl) {
+        const uLabel = userTarget === 'member' ? '👑 Khusus Member Resmi' : (userTarget === 'new' ? '✨ Pelanggan Baru' : '🌐 Semua User');
+        userEl.innerHTML = `${uLabel}`;
+    }
+    if (emailRuleEl) {
+        emailRuleEl.innerHTML = onePerEmail ? `<i class="fa-solid fa-envelope-circle-check"></i> 1 Email = 1x Pakai` : `<i class="fa-regular fa-envelope"></i> Bebas Klaim`;
+    }
 };
 
-window.updatePromoLivePreview = function() {
-    const code = (document.getElementById('manage-promo-code')?.value || 'KODEPROMO').trim().toUpperCase();
-    const type = document.getElementById('manage-promo-type')?.value || 'nominal';
-    const amount = parseInt(document.getElementById('manage-promo-amount')?.value) || 0;
-    const target = document.getElementById('manage-promo-target')?.value || 'all';
-    const userTgt = document.getElementById('manage-promo-user')?.value || 'all';
-    const minOrder = parseInt(document.getElementById('manage-promo-min-order')?.value) || 0;
-    const maxUses = parseInt(document.getElementById('manage-promo-max')?.value) || 50;
-    const expiry = document.getElementById('manage-promo-expiry')?.value || '';
+window.saveManagedPromo = async function() {
+    const dbId = document.getElementById('manage-promo-dbid').value;
+    const code = document.getElementById('manage-promo-code').value.trim().toUpperCase();
+    const type = document.getElementById('manage-promo-type').value;
+    const amount = parseInt(document.getElementById('manage-promo-amount').value, 10) || 0;
+    const maxUses = parseInt(document.getElementById('manage-promo-quota').value, 10) || 50;
+    const minOrder = parseInt(document.getElementById('manage-promo-minorder').value, 10) || 0;
+    const targetBrand = document.getElementById('manage-promo-brand').value;
+    const targetUser = document.getElementById('manage-promo-user').value;
+    const expiryDate = document.getElementById('manage-promo-expiry').value;
+    const onePerEmail = document.getElementById('manage-promo-one-per-email')?.checked !== false;
 
-    const prevCode = document.getElementById('prev-promo-code');
-    const prevAmt = document.getElementById('prev-promo-amount');
-    const prevUser = document.getElementById('prev-promo-user-badge');
-    const prevMeta = document.getElementById('prev-promo-meta');
+    if (!code || amount <= 0) {
+        window.customAlert('Belum Lengkap', 'Masukkan kode voucher dan nilai potongan yang valid.', 'warning');
+        return;
+    }
 
-    if (prevCode) prevCode.innerText = code || 'KODEPROMO';
-    if (prevAmt) {
-        prevAmt.innerText = type === 'percent' ? `Diskon ${amount}%` : `Potongan Rp${amount.toLocaleString('id-ID')}`;
-    }
-    if (prevUser) {
-        prevUser.innerText = userTgt === 'new' ? 'KHUSUS TRANSAKSI PERTAMA' : 'SEMUA PELANGGAN';
-    }
-    if (prevMeta) {
-        const tgtStr = target === 'all' ? 'Semua Produk' : target;
-        const minStr = minOrder > 0 ? ` • Min. Rp${minOrder.toLocaleString('id-ID')}` : '';
-        const expStr = expiry ? ` • s/d ${expiry}` : '';
-        prevMeta.innerText = `Produk: ${tgtStr} • Kuota ${maxUses}x${minStr}${expStr}`;
+    const payload = {
+        code,
+        type,
+        amount,
+        maxUses,
+        minOrder,
+        targetBrand,
+        targetUser,
+        memberOnly: targetUser === 'member',
+        onePerEmail: onePerEmail,
+        expiryDate,
+        active: true
+    };
+
+    try {
+        if (dbId) {
+            await updateDoc(doc(db, pathPromos, dbId), payload);
+            window.showToast('Voucher Diperbarui', `Kode promo ${code} berhasil diperbarui.`, 'success');
+        } else {
+            payload.usedCount = 0;
+            payload.usedEmails = [];
+            payload.createdAt = Date.now();
+            await addDoc(collection(db, pathPromos), payload);
+            window.showToast('Voucher Aktif!', `Kode promo ${code} berhasil diterbitkan.`, 'success');
+        }
+        window.closeModal('modal-manage-promo');
+    } catch (e) {
+        window.customAlert('Error', 'Gagal menyimpan kode promo.', 'error');
     }
 };
 
 window.renderAdminPromos = function() {
-    const container = document.getElementById('admin-promo-list');
-    if (!container) return;
-    
+    const grid = document.getElementById('admin-promo-grid');
+    if (!grid) return;
+
     if (promos.length === 0) {
-        container.innerHTML = '<div class="dashboard-panel text-center text-muted" style="grid-column: 1/-1; padding: 2.5rem;"><i class="fa-solid fa-ticket" style="font-size:2.2rem; display:block; margin-bottom:8px;"></i>Belum ada voucher promo yang dibuat. Klik <b>Buat Voucher Promo Baru</b> di atas.</div>';
+        grid.innerHTML = '<div class="dashboard-panel text-center text-muted" style="grid-column: 1/-1;">Belum ada kode voucher promo.</div>';
         return;
     }
 
     let html = '';
     promos.forEach(p => {
-        const typeStr = p.type === 'percent' ? `Diskon ${p.amount}%` : `Potongan Rp${p.amount.toLocaleString('id-ID')}`;
-        const targetStr = p.targetBrand === 'all' ? 'Semua Produk' : (p.targetBrand || 'Semua');
-        const userTgt = p.targetUser === 'new' ? 'Pembeli Baru' : 'Semua User';
-        const minOrderStr = p.minOrder > 0 ? ` &bull; Min. Rp${p.minOrder.toLocaleString('id-ID')}` : '';
-        const expStr = p.expiryDate ? `<div class="text-xs text-muted mt-1"><i class="fa-regular fa-calendar"></i> Berlaku s/d: <b>${window.escapeHtml(p.expiryDate)}</b></div>` : '';
-        const used = p.usedCount || 0;
-        const max = p.maxUses || 1;
-        const pct = Math.min(100, Math.round((used / max) * 100));
-        
-        html += `
-        <div class="promo-coupon-card">
-            <div>
-                <div class="promo-coupon-top">
-                    <div class="flex-gap align-center">
-                        <span class="promo-code-pill">${window.escapeHtml(p.code)}</span>
-                        <button class="btn-icon-only" style="width:28px; height:28px; font-size:0.75rem;" onclick="window.copyTextToClipboard('${escapeJsStr(p.code)}', 'Kode Voucher')" title="Salin Kode"><i class="fa-regular fa-copy"></i></button>
-                    </div>
-                    ${p.active ? '<span class="status-badge status-success">AKTIF</span>' : '<span class="status-badge status-failed">NONAKTIF</span>'}
-                </div>
+        const valStr = p.type === 'percent' ? `${p.amount}%` : `Rp${(p.amount || 0).toLocaleString('id-ID')}`;
+        const minStr = p.minOrder > 0 ? `Min. Rp${p.minOrder.toLocaleString('id-ID')}` : 'Tanpa Minimal';
+        const brandStr = (!p.targetBrand || p.targetBrand === 'all') ? 'Semua Produk' : `Khusus ${p.targetBrand}`;
+        const isMemberOnly = p.targetUser === 'member' || p.memberOnly === true;
+        const userBadge = isMemberOnly
+            ? `<span class="status-badge status-vip" style="font-size:0.62rem;"><i class="fa-solid fa-crown"></i> KHUSUS MEMBER RESMI</span>`
+            : (p.targetUser === 'new' ? `<span class="status-badge status-pending" style="font-size:0.62rem;">USER BARU</span>` : `<span class="status-badge status-anon" style="font-size:0.62rem;">SEMUA USER</span>`);
 
-                <div class="promo-coupon-body">
-                    <div class="promo-discount-val">${typeStr}</div>
-                    <div class="text-xs text-muted fw-bold mb-1">
-                        <i class="fa-solid fa-layer-group text-primary"></i> ${window.escapeHtml(targetStr)} &bull; <i class="fa-solid fa-user-tag text-warning"></i> ${userTgt}${minOrderStr}
-                    </div>
-                    ${expStr}
-                    <div class="promo-quota-bar">
-                        <div class="promo-quota-fill" style="width: ${pct}%;"></div>
-                    </div>
-                    <div class="flex-between text-xs text-muted fw-bold">
-                        <span>Terpakai: <b>${used}</b> dari <b>${max}</b> kuota</span>
-                        <span>${pct}%</span>
-                    </div>
+        const emailUsedCount = Array.isArray(p.usedEmails) ? p.usedEmails.length : 0;
+
+        html += `
+        <div class="catalog-card">
+            <div>
+                <div class="flex-between align-center mb-2 flex-wrap-gap">
+                    <strong class="text-primary code-mono" style="font-size:1.12rem; letter-spacing:0.5px;">${window.escapeHtml(p.code)}</strong>
+                    ${userBadge}
+                </div>
+                <div class="text-lg fw-900 text-dark mb-1">Diskon ${valStr}</div>
+                <div class="text-xs text-muted mb-2">
+                    <div><i class="fa-solid fa-tag"></i> ${window.escapeHtml(brandStr)} &bull; ${minStr}</div>
+                    <div><i class="fa-solid fa-users"></i> Kuota Terpakai: <b>${p.usedCount || 0} / ${p.maxUses || 100}</b></div>
+                    <div><i class="fa-solid fa-envelope-circle-check text-primary"></i> Aturan 1 Email 1x: <b>${p.onePerEmail !== false ? 'Aktif' : 'Nonaktif'}</b> (${emailUsedCount} Email Klaim)</div>
+                    ${p.expiryDate ? `<div><i class="fa-regular fa-calendar"></i> Berlaku s/d: <b>${p.expiryDate}</b></div>` : ''}
                 </div>
             </div>
-
-            <div class="promo-coupon-foot">
-                <button class="btn btn-outline btn-sm" onclick="window.openPromoModal('${p.dbId}')">
-                    <i class="fa-solid fa-pen"></i> Edit Voucher
+            <div class="flex-gap">
+                <button class="btn btn-outline btn-sm flex-1" onclick="window.openEditPromoModal('${p.dbId}')">
+                    <i class="fa-solid fa-pen"></i> Edit
                 </button>
-                <button class="btn btn-danger btn-sm" onclick="window.deletePromo('${p.dbId}')">
-                    <i class="fa-solid fa-trash"></i> Hapus
+                <button class="btn btn-danger btn-sm" onclick="window.deletePromoItem('${p.dbId}')">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
+            </div>
+        </div>`;
+    });
+    grid.innerHTML = html;
+};
+
+window.deletePromoItem = async function(dbId) {
+    await deleteDoc(doc(db, pathPromos, dbId));
+    window.showToast('Dihapus', 'Kode promo berhasil dihapus.', 'info');
+};
+
+// ==========================================
+// PAPAN BERITA & TAUTAN PRODUK
+// ==========================================
+function populateNewsProductSelect() {
+    const sel = document.getElementById('manage-news-product-select');
+    if (!sel) return;
+    let html = '<option value="">-- Pilih Produk Katalog --</option>';
+    groupedBrands.forEach(b => {
+        html += `<option value="${window.escapeHtml(b.brandName)}">${window.escapeHtml(b.brandName)}</option>`;
+    });
+    sel.innerHTML = html;
+}
+
+window.toggleNewsProductLinkSelect = function() {
+    const checked = document.getElementById('manage-news-enable-product')?.checked;
+    const wrap = document.getElementById('manage-news-product-wrap');
+    if (wrap) wrap.style.display = checked ? 'block' : 'none';
+    window.updateNewsLivePreview();
+};
+
+window.openAddNewsModal = function() {
+    populateNewsProductSelect();
+    document.getElementById('modal-news-title').innerHTML = '<i class="fa-solid fa-newspaper text-primary"></i> Tulis Artikel Berita Baru';
+    document.getElementById('manage-news-index').value = '-1';
+    document.getElementById('manage-news-heading').value = '';
+    document.getElementById('manage-news-desc').value = '';
+    document.getElementById('manage-news-enable-product').checked = false;
+    document.getElementById('manage-news-product-select').value = '';
+    document.getElementById('btn-save-news-text').innerText = 'Publikasikan Berita Sekarang';
+
+    window.clearNewsImgUpload();
+    window.toggleNewsProductLinkSelect();
+    window.updateNewsLivePreview();
+    window.openModal('modal-manage-news');
+};
+
+window.openEditNewsModal = function(idx) {
+    const list = siteSettings.newsList || [];
+    const item = list[idx];
+    if (!item) return;
+
+    populateNewsProductSelect();
+    document.getElementById('modal-news-title').innerHTML = '<i class="fa-solid fa-pen-to-square text-primary"></i> Edit Artikel Berita';
+    document.getElementById('manage-news-index').value = idx;
+    document.getElementById('manage-news-heading').value = item.title || '';
+    document.getElementById('manage-news-desc').value = item.desc || '';
+
+    const hasProd = Boolean(item.enableProductBtn && item.linkedBrand);
+    document.getElementById('manage-news-enable-product').checked = hasProd;
+    document.getElementById('manage-news-product-select').value = item.linkedBrand || '';
+    document.getElementById('btn-save-news-text').innerText = 'Simpan Perubahan Berita';
+
+    tempNewsImgBase64 = item.imageUrl || '';
+    const prevImg = document.getElementById('preview-news-img');
+    const placeholder = document.getElementById('preview-news-placeholder');
+    const btnRemove = document.getElementById('btn-remove-news-img');
+    const statusLbl = document.getElementById('news-img-status-label');
+
+    if (tempNewsImgBase64) {
+        if (prevImg) { prevImg.src = tempNewsImgBase64; prevImg.style.display = 'block'; }
+        if (placeholder) placeholder.style.display = 'none';
+        if (btnRemove) btnRemove.style.display = 'inline-flex';
+        if (statusLbl) statusLbl.innerText = 'Gambar sampul terpasang';
+    } else {
+        window.clearNewsImgUpload();
+    }
+
+    window.toggleNewsProductLinkSelect();
+    window.updateNewsLivePreview();
+    window.openModal('modal-manage-news');
+};
+
+window.insertNewsTemplate = function(tplType) {
+    const titleEl = document.getElementById('manage-news-heading');
+    const descEl = document.getElementById('manage-news-desc');
+    if (!titleEl || !descEl) return;
+
+    if (tplType === 'restock') {
+        titleEl.value = '🔥 RESTOCK BESAR-BESARAN AKUN PREMIUM & EMAIL OAUTH!';
+        descEl.value = 'Kabar gembira untuk seluruh pelanggan Vipercell!\n\nStok layanan Aplikasi Premium & Produk Email OAuth kini telah tersedia kembali di Gudang Otomatis kami.\n\n✅ Pengiriman Instan 24 Jam Detik Itu Juga ke Web & Email\n✅ Pembayaran QRIS Otomatis Tanpa Antre\n✅ Bergaransi Penuh\n\nYuk langsung amankan slot kamu sebelum kehabisan lagi!';
+    } else {
+        titleEl.value = '🎉 PROMO SPESIAL MEMBER RESMI VIPERCELL V27!';
+        descEl.value = 'Gunakan kode voucher spesial di halaman Checkout dan nikmati potongan harga langsung untuk semua produk favoritmu!\n\n📌 Cara Pakai:\n1. Pilih layanan di katalog Vipercell\n2. Masukkan kode voucher pada kolom Promo\n3. Bayar menggunakan QRIS Otomatis\n\nJangan sampai ketinggalan karena kuota terbatas!';
+    }
+    window.updateNewsLivePreview();
+};
+
+window.previewNewsImgUpload = async function(input) {
+    if (!input.files || !input.files[0]) return;
+    tempNewsImgBase64 = await compressImageToBase64(input.files[0], 720, 0.8);
+    const prevImg = document.getElementById('preview-news-img');
+    const placeholder = document.getElementById('preview-news-placeholder');
+    const btnRemove = document.getElementById('btn-remove-news-img');
+    const statusLbl = document.getElementById('news-img-status-label');
+
+    if (prevImg) { prevImg.src = tempNewsImgBase64; prevImg.style.display = 'block'; }
+    if (placeholder) placeholder.style.display = 'none';
+    if (btnRemove) btnRemove.style.display = 'inline-flex';
+    if (statusLbl) statusLbl.innerText = 'Gambar siap dipublikasikan';
+};
+
+window.clearNewsImgUpload = function() {
+    tempNewsImgBase64 = '';
+    const fileInp = document.getElementById('manage-news-img-file');
+    const prevImg = document.getElementById('preview-news-img');
+    const placeholder = document.getElementById('preview-news-placeholder');
+    const btnRemove = document.getElementById('btn-remove-news-img');
+    const statusLbl = document.getElementById('news-img-status-label');
+
+    if (fileInp) fileInp.value = '';
+    if (prevImg) { prevImg.src = ''; prevImg.style.display = 'none'; }
+    if (placeholder) placeholder.style.display = 'flex';
+    if (btnRemove) btnRemove.style.display = 'none';
+    if (statusLbl) statusLbl.innerText = 'Belum ada gambar dipilih';
+};
+
+window.updateNewsLivePreview = function() {
+    const title = document.getElementById('manage-news-heading')?.value.trim() || 'Judul Berita Akan Tampil Di Sini';
+    const desc = document.getElementById('manage-news-desc')?.value.trim() || 'Isi ringkasan artikel atau informasi promo akan tampil di bagian ini...';
+    const enableProd = document.getElementById('manage-news-enable-product')?.checked;
+    const prodBrand = document.getElementById('manage-news-product-select')?.value || '';
+
+    const prevTitle = document.getElementById('news-preview-title');
+    const prevExcerpt = document.getElementById('news-preview-excerpt');
+    const ctaBtn = document.getElementById('news-preview-cta-btn');
+    const ctaText = document.getElementById('news-preview-cta-text');
+
+    if (prevTitle) prevTitle.innerText = title;
+    if (prevExcerpt) prevExcerpt.innerText = desc;
+
+    if (ctaBtn && ctaText) {
+        if (enableProd && prodBrand) {
+            ctaBtn.style.display = 'inline-flex';
+            ctaText.innerText = `Beli ${prodBrand} Sekarang`;
+        } else {
+            ctaBtn.style.display = 'none';
+        }
+    }
+};
+
+window.saveManagedNews = async function() {
+    const idx = parseInt(document.getElementById('manage-news-index').value, 10);
+    const title = document.getElementById('manage-news-heading').value.trim();
+    const desc = document.getElementById('manage-news-desc').value.trim();
+    const enableProductBtn = Boolean(document.getElementById('manage-news-enable-product')?.checked);
+    const linkedBrand = enableProductBtn ? (document.getElementById('manage-news-product-select')?.value || '') : '';
+
+    if (!title || !desc) {
+        window.customAlert('Belum Lengkap', 'Judul dan isi berita wajib diisi.', 'warning');
+        return;
+    }
+
+    const list = [...(siteSettings.newsList || [])];
+    const newsObj = {
+        title,
+        desc,
+        imageUrl: tempNewsImgBase64 || '',
+        enableProductBtn: Boolean(enableProductBtn && linkedBrand),
+        linkedBrand: linkedBrand,
+        isHidden: false,
+        date: new Date().toISOString()
+    };
+
+    if (idx >= 0 && idx < list.length) {
+        list[idx] = { ...list[idx], ...newsObj };
+    } else {
+        list.unshift(newsObj);
+    }
+
+    try {
+        await setDoc(doc(db, pathSettings, 'mainConfig'), { newsList: list }, { merge: true });
+        siteSettings.newsList = list;
+        window.renderAdminNews();
+        window.closeModal('modal-manage-news');
+        window.showToast('Berita Disimpan!', 'Papan berita berhasil diperbarui.', 'success');
+    } catch (e) {
+        window.customAlert('Error', 'Gagal menyimpan berita.', 'error');
+    }
+};
+
+window.renderAdminNews = function() {
+    const grid = document.getElementById('admin-news-grid');
+    if (!grid) return;
+
+    const list = siteSettings.newsList || [];
+    if (list.length === 0) {
+        grid.innerHTML = '<div class="dashboard-panel text-center text-muted" style="grid-column: 1/-1;">Belum ada artikel berita yang dipublikasikan.</div>';
+        return;
+    }
+
+    let html = '';
+    list.forEach((n, idx) => {
+        const linkedInfo = (n.enableProductBtn && n.linkedBrand)
+            ? `<div class="mt-1"><span class="status-badge status-pending" style="font-size:0.65rem;"><i class="fa-solid fa-link"></i> Tertaut ke: ${window.escapeHtml(n.linkedBrand)}</span></div>`
+            : '';
+
+        html += `
+        <div class="catalog-card">
+            <div>
+                ${n.imageUrl ? `<img src="${n.imageUrl}" alt="News" style="width:100%; height:140px; object-fit:cover; border-radius:10px; border:2px solid var(--border); margin-bottom:10px;">` : ''}
+                <h4 class="text-dark mb-1">${window.escapeHtml(n.title)}</h4>
+                <p class="text-muted text-xs mb-2" style="white-space:pre-line; max-height:72px; overflow:hidden;">${window.escapeHtml(n.desc)}</p>
+                ${linkedInfo}
+            </div>
+            <div class="flex-gap mt-2">
+                <button class="btn btn-outline btn-sm flex-1" onclick="window.openEditNewsModal(${idx})">
+                    <i class="fa-solid fa-pen"></i> Edit Berita
+                </button>
+                <button class="btn btn-danger btn-sm" onclick="window.deleteNewsItem(${idx})">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
+            </div>
+        </div>`;
+    });
+    grid.innerHTML = html;
+};
+
+window.deleteNewsItem = async function(idx) {
+    const list = [...(siteSettings.newsList || [])];
+    list.splice(idx, 1);
+    await setDoc(doc(db, pathSettings, 'mainConfig'), { newsList: list }, { merge: true });
+    siteSettings.newsList = list;
+    window.renderAdminNews();
+    window.showToast('Berita Dihapus', 'Artikel telah dihapus.', 'info');
+};
+
+// ==========================================
+// ULASAN PEMBELI
+// ==========================================
+window.renderAdminReviews = function() {
+    const tbody = document.getElementById('admin-reviews-list');
+    if (!tbody) return;
+
+    if (reviewsData.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted" style="padding:2rem;">Belum ada ulasan pembeli.</td></tr>';
+        return;
+    }
+
+    let html = '';
+    reviewsData.forEach(r => {
+        const stars = '⭐'.repeat(r.rating || 5);
+        const replyBadge = r.adminReply
+            ? `<div class="text-xs text-primary mt-1"><b>Balasan Admin:</b> ${window.escapeHtml(r.adminReply)}</div>`
+            : `<span class="text-xs text-muted">Belum dibalas</span>`;
+
+        html += `
+        <tr>
+            <td class="text-xs text-muted">${new Date(r.timestamp).toLocaleDateString('id-ID')}</td>
+            <td><strong class="text-dark">${window.escapeHtml(r.brandName)}</strong></td>
+            <td>${window.escapeHtml(r.userName || r.userEmail)}</td>
+            <td>${stars}</td>
+            <td>
+                <div class="text-sm">"${window.escapeHtml(r.text)}"</div>
+                ${replyBadge}
+            </td>
+            <td>
+                <div class="flex-gap">
+                    <button class="btn btn-outline btn-sm" onclick="window.openReplyReviewModal('${r.dbId}')">
+                        <i class="fa-solid fa-reply"></i> Balas
+                    </button>
+                    <button class="btn-icon-only text-danger" style="width:32px; height:32px;" onclick="window.deleteReviewItem('${r.dbId}')">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>`;
+    });
+    tbody.innerHTML = html;
+};
+
+window.openReplyReviewModal = function(dbId) {
+    const rev = reviewsData.find(r => r.dbId === dbId);
+    if (!rev) return;
+
+    document.getElementById('reply-review-id').value = dbId;
+    document.getElementById('reply-review-quote').innerHTML = `<b>${window.escapeHtml(rev.userName)} (${window.escapeHtml(rev.brandName)}):</b><br>"${window.escapeHtml(rev.text)}"`;
+    document.getElementById('reply-review-text').value = rev.adminReply || '';
+    window.openModal('modal-reply-review');
+};
+
+window.submitReviewReply = async function() {
+    const dbId = document.getElementById('reply-review-id').value;
+    const reply = document.getElementById('reply-review-text').value.trim();
+    if (!dbId) return;
+
+    try {
+        await updateDoc(doc(db, pathReviews, dbId), { adminReply: reply });
+        window.closeModal('modal-reply-review');
+        window.showToast('Tersimpan', 'Balasan ulasan berhasil dipublikasikan.', 'success');
+    } catch (e) {
+        window.customAlert('Error', 'Gagal menyimpan balasan.', 'error');
+    }
+};
+
+window.deleteReviewItem = async function(dbId) {
+    await deleteDoc(doc(db, pathReviews, dbId));
+    window.showToast('Dihapus', 'Ulasan telah dihapus.', 'info');
+};
+
+/* ============================================================================
+ * [FEATURE-11] STUDIO RUNNING TEXT MULTI-PESAN (HINGGA 6 PESAN INTERAKTIF)
+ * Deskripsi : Mengelola hingga 6 pesan berjalan di halaman depan. Setiap pesan
+ *             bisa dihubungkan ke Kode Promo (otomatis tempel & masuk ke produk
+ *             syarat), Brand Produk tertentu, atau Artikel Berita.
+ * ============================================================================ */
+function ensureMarqueeListInitialized() {
+    if (!Array.isArray(siteSettings.marqueeList) || siteSettings.marqueeList.length === 0) {
+        const raw = String(siteSettings.marquee || 'Selamat Datang di Vipercell V27! Layanan Otomatis 24 Jam.').trim();
+        const parts = raw.includes('||') ? raw.split('||') : raw.split(/\r?\n/);
+        siteSettings.marqueeList = parts.map(s => s.trim()).filter(Boolean).slice(0, 6).map(txt => ({
+            text: txt,
+            type: 'info',
+            promoCode: '',
+            targetBrand: '',
+            newsIndex: 0
+        }));
+    }
+    return siteSettings.marqueeList;
+}
+
+function populateMarqueeSelectors() {
+    const brandSel = document.getElementById('mq-slot-brand');
+    if (brandSel) {
+        let bHtml = '<option value="">-- Otomatis Sesuai Syarat Promo / Katalog --</option>';
+        groupedBrands.forEach(b => {
+            bHtml += `<option value="${window.escapeHtml(b.brandName)}">${window.escapeHtml(b.brandName)}</option>`;
+        });
+        brandSel.innerHTML = bHtml;
+    }
+
+    const newsSel = document.getElementById('mq-slot-news');
+    if (newsSel) {
+        const newsArr = siteSettings.newsList || [];
+        if (newsArr.length === 0) {
+            newsSel.innerHTML = '<option value="0">Tab Papan Berita Utama</option>';
+        } else {
+            newsSel.innerHTML = newsArr.map((n, idx) => `<option value="${idx}">#${idx + 1}: ${window.escapeHtml(n.title || 'Berita')}</option>`).join('');
+        }
+    }
+}
+
+window.toggleMarqueeSlotActionFields = function() {
+    const type = document.getElementById('mq-slot-type')?.value || 'info';
+    const promoField = document.getElementById('mq-field-promo');
+    const brandField = document.getElementById('mq-field-brand');
+    const newsField = document.getElementById('mq-field-news');
+
+    if (promoField) promoField.style.display = (type === 'promo') ? 'block' : 'none';
+    if (brandField) brandField.style.display = (type === 'promo' || type === 'product') ? 'block' : 'none';
+    if (newsField) newsField.style.display = (type === 'news') ? 'block' : 'none';
+};
+
+window.openMarqueeSlotForm = function(editIdx = -1) {
+    const list = ensureMarqueeListInitialized();
+    if (editIdx === -1 && list.length >= 6) {
+        window.customAlert('Maksimal 6 Pesan', 'Running Text mendukung maksimal hingga 6 pesan berjalan. Silakan edit atau hapus salah satu pesan yang ada.', 'warning');
+        return;
+    }
+
+    populateMarqueeSelectors();
+    const editor = document.getElementById('marquee-slot-editor');
+    const titleEl = document.getElementById('marquee-editor-title');
+    document.getElementById('edit-marquee-idx').value = String(editIdx);
+
+    if (editIdx >= 0 && editIdx < list.length) {
+        const item = list[editIdx];
+        if (titleEl) titleEl.innerHTML = `<i class="fa-solid fa-pen text-warning"></i> Edit Pesan Running #${editIdx + 1}`;
+        document.getElementById('mq-slot-text').value = item.text || '';
+        document.getElementById('mq-slot-type').value = item.type || 'info';
+        document.getElementById('mq-slot-promo').value = item.promoCode || '';
+        document.getElementById('mq-slot-brand').value = item.targetBrand || '';
+        document.getElementById('mq-slot-news').value = String(typeof item.newsIndex === 'number' ? item.newsIndex : 0);
+    } else {
+        if (titleEl) titleEl.innerHTML = `<i class="fa-solid fa-plus text-primary"></i> Tambah Pesan Running Baru (Slot #${list.length + 1})`;
+        document.getElementById('mq-slot-text').value = '';
+        document.getElementById('mq-slot-type').value = 'promo';
+        document.getElementById('mq-slot-promo').value = '';
+        document.getElementById('mq-slot-brand').value = '';
+        document.getElementById('mq-slot-news').value = '0';
+    }
+
+    window.toggleMarqueeSlotActionFields();
+    if (editor) editor.style.display = 'block';
+    document.getElementById('mq-slot-text')?.focus();
+};
+
+window.closeMarqueeSlotForm = function() {
+    const editor = document.getElementById('marquee-slot-editor');
+    if (editor) editor.style.display = 'none';
+};
+
+window.saveMarqueeSlotItem = async function() {
+    const list = [...ensureMarqueeListInitialized()];
+    const editIdx = parseInt(document.getElementById('edit-marquee-idx').value || '-1', 10);
+    const text = document.getElementById('mq-slot-text').value.trim();
+    const type = document.getElementById('mq-slot-type').value;
+    const promoCode = (document.getElementById('mq-slot-promo').value || '').trim().toUpperCase();
+    let targetBrand = document.getElementById('mq-slot-brand').value;
+    const newsIndex = parseInt(document.getElementById('mq-slot-news').value || '0', 10);
+
+    if (!text) {
+        window.customAlert('Teks Kosong', 'Masukkan isi pesan running text terlebih dahulu.', 'warning');
+        return;
+    }
+
+    // Jika tipe promo dan targetBrand dikosongkan, cari otomatis dari data voucher promo
+    if (type === 'promo' && promoCode && !targetBrand) {
+        const matchedPromo = promos.find(p => p.code && p.code.toUpperCase() === promoCode);
+        if (matchedPromo && matchedPromo.targetBrand && matchedPromo.targetBrand !== 'all') {
+            targetBrand = matchedPromo.targetBrand;
+        }
+    }
+
+    const slotObj = {
+        text,
+        type,
+        promoCode: type === 'promo' ? promoCode : '',
+        targetBrand: (type === 'promo' || type === 'product') ? targetBrand : '',
+        newsIndex: type === 'news' ? newsIndex : -1
+    };
+
+    if (editIdx >= 0 && editIdx < list.length) {
+        list[editIdx] = slotObj;
+    } else {
+        if (list.length >= 6) {
+            window.customAlert('Batas 6 Pesan', 'Maksimal 6 pesan running text.', 'warning');
+            return;
+        }
+        list.push(slotObj);
+    }
+
+    siteSettings.marqueeList = list;
+    siteSettings.marquee = list.map(i => i.text).join(' || ');
+    const fallbackInp = document.getElementById('set-marquee');
+    if (fallbackInp) fallbackInp.value = siteSettings.marquee;
+
+    await setDoc(doc(db, pathSettings, 'mainConfig'), {
+        marqueeList: list,
+        marquee: siteSettings.marquee
+    }, { merge: true }).catch(() => {});
+
+    window.closeMarqueeSlotForm();
+    window.renderMarqueeStudioSlots();
+    window.showToast('Running Text Disimpan!', `Daftar pesan berjalan (${list.length}/6) berhasil diperbarui.`, 'success');
+};
+
+window.deleteMarqueeSlotItem = async function(idx) {
+    const list = [...ensureMarqueeListInitialized()];
+    list.splice(idx, 1);
+    siteSettings.marqueeList = list;
+    siteSettings.marquee = list.map(i => i.text).join(' || ');
+
+    await setDoc(doc(db, pathSettings, 'mainConfig'), {
+        marqueeList: list,
+        marquee: siteSettings.marquee
+    }, { merge: true }).catch(() => {});
+
+    window.renderMarqueeStudioSlots();
+    window.showToast('Pesan Dihapus', '1 pesan running text telah dihapus.', 'info');
+};
+
+window.renderMarqueeStudioSlots = function() {
+    const container = document.getElementById('marquee-slots-container');
+    const countBadge = document.getElementById('marquee-slot-count-badge');
+    const btnAdd = document.getElementById('btn-add-marquee-slot');
+    if (!container) return;
+
+    const list = ensureMarqueeListInitialized();
+    if (countBadge) countBadge.innerText = `${list.length}/6`;
+    if (btnAdd) btnAdd.disabled = list.length >= 6;
+
+    if (list.length === 0) {
+        container.innerHTML = `<div class="info-box text-center text-muted grid-span-full">Belum ada pesan running text. Klik tombol Tambah Pesan Running di atas.</div>`;
+        return;
+    }
+
+    let html = '';
+    list.forEach((slot, idx) => {
+        let actionBadge = `<span class="status-badge status-anon"><i class="fa-solid fa-circle-info"></i> INFO UMUM</span>`;
+        let targetDetail = 'Membuka Tab Berita saat diklik';
+
+        if (slot.type === 'promo' || slot.promoCode) {
+            actionBadge = `<span class="status-badge status-vip"><i class="fa-solid fa-ticket"></i> PROMO: ${window.escapeHtml(slot.promoCode || '-')}</span>`;
+            targetDetail = `Klik -> Otomatis pasang kode <b>${window.escapeHtml(slot.promoCode)}</b> & buka produk <b>${window.escapeHtml(slot.targetBrand || 'Syarat Promo')}</b>`;
+        } else if (slot.type === 'product' && slot.targetBrand) {
+            actionBadge = `<span class="status-badge status-success"><i class="fa-solid fa-cart-shopping"></i> PRODUK: ${window.escapeHtml(slot.targetBrand)}</span>`;
+            targetDetail = `Klik -> Langsung membuka halaman Checkout <b>${window.escapeHtml(slot.targetBrand)}</b>`;
+        } else if (slot.type === 'news') {
+            actionBadge = `<span class="status-badge status-pending"><i class="fa-solid fa-newspaper"></i> ARTIKEL BERITA #${(slot.newsIndex >= 0 ? slot.newsIndex + 1 : 1)}</span>`;
+            targetDetail = `Klik -> Langsung membaca penuh Artikel Berita #${(slot.newsIndex >= 0 ? slot.newsIndex + 1 : 1)}`;
+        }
+
+        html += `
+        <div class="marquee-slot-card">
+            <div>
+                <div class="marquee-slot-head mb-2">
+                    <span class="marquee-slot-num">PESAN #${idx + 1}</span>
+                    ${actionBadge}
+                </div>
+                <div class="fw-bold text-dark text-sm mb-1">"${window.escapeHtml(slot.text)}"</div>
+                <div class="text-xs text-muted">${targetDetail}</div>
+            </div>
+            <div class="flex-gap mt-2">
+                <button type="button" class="btn btn-outline btn-sm flex-1" onclick="window.openMarqueeSlotForm(${idx})">
+                    <i class="fa-solid fa-pen"></i> Edit Pesan
+                </button>
+                <button type="button" class="btn btn-danger btn-sm" onclick="window.deleteMarqueeSlotItem(${idx})" title="Hapus Pesan Ini">
+                    <i class="fa-solid fa-trash"></i>
                 </button>
             </div>
         </div>`;
@@ -3683,639 +4060,442 @@ window.renderAdminPromos = function() {
     container.innerHTML = html;
 };
 
-window.openPromoModal = function(dbId = null) {
-    const targetSelect = document.getElementById('manage-promo-target');
-    if (targetSelect) {
-        let selHtml = '<option value="all">Semua Produk</option>';
-        groupedBrands.forEach(b => { selHtml += `<option value="${window.escapeHtml(b.brandName)}">Khusus: ${window.escapeHtml(b.brandName)}</option>`; });
-        targetSelect.innerHTML = selHtml;
-    }
-    if (dbId) {
-        const p = promos.find(x => x.dbId === dbId);
-        if (!p) return;
-        document.getElementById('modal-promo-title').innerHTML = '<i class="fa-solid fa-ticket text-primary"></i> Edit Voucher Promo';
-        document.getElementById('manage-promo-id').value = p.dbId;
-        document.getElementById('manage-promo-code').value = p.code;
-        document.getElementById('manage-promo-type').value = p.type || 'nominal';
-        document.getElementById('manage-promo-amount').value = p.amount;
-        document.getElementById('manage-promo-max').value = p.maxUses;
-        if (document.getElementById('manage-promo-min-order')) document.getElementById('manage-promo-min-order').value = p.minOrder || 0;
-        if (document.getElementById('manage-promo-expiry')) document.getElementById('manage-promo-expiry').value = p.expiryDate || '';
-        if (targetSelect) document.getElementById('manage-promo-target').value = p.targetBrand || 'all';
-        if (document.getElementById('manage-promo-user')) document.getElementById('manage-promo-user').value = p.targetUser || 'all';
-        document.getElementById('manage-promo-active').checked = p.active;
-    } else {
-        document.getElementById('modal-promo-title').innerHTML = '<i class="fa-solid fa-ticket text-primary"></i> Studio Pembuat Kode Promo';
-        document.getElementById('manage-promo-id').value = '';
-        document.getElementById('manage-promo-code').value = '';
-        document.getElementById('manage-promo-type').value = 'nominal';
-        document.getElementById('manage-promo-amount').value = '';
-        document.getElementById('manage-promo-max').value = '50';
-        if (document.getElementById('manage-promo-min-order')) document.getElementById('manage-promo-min-order').value = '0';
-        if (document.getElementById('manage-promo-expiry')) document.getElementById('manage-promo-expiry').value = '';
-        if (targetSelect) document.getElementById('manage-promo-target').value = 'all';
-        if (document.getElementById('manage-promo-user')) document.getElementById('manage-promo-user').value = 'all';
-        document.getElementById('manage-promo-active').checked = true;
-    }
-    window.updatePromoLivePreview();
-    window.openModal('modal-manage-promo');
-};
-
-window.savePromo = async function() {
-    const dbId = document.getElementById('manage-promo-id').value;
-    const data = {
-        code: document.getElementById('manage-promo-code').value.trim().toUpperCase().replace(/\s+/g, ''),
-        type: document.getElementById('manage-promo-type').value,
-        amount: parseInt(document.getElementById('manage-promo-amount').value) || 0,
-        targetBrand: document.getElementById('manage-promo-target') ? document.getElementById('manage-promo-target').value : 'all',
-        targetUser: document.getElementById('manage-promo-user') ? document.getElementById('manage-promo-user').value : 'all',
-        minOrder: parseInt(document.getElementById('manage-promo-min-order')?.value) || 0,
-        expiryDate: document.getElementById('manage-promo-expiry')?.value || '',
-        maxUses: parseInt(document.getElementById('manage-promo-max').value) || 0,
-        active: document.getElementById('manage-promo-active').checked,
-        usedCount: 0 
-    };
-    if (!data.code || data.amount <= 0 || data.maxUses <= 0) {
-        window.customAlert('Data Tidak Valid', 'Pastikan kode voucher, nilai potongan, dan batas kuota diisi dengan benar.', 'warning');
-        return;
-    }
-    
-    const btn = document.getElementById('btn-save-promo');
-    const ogHtml = btn.innerHTML;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Menyimpan...</span>';
-    btn.disabled = true;
-    try {
-        if (dbId) {
-            delete data.usedCount; 
-            await updateDoc(doc(db, pathPromos, dbId), data);
-        } else {
-            await addDoc(collection(db, pathPromos), data);
-        }
-        window.closeModal('modal-manage-promo');
-        window.showToast('Promo Tersimpan', `Kode voucher ${data.code} siap digunakan.`, 'success');
-    } catch (e) {
-        window.customAlert('Error', 'Gagal menyimpan kode promo.', 'error');
-    } finally {
-        btn.innerHTML = ogHtml; btn.disabled = false;
-    }
-};
-
-window.deletePromo = function(dbId) {
-    window.openConfirm("Hapus Promo", "Hapus kode promo ini secara permanen?", async (confirmed) => {
-        if (confirmed) {
-            await deleteDoc(doc(db, pathPromos, dbId));
-            window.showToast('Terhapus', 'Kode promo berhasil dihapus.', 'info');
-        }
-    }, 'delete');
-};
-/* ======================== END OF [FEATURE-06] ============================= */
-
 // ==========================================
-// BERITA & KOMUNITAS WEB (DENGAN CENTANG TOMBOL PRODUK TERKAIT)
+// PENGATURAN TOKO, QRIS DECODER, GAMBAR & TEST WEBHOOK
 // ==========================================
-function populateNewsBrandDropdown() {
-    const sel = document.getElementById('manage-news-linked-brand');
-    if (!sel) return;
-    const curVal = sel.value;
-    let html = '<option value="">-- Pilih Produk yang Ditampilkan di Berita --</option>';
-    groupedBrands.forEach(b => {
-        html += `<option value="${window.escapeHtml(b.brandName)}">${window.escapeHtml(b.brandName)}</option>`;
-    });
-    sel.innerHTML = html;
-    if (curVal) sel.value = curVal;
-}
+window.populateSettingsForm = function() {
+    document.getElementById('set-store-open').checked = siteSettings.isStoreOpen !== false;
+    const anonToggle = document.getElementById('set-anon-autodelete-6h');
+    if (anonToggle) anonToggle.checked = siteSettings.anonAutoDelete6h !== false;
 
-window.toggleNewsProductSelect = function() {
-    const chk = document.getElementById('manage-news-enable-btn');
-    const box = document.getElementById('manage-news-product-box');
-    if (box) box.style.display = (chk && chk.checked) ? 'block' : 'none';
-};
-
-window.renderAdminNews = function() {
-    const list = document.getElementById('admin-news-list');
-    if (!list) return;
-    const newsData = siteSettings.newsList || [];
-    if (newsData.length === 0) {
-        list.innerHTML = '<p class="text-muted text-center p-3" style="grid-column: 1/-1;">Belum ada artikel berita atau pengumuman.</p>';
-        return;
-    }
-    
-    let html = '';
-    newsData.forEach((t, i) => {
-        const thumbHtml = t.imageUrl
-            ? `<img src="${t.imageUrl}" class="admin-news-thumb" alt="Thumb">`
-            : `<div class="admin-news-thumb" style="background:linear-gradient(135deg, var(--primary), #1e3a8a); display:flex; align-items:center; justify-content:center; color:#fff; font-size:2rem;"><i class="fa-solid fa-newspaper"></i></div>`;
-
-        const linkedTagHtml = (t.enableProductBtn && t.linkedBrand)
-            ? `<span class="status-badge status-success mt-1"><i class="fa-solid fa-cart-shopping"></i> Tombol: ${window.escapeHtml(t.linkedBrand)}</span>`
-            : '';
-
-        html += `
-        <div class="admin-news-card">
-            <div>
-                ${thumbHtml}
-                <div style="padding: 12px;">
-                    <strong class="text-dark d-block mb-1" style="font-size:0.92rem;">${window.escapeHtml(t.title)}</strong>
-                    <p class="text-muted text-xs mb-1" style="display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">${window.escapeHtml(t.desc)}</p>
-                    ${linkedTagHtml}
-                </div>
-            </div>
-            <div class="flex-between align-center" style="padding: 10px 12px; border-top: 1.5px dashed var(--border-subtle);">
-                <button class="btn btn-outline btn-sm" onclick="window.openNewsModal(${i})"><i class="fa-solid fa-pen"></i> Edit</button>
-                <button class="btn btn-danger btn-sm" onclick="window.deleteNews(${i})"><i class="fa-solid fa-trash"></i></button>
-            </div>
-        </div>`;
-    });
-    list.innerHTML = html;
-};
-
-window.openNewsModal = function(index = -1) {
-    populateNewsBrandDropdown();
-    document.getElementById('manage-news-index').value = index;
-    const prevImg = document.getElementById('manage-news-preview');
-    const chkBtn = document.getElementById('manage-news-enable-btn');
-    const brandSel = document.getElementById('manage-news-linked-brand');
-
-    if (index > -1 && siteSettings.newsList && siteSettings.newsList[index]) {
-        const news = siteSettings.newsList[index];
-        document.getElementById('manage-news-title').value = news.title || '';
-        document.getElementById('manage-news-image').value = news.imageUrl || '';
-        document.getElementById('manage-news-desc').value = news.desc || '';
-        if (chkBtn) chkBtn.checked = Boolean(news.enableProductBtn);
-        if (brandSel) brandSel.value = news.linkedBrand || '';
-        window.toggleNewsProductSelect();
-        document.getElementById('modal-news-title').innerHTML = '<i class="fa-solid fa-pen text-primary"></i> Edit Artikel Berita';
-        if (news.imageUrl && prevImg) { prevImg.src = news.imageUrl; prevImg.style.display = 'block'; }
-        else if (prevImg) { prevImg.style.display = 'none'; }
-    } else {
-        document.getElementById('manage-news-title').value = '';
-        document.getElementById('manage-news-image').value = '';
-        document.getElementById('manage-news-desc').value = '';
-        if (chkBtn) chkBtn.checked = false;
-        if (brandSel) brandSel.value = '';
-        window.toggleNewsProductSelect();
-        document.getElementById('modal-news-title').innerHTML = '<i class="fa-solid fa-newspaper text-primary"></i> Buat Artikel Berita Baru';
-        if (prevImg) prevImg.style.display = 'none';
-    }
-    window.openModal('modal-manage-news');
-};
-
-window.clearNewsImage = function() {
-    document.getElementById('manage-news-image').value = '';
-    const prevImg = document.getElementById('manage-news-preview');
-    if (prevImg) prevImg.style.display = 'none';
-};
-
-window.handleNewsUpload = function(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    window.resizeImageBase64(file, (b64) => {
-        document.getElementById('manage-news-image').value = b64;
-        const prevImg = document.getElementById('manage-news-preview');
-        if (prevImg) { prevImg.src = b64; prevImg.style.display = 'block'; }
-        window.showToast('Gambar Siap', 'Gambar sampul berita berhasil dimuat.', 'success');
-    }, 800, 600);
-};
-
-window.saveNews = async function() {
-    const idx = parseInt(document.getElementById('manage-news-index').value);
-    const title = document.getElementById('manage-news-title').value.trim();
-    const imageUrl = document.getElementById('manage-news-image').value.trim();
-    const desc = document.getElementById('manage-news-desc').value.trim();
-    const enableProductBtn = Boolean(document.getElementById('manage-news-enable-btn')?.checked);
-    const linkedBrand = document.getElementById('manage-news-linked-brand')?.value || '';
-
-    if (!title || !desc) { window.customAlert('Error', 'Judul dan Isi Artikel wajib diisi.', 'error'); return; }
-    if (enableProductBtn && !linkedBrand) {
-        window.customAlert('Pilih Produk', 'Silakan pilih produk yang ingin dihubungkan pada berita ini.', 'warning');
-        return;
-    }
-    
-    const btn = document.getElementById('btn-save-news');
-    const ogHtml = btn.innerHTML;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Menyimpan...</span>';
-    btn.disabled = true;
-    try {
-        const newsList = siteSettings.newsList ? [...siteSettings.newsList] : [];
-        const newsObj = {
-            title,
-            imageUrl,
-            desc,
-            enableProductBtn,
-            linkedBrand: enableProductBtn ? linkedBrand : '',
-            isHidden: false
-        };
-        if (idx > -1) newsList[idx] = newsObj;
-        else newsList.push(newsObj);
-        
-        await setDoc(doc(db, pathSettings, 'mainConfig'), { newsList: newsList }, { merge: true });
-        window.closeModal('modal-manage-news');
-        window.showToast('Tersimpan', 'Artikel berita berhasil dipublikasikan.', 'success');
-    } catch (e) {
-        window.customAlert('Error', 'Gagal menyimpan berita.', 'error');
-    } finally {
-        btn.innerHTML = ogHtml; btn.disabled = false;
-    }
-};
-
-window.deleteNews = async function(index) {
-    window.openConfirm('Hapus Berita', 'Hapus artikel berita ini secara permanen?', async (confirmed) => {
-        if (confirmed) {
-            const newsList = [...siteSettings.newsList];
-            newsList.splice(index, 1);
-            await setDoc(doc(db, pathSettings, 'mainConfig'), { newsList: newsList }, { merge: true });
-            window.showToast('Dihapus', 'Artikel berita berhasil dihapus.', 'info');
-        }
-    }, 'delete');
-};
-
-// ==========================================
-// PENGATURAN WEB, IKON PWA & WEBHOOK EMAIL
-// ==========================================
-window.quickToggleStoreStatus = async function() {
-    if (!isSettingsLoaded) return;
-    const newStatus = siteSettings.isStoreOpen === false ? true : false;
-    const storeCheckEl = document.getElementById('set-store-status');
-    if (storeCheckEl) storeCheckEl.checked = newStatus;
-
-    try {
-        await setDoc(doc(db, pathSettings, 'mainConfig'), { isStoreOpen: newStatus }, { merge: true });
-        window.showToast(
-            newStatus ? 'Toko Dibuka!' : 'Toko Ditutup!',
-            newStatus ? 'Pelanggan kini dapat melakukan transaksi.' : 'Transaksi ditutup sementara untuk pelanggan.',
-            newStatus ? 'success' : 'info'
-        );
-    } catch (e) {
-        window.customAlert('Gagal', 'Gagal mengubah status toko.', 'error');
-    }
-};
-
-window.saveSettingsManual = async function(showNotification = false) {
-    if (!isSettingsLoaded) return;
-    const newSettings = {
-        ...siteSettings,
-        logoText: document.getElementById('set-logo-text').value.trim() || siteSettings.logoText || 'VIPER',
-        logoAccent: document.getElementById('set-logo-accent').value.trim() || siteSettings.logoAccent || 'CELL',
-        logoImgBase64: document.getElementById('set-logo-base64').value || siteSettings.logoImgBase64 || '', 
-        pwaIconBase64: document.getElementById('set-pwa-icon-base64').value || siteSettings.pwaIconBase64 || '',
-        marquee: document.getElementById('set-marquee').value.trim() || siteSettings.marquee || '',
-        adminWa: document.getElementById('set-wa').value.trim() || siteSettings.adminWa || '085656321860',
-        igLink: document.getElementById('set-ig').value.trim(),
-        ttLink: document.getElementById('set-tt').value.trim(),
-        qrisStringData: document.getElementById('set-qris-string').value.trim() || siteSettings.qrisStringData || '',
-        emailWebhookUrl: document.getElementById('set-email-webhook') ? document.getElementById('set-email-webhook').value.trim() : (siteSettings.emailWebhookUrl || ''),
-        webhookSecret: document.getElementById('set-webhook-secret') ? (document.getElementById('set-webhook-secret').value.trim() || 'VIPERCELL_SECRET_2026') : (siteSettings.webhookSecret || 'VIPERCELL_SECRET_2026'),
-        waChannelLink: document.getElementById('set-wa-channel') ? document.getElementById('set-wa-channel').value.trim() : (siteSettings.waChannelLink || ''),
-        isStoreOpen: document.getElementById('set-store-status') ? document.getElementById('set-store-status').checked : true
-    };
-    try {
-        await setDoc(doc(db, pathSettings, 'mainConfig'), newSettings, { merge: true });
-        localStorage.setItem('vipercell_settings_backup', JSON.stringify(newSettings));
-        if (showNotification) {
-            window.showToast('Pengaturan Disimpan', 'Konfigurasi web & webhook berhasil diamankan.', 'success');
-        }
-    } catch (e) {
-        window.customAlert('Error', 'Gagal menyimpan pengaturan web.', 'error');
-    }
-};
-
-window.populateAdminSettings = function() {
     document.getElementById('set-logo-text').value = siteSettings.logoText || 'VIPER';
     document.getElementById('set-logo-accent').value = siteSettings.logoAccent || 'CELL';
-    document.getElementById('set-logo-base64').value = siteSettings.logoImgBase64 || '';
-    document.getElementById('set-pwa-icon-base64').value = siteSettings.pwaIconBase64 || '';
-    
     document.getElementById('set-marquee').value = siteSettings.marquee || '';
     document.getElementById('set-wa').value = siteSettings.adminWa || '';
+    document.getElementById('set-wa-channel').value = siteSettings.waChannelLink || '';
     document.getElementById('set-ig').value = siteSettings.igLink || '';
     document.getElementById('set-tt').value = siteSettings.ttLink || '';
-    document.getElementById('set-qris-string').value = siteSettings.qrisStringData || '';
-    if (document.getElementById('set-email-webhook')) document.getElementById('set-email-webhook').value = siteSettings.emailWebhookUrl || '';
-    if (document.getElementById('set-webhook-secret')) document.getElementById('set-webhook-secret').value = siteSettings.webhookSecret || 'VIPERCELL_SECRET_2026';
-    if (document.getElementById('set-wa-channel')) document.getElementById('set-wa-channel').value = siteSettings.waChannelLink || '';
+    document.getElementById('set-qris-data').value = siteSettings.qrisStringData || '';
+    document.getElementById('set-email-webhook').value = siteSettings.emailWebhookUrl || '';
+    document.getElementById('set-webhook-secret').value = siteSettings.webhookSecret || 'VIPERCELL_SECRET_2026';
 
-    window.previewQrisMerchantTag59();
+    const emailPortalEl = document.getElementById('set-default-email-portal');
+    if (emailPortalEl) emailPortalEl.value = siteSettings.defaultEmailPortalUrl || '';
 
-    const isOpen = siteSettings.isStoreOpen !== false;
-    const storeStatusEl = document.getElementById('set-store-status');
-    if (storeStatusEl) storeStatusEl.checked = isOpen;
-
-    const quickBtn = document.getElementById('btn-quick-store-toggle');
-    const quickTxt = document.getElementById('quick-store-text');
-    if (quickBtn && quickTxt) {
-        quickBtn.className = isOpen ? 'btn btn-sm btn-success' : 'btn btn-sm btn-danger';
-        quickTxt.innerText = isOpen ? 'TOKO BUKA' : 'TOKO TUTUP';
-    }
-    
-    if (siteSettings.logoImgBase64) {
-        const p = document.getElementById('set-logo-preview');
-        if (p) { p.src = siteSettings.logoImgBase64; p.style.display = 'block'; }
-        document.getElementById('set-logo-file-name').innerText = "Gambar Logo Aktif";
+    tempLogoBase64 = siteSettings.logoImgBase64 || '';
+    const prevLogo = document.getElementById('preview-logo');
+    const btnDelLogo = document.getElementById('btn-del-logo');
+    if (tempLogoBase64 && prevLogo) {
+        prevLogo.src = tempLogoBase64;
+        prevLogo.style.display = 'block';
+        if (btnDelLogo) btnDelLogo.style.display = 'inline-flex';
+    } else if (prevLogo) {
+        prevLogo.style.display = 'none';
+        if (btnDelLogo) btnDelLogo.style.display = 'none';
     }
 
-    if (siteSettings.pwaIconBase64) {
-        const pwaPrev = document.getElementById('set-pwa-icon-preview');
-        if (pwaPrev) { pwaPrev.src = siteSettings.pwaIconBase64; pwaPrev.style.display = 'block'; }
-        document.getElementById('set-pwa-file-name').innerText = "Ikon Kustom PWA Aktif";
+    tempPwaIconBase64 = siteSettings.pwaIconBase64 || '';
+    const prevPwa = document.getElementById('preview-pwa-icon');
+    const btnDelPwa = document.getElementById('btn-del-pwa-icon');
+    if (tempPwaIconBase64 && prevPwa) {
+        prevPwa.src = tempPwaIconBase64;
+        prevPwa.style.display = 'block';
+        if (btnDelPwa) btnDelPwa.style.display = 'inline-flex';
+    } else if (prevPwa) {
+        prevPwa.style.display = 'none';
+        if (btnDelPwa) btnDelPwa.style.display = 'none';
     }
-    
-    const adminLogoEl = document.getElementById('admin-header-logo-img');
-    const defAdminIco = document.getElementById('admin-header-default-icon');
-    if (siteSettings.logoImgBase64) {
-        if (adminLogoEl) { adminLogoEl.src = siteSettings.logoImgBase64; adminLogoEl.style.display = 'inline-block'; }
-        if (defAdminIco) defAdminIco.style.display = 'none';
-    } else {
-        if (adminLogoEl) adminLogoEl.style.display = 'none';
-        if (defAdminIco) defAdminIco.style.display = 'flex';
+
+    const qrisStatus = document.getElementById('qris-status-text');
+    if (qrisStatus) {
+        qrisStatus.innerHTML = siteSettings.qrisStringData
+            ? '<span class="text-success fw-bold"><i class="fa-solid fa-circle-check"></i> String QRIS Aktif</span>'
+            : 'Belum ada string QRIS';
+    }
+
+    window.renderMarqueeStudioSlots();
+    window.renderAdminBanners();
+};
+
+function compressImageToBase64(file, maxWidth = 600, quality = 0.78) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let w = img.width;
+                let h = img.height;
+                if (w > maxWidth) {
+                    h = Math.round((h * maxWidth) / w);
+                    w = maxWidth;
+                }
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, w, h);
+                resolve(canvas.toDataURL('image/webp', quality));
+            };
+            img.onerror = reject;
+            img.src = e.target.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
+window.previewManageImg = async function(input) {
+    if (!input.files || !input.files[0]) return;
+    tempManageImgBase64 = await compressImageToBase64(input.files[0], 300, 0.8);
+    const prev = document.getElementById('preview-manage-img');
+    if (prev) {
+        prev.src = tempManageImgBase64;
+        prev.style.display = 'block';
     }
 };
 
-const logoUploadEl = document.getElementById('logo-upload');
-if (logoUploadEl) {
-    logoUploadEl.addEventListener('change', function(e) {
-        if (e.target.files[0]) {
-            document.getElementById('set-logo-file-name').innerText = e.target.files[0].name;
-            window.resizeImageBase64(e.target.files[0], (b64) => {
-                document.getElementById('set-logo-base64').value = b64; 
-                const p = document.getElementById('set-logo-preview');
-                p.src = b64; p.style.display = 'block';
-                window.saveSettingsManual(true); 
-            }, 500, 500);
-        }
-    });
-}
+window.uploadLogoImg = async function(input) {
+    if (!input.files || !input.files[0]) return;
+    tempLogoBase64 = await compressImageToBase64(input.files[0], 250, 0.85);
+    const prev = document.getElementById('preview-logo');
+    if (prev) { prev.src = tempLogoBase64; prev.style.display = 'block'; }
+    document.getElementById('btn-del-logo').style.display = 'inline-flex';
+};
 
-const pwaIconUploadEl = document.getElementById('pwa-icon-upload');
-if (pwaIconUploadEl) {
-    pwaIconUploadEl.addEventListener('change', function(e) {
-        if (e.target.files[0]) {
-            document.getElementById('set-pwa-file-name').innerText = e.target.files[0].name;
-            window.resizeImageBase64(e.target.files[0], (b64) => {
-                document.getElementById('set-pwa-icon-base64').value = b64;
-                const p = document.getElementById('set-pwa-icon-preview');
-                if (p) { p.src = b64; p.style.display = 'block'; }
-                window.saveSettingsManual(true);
-            }, 512, 512);
-        }
-    });
-}
+window.removeLogoImg = function() {
+    tempLogoBase64 = '';
+    document.getElementById('preview-logo').style.display = 'none';
+    document.getElementById('btn-del-logo').style.display = 'none';
+};
 
-const bannerUploadEl = document.getElementById('banner-upload');
-if (bannerUploadEl) {
-    bannerUploadEl.addEventListener('change', function(e) {
-        if (e.target.files[0]) {
-            window.resizeImageBase64(e.target.files[0], async (b64) => {
-                const banners = siteSettings.banners || [];
-                banners.push(b64);
-                await setDoc(doc(db, pathSettings, 'mainConfig'), { banners: banners }, { merge: true });
-                siteSettings.banners = banners;
-                window.renderAdminBanners();
-                window.showToast('Banner Ditambahkan', 'Spanduk promo baru berhasil diunggah.', 'success');
-                e.target.value = ''; 
-            }, 1200, 600); 
-        }
-    });
-}
+window.uploadPwaIconImg = async function(input) {
+    if (!input.files || !input.files[0]) return;
+    tempPwaIconBase64 = await compressImageToBase64(input.files[0], 512, 0.88);
+    const prev = document.getElementById('preview-pwa-icon');
+    if (prev) { prev.src = tempPwaIconBase64; prev.style.display = 'block'; }
+    document.getElementById('btn-del-pwa-icon').style.display = 'inline-flex';
+};
+
+window.removePwaIconImg = function() {
+    tempPwaIconBase64 = '';
+    document.getElementById('preview-pwa-icon').style.display = 'none';
+    document.getElementById('btn-del-pwa-icon').style.display = 'none';
+};
+
+window.uploadBannerImg = async function(input) {
+    if (!input.files || !input.files[0]) return;
+    const b64 = await compressImageToBase64(input.files[0], 900, 0.8);
+    const banners = [...(siteSettings.banners || []), b64];
+    siteSettings.banners = banners;
+    window.renderAdminBanners();
+};
 
 window.renderAdminBanners = function() {
-    const list = document.getElementById('admin-banner-list');
-    if (!list) return;
+    const grid = document.getElementById('admin-banner-list');
+    if (!grid) return;
     const banners = siteSettings.banners || [];
     if (banners.length === 0) {
-        list.innerHTML = '<div class="text-muted text-sm p-3 text-center">Belum ada spanduk/banner promo yang diunggah.</div>';
+        grid.innerHTML = '<div class="text-xs text-muted">Belum ada slide banner.</div>';
         return;
     }
-    
-    let html = '<div class="grid-2col" style="gap:10px;">';
-    banners.forEach((b64, idx) => {
-        html += `
-        <div style="position:relative; border:var(--brutal-border); border-radius:12px; overflow:hidden;">
-            <img src="${b64}" style="width:100%; height:115px; object-fit:cover; display:block;" loading="lazy" alt="Banner">
-            <button aria-label="Hapus Banner" class="btn btn-danger btn-sm" style="position:absolute; top:8px; right:8px;" onclick="window.deleteBanner(${idx})"><i class="fa-solid fa-trash"></i> Hapus</button>
-        </div>`;
-    });
-    html += '</div>';
-    list.innerHTML = html;
+    grid.innerHTML = banners.map((b, idx) => `
+        <div class="banner-admin-item">
+            <img src="${b}" alt="Banner ${idx}">
+            <button type="button" class="btn btn-danger btn-sm" style="position:absolute; top:6px; right:6px; padding:4px 8px;" onclick="window.removeBannerItem(${idx})">
+                <i class="fa-solid fa-trash"></i>
+            </button>
+        </div>
+    `).join('');
 };
 
-window.deleteBanner = async function(idx) {
-    window.openConfirm('Hapus Banner', 'Hapus spanduk promo ini dari halaman utama?', async (confirmed) => {
-        if (confirmed) {
-            const banners = siteSettings.banners || [];
-            banners.splice(idx, 1);
-            await setDoc(doc(db, pathSettings, 'mainConfig'), { banners: banners }, { merge: true });
-            siteSettings.banners = banners;
-            window.renderAdminBanners();
-            window.showToast('Terhapus', 'Banner telah dihapus.', 'info');
-        }
-    }, 'delete');
+window.removeBannerItem = function(idx) {
+    siteSettings.banners.splice(idx, 1);
+    window.renderAdminBanners();
 };
 
-/* ============================================================================
- * [FEATURE-11] LIVE CHAT ADMIN + TAP TO NAVIGATE TOAST
- * ============================================================================ */
-function listenAdminLiveChat() {
-    if (adminChatUnsubscribe) adminChatUnsubscribe();
-    
-    adminChatUnsubscribe = onSnapshot(collection(db, pathChats), (snapshot) => {
-        let newChats = [];
-        snapshot.forEach(docSnap => { 
-            newChats.push({ id: docSnap.id, ...docSnap.data() });
-        });
-
-        if (isInitialChatLoad) {
-            snapshot.forEach(docSnap => { 
-                let cData = docSnap.data();
-                previousChatMsgCount[docSnap.id] = cData.messages ? cData.messages.length : 0;
-            });
-            isInitialChatLoad = false;
-        } else {
-            snapshot.docChanges().forEach(change => {
-                if (change.type === "added" || change.type === "modified") {
-                    let cData = change.doc.data();
-                    let docId = change.doc.id;
-                    
-                    let oldMsgCount = previousChatMsgCount[docId] || 0;
-                    let newMsgCount = cData.messages ? cData.messages.length : 0;
-                    
-                    if (newMsgCount > oldMsgCount) {
-                        let lastMsg = cData.messages[newMsgCount - 1];
-                        if (lastMsg && lastMsg.sender === 'user') {
-                            playNotificationSound('chat');
-                            sendAdminNativeNotification(`Chat Baru: ${cData.userInfo || 'Pelanggan'} 💬`, lastMsg.text);
-                            window.showToast(`Pesan dari ${cData.userInfo || 'Pelanggan'}`, lastMsg.text, 'info', () => {
-                                window.switchAdminTabByName('tab-livechat');
-                                setTimeout(() => window.openAdminChatDetailDesk(docId), 150);
-                            });
-                        }
-                    }
-                    previousChatMsgCount[docId] = newMsgCount;
+window.decodeQRISImage = function(input) {
+    if (!input.files || !input.files[0]) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            if (typeof jsQR !== 'undefined') {
+                const code = jsQR(imageData.data, imageData.width, imageData.height);
+                if (code && code.data) {
+                    document.getElementById('set-qris-data').value = code.data;
+                    document.getElementById('qris-status-text').innerHTML = '<span class="text-success fw-bold"><i class="fa-solid fa-circle-check"></i> QRIS Berhasil Di-decode!</span>';
+                    window.showToast('QRIS Terbaca', 'String QRIS berhasil diekstrak dari gambar.', 'success');
+                } else {
+                    window.customAlert('Gagal Membaca QR', 'Pastikan gambar kode QRIS terlihat jelas dan tidak buram.', 'warning');
                 }
-                if (change.type === "removed") {
-                    delete previousChatMsgCount[change.doc.id];
-                }
-            });
-        }
-        
-        allLiveChats = newChats.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-        window.renderAdminChatList();
-        window.renderAdminMembers();
-        
-        const hasUnreadAny = allLiveChats.some(c => {
-            const msgs = c.messages || [];
-            return msgs.length > 0 && msgs[msgs.length - 1].sender === 'user';
-        });
-        const badge = document.getElementById('admin-chat-tab-badge');
-        if (badge) badge.style.display = hasUnreadAny ? 'inline-block' : 'none';
-        
-        const countPill = document.getElementById('chat-active-count-pill');
-        if (countPill) countPill.innerText = allLiveChats.length;
-        
-        const activeId = document.getElementById('admin-active-chat-id-desk')?.value;
-        if (activeId) {
-            const targetChat = allLiveChats.find(c => c.id === activeId);
-            if (targetChat) window.openAdminChatDetailDesk(activeId); 
-        }
-    });
-}
-
-window.renderAdminChatList = function() {
-    const list = document.getElementById('admin-chat-list');
-    if (!list) return;
-    if (allLiveChats.length === 0) {
-        list.innerHTML = '<div class="chat-empty-state"><i class="fa-solid fa-comments"></i><p>Belum ada sesi chat pelanggan aktif.</p></div>';
-        document.getElementById('admin-chat-empty').style.display = 'flex';
-        document.getElementById('admin-chat-active').style.display = 'none';
-        return;
-    }
-    
-    const activeId = document.getElementById('admin-active-chat-id-desk')?.value;
-    let html = '';
-    
-    allLiveChats.forEach(chat => {
-        const msgs = chat.messages || [];
-        const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1] : null;
-        const hasUnread = lastMsg && lastMsg.sender === 'user';
-        const isActive = chat.id === activeId ? 'active' : '';
-        
-        html += `
-            <div id="chat-card-${chat.id}" class="chat-user-item ${isActive}" onclick="window.openAdminChatDetailDesk('${chat.id}')">
-                <div class="chat-user-info">
-                    <strong class="chat-user-name">${window.escapeHtml(chat.userInfo || 'Pelanggan')}</strong>
-                    <span class="chat-user-msg">${lastMsg ? window.escapeHtml(lastMsg.text) : 'Ruang chat dibuka...'}</span>
-                </div>
-                ${hasUnread ? '<span class="status-badge status-failed" style="font-size:0.6rem; padding:2px 6px;">BARU</span>' : ''}
-            </div>
-        `;
-    });
-    list.innerHTML = html;
-};
-
-window.backToChatListMobile = function() {
-    document.getElementById('admin-active-chat-id-desk').value = '';
-    const mainPanel = document.getElementById('admin-chat-main-panel');
-    const sidePanel = document.getElementById('admin-chat-sidebar-panel');
-    
-    if (window.innerWidth <= 768) {
-        mainPanel.style.display = 'none';
-        sidePanel.style.display = 'flex';
-    }
-};
-
-window.openAdminChatDetailDesk = function(chatId) {
-    const chat = allLiveChats.find(c => c.id === chatId);
-    if (!chat) return;
-    
-    document.getElementById('admin-chat-empty').style.display = 'none';
-    document.getElementById('admin-chat-active').style.display = 'flex';
-    document.getElementById('admin-active-chat-id-desk').value = chatId;
-    document.getElementById('admin-chat-title-desk').innerText = chat.userInfo || 'Pelanggan';
-    const subEl = document.getElementById('admin-chat-sub-desk');
-    if (subEl) {
-        subEl.innerHTML = chat.userEmail
-            ? `<i class="fa-regular fa-envelope"></i> ${window.escapeHtml(chat.userEmail)}`
-            : `<i class="fa-solid fa-circle" style="font-size:0.5rem;"></i> Pelanggan Tamu / Live Chat`;
-    }
-    
-    const mainPanel = document.getElementById('admin-chat-main-panel');
-    const sidePanel = document.getElementById('admin-chat-sidebar-panel');
-    
-    if (window.innerWidth <= 768) {
-        sidePanel.style.display = 'none';
-        mainPanel.style.display = 'flex';
-    }
-    
-    const body = document.getElementById('admin-chat-body-desktop');
-    let html = '';
-    
-    (chat.messages || []).forEach(msg => {
-        const isUser = msg.sender === 'user';
-        const cls = isUser ? 'user' : 'admin';
-
-        html += `
-            <div class="chat-msg ${cls}">
-                ${window.escapeHtml(msg.text).replace(/\n/g, '<br>')}
-                <span class="chat-time">${new Date(msg.timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>
-            </div>
-        `;
-    });
-    body.innerHTML = html;
-    
-    setTimeout(() => { body.scrollTop = body.scrollHeight; }, 50);
-    document.querySelectorAll('.chat-user-item').forEach(el => el.classList.remove('active'));
-    const activeCard = document.getElementById(`chat-card-${chatId}`);
-    if (activeCard) activeCard.classList.add('active');
-};
-
-window.insertQuickReplyDesk = function(text) {
-    const input = document.getElementById('admin-chat-input-desk');
-    if (input) { input.value = text; input.focus(); }
-};
-
-window.sendAdminChatDesk = async function() {
-    const chatId = document.getElementById('admin-active-chat-id-desk').value;
-    const input = document.getElementById('admin-chat-input-desk');
-    const text = input.value.trim();
-    if (!text || !chatId) return;
-    
-    input.value = '';
-    const chatRef = doc(db, pathChats, chatId);
-    await setDoc(chatRef, {
-        updatedAt: Date.now(),
-        messages: arrayUnion({ sender: 'admin', text: text, timestamp: Date.now() })
-    }, { merge: true });
-};
-
-window.resolveChatDesktop = async function() {
-    const chatId = document.getElementById('admin-active-chat-id-desk').value;
-    if (!chatId) return;
-    
-    window.openConfirm('Tutup Sesi Chat', 'Tandai selesai dan hapus riwayat sesi obrolan ini?', async (confirmed) => {
-        if (!confirmed) return;
-        const btn = document.getElementById('btn-resolve-chat');
-        const ogHtml = btn.innerHTML;
-        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
-        btn.disabled = true;
-        try {
-            await deleteDoc(doc(db, pathChats, chatId));
-            document.getElementById('admin-active-chat-id-desk').value = '';
-            document.getElementById('admin-chat-empty').style.display = 'flex';
-            document.getElementById('admin-chat-active').style.display = 'none';
-            
-            if (window.innerWidth <= 768) {
-                window.backToChatListMobile();
             }
-            window.showToast('Sesi Selesai', 'Sesi obrolan telah ditutup.', 'success');
-        } catch (e) {
-            window.customAlert('Gagal', 'Tidak dapat menghapus sesi obrolan.', 'error');
-        } finally {
-            btn.innerHTML = ogHtml; btn.disabled = false;
-        }
-    }, 'delete');
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(input.files[0]);
 };
-/* ======================== END OF [FEATURE-11] ============================= */
 
-// Inisialisasi Aplikasi Admin Command Center V25.0
+window.testEmailWebhookConnection = async function() {
+    const url = document.getElementById('set-email-webhook').value.trim();
+    const secret = document.getElementById('set-webhook-secret').value.trim();
+    if (!url) {
+        window.customAlert('URL Kosong', 'Masukkan URL Web App Google Apps Script terlebih dahulu.', 'warning');
+        return;
+    }
+
+    siteSettings.emailWebhookUrl = url;
+    siteSettings.webhookSecret = secret || 'VIPERCELL_SECRET_2026';
+
+    const targetEmail = currentAdminUser?.email || 'miler.teves@gmail.com';
+    window.showToast('Menguji Koneksi GAS...', `Mengirim email tes ke ${targetEmail}...`, 'info');
+
+    try {
+        await callUnifiedGasWebhook({
+            action: 'SEND_ORDER_DELIVERY',
+            orderId: 'VP-TEST27',
+            invoice: 'VP-TEST27',
+            email: targetEmail,
+            buyerEmail: targetEmail,
+            buyerName: 'Administrator Vipercell',
+            itemName: 'Tes Koneksi Unified GAS V27 (E-Receipt + Email OAuth + Reset Sandi)',
+            productName: 'Vipercell System Check V27',
+            variantName: 'Diagnostic Test',
+            totalAmount: 27000,
+            totalFormatted: 'Rp 27.000',
+            accountDetails: '[PRODUK EMAIL OAUTH]\nFORMAT_UTUH : demo@outlook.com|Pass123!|M.C542_TOKEN|9e5f94bc-client-id\nEmail : demo@outlook.com\nPassword : Pass123!\nLink_Akses : https://mail.vipercell.id',
+            targetId: 'Admin Diagnostic'
+        });
+        window.customAlert(
+            'Koneksi GAS V27 Berhasil! 🎉',
+            `Server Google Apps Script merespons dengan sukses dan telah mengirim email percobaan ke <b>${window.escapeHtml(targetEmail)}</b>.<br><br>Jangan lupa klik tombol <b>Simpan Seluruh Pengaturan Toko V27</b> di bagian bawah!`,
+            'success'
+        );
+    } catch (err) {
+        window.customAlert('Tes Webhook Gagal', `${window.escapeHtml(err.message)}`, 'error');
+    }
+};
+
+window.saveSiteSettings = async function() {
+    const btn = document.getElementById('btn-save-settings');
+    const ogHtml = btn.innerHTML;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Menyimpan Pengaturan V27...</span>';
+    btn.disabled = true;
+
+    const marqueeListClean = ensureMarqueeListInitialized().slice(0, 6);
+    const combinedMarqueeText = marqueeListClean.length > 0
+        ? marqueeListClean.map(i => i.text).join(' || ')
+        : document.getElementById('set-marquee').value.trim();
+
+    const updated = {
+        isStoreOpen: document.getElementById('set-store-open').checked,
+        anonAutoDelete6h: document.getElementById('set-anon-autodelete-6h') ? document.getElementById('set-anon-autodelete-6h').checked : true,
+        logoText: document.getElementById('set-logo-text').value.trim() || 'VIPER',
+        logoAccent: document.getElementById('set-logo-accent').value.trim() || 'CELL',
+        marquee: combinedMarqueeText,
+        marqueeList: marqueeListClean,
+        adminWa: document.getElementById('set-wa').value.trim(),
+        waChannelLink: document.getElementById('set-wa-channel').value.trim(),
+        igLink: document.getElementById('set-ig').value.trim(),
+        ttLink: document.getElementById('set-tt').value.trim(),
+        defaultEmailPortalUrl: document.getElementById('set-default-email-portal')?.value.trim() || '',
+        qrisStringData: document.getElementById('set-qris-data').value.trim(),
+        emailWebhookUrl: document.getElementById('set-email-webhook').value.trim(),
+        webhookSecret: document.getElementById('set-webhook-secret').value.trim() || 'VIPERCELL_SECRET_2026',
+        logoImgBase64: tempLogoBase64,
+        pwaIconBase64: tempPwaIconBase64,
+        banners: siteSettings.banners || []
+    };
+
+    try {
+        await setDoc(doc(db, pathSettings, 'mainConfig'), updated, { merge: true });
+        siteSettings = { ...siteSettings, ...updated };
+        applyCustomAdminPwaIcon();
+        window.showToast('Pengaturan Disimpan!', 'Seluruh konfigurasi toko V27 berhasil diperbarui secara real-time.', 'success');
+    } catch (e) {
+        window.customAlert('Error', 'Gagal menyimpan pengaturan toko.', 'error');
+    } finally {
+        btn.innerHTML = ogHtml;
+        btn.disabled = false;
+    }
+};
+
+window.exportMembersCSV = function() {
+    if (allUsersList.length === 0) {
+        window.customAlert('Data Kosong', 'Belum ada data pengguna untuk diekspor.', 'warning');
+        return;
+    }
+    const headers = ['UID', 'Nama', 'Tipe Akun', 'Email', 'Nomor WhatsApp', 'Device ID', 'Status Blokir', 'Tanggal Bergabung'];
+    const rows = allUsersList.map(u => {
+        const isAnon = Boolean(u.isAnonymous || u.isGuest || u.role === 'anonymous');
+        return [
+            u.uid || '-',
+            `"${(u.name || 'Tamu').replace(/"/g, '""')}"`,
+            isAnon ? 'ANONIM' : 'MEMBER RESMI',
+            u.email || '-',
+            u.phone || u.whatsapp || '-',
+            u.deviceId || '-',
+            u.isBlocked ? 'DIBLOKIR' : 'AKTIF',
+            u.createdAt ? new Date(u.createdAt).toLocaleString('id-ID') : '-'
+        ].join(',');
+    });
+
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `Data_Pelanggan_Vipercell_V27_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.showToast('Kontak Diunduh', 'File CSV daftar pelanggan berhasil diunduh.', 'success');
+};
+
+// ==========================================
+// [FEATURE-01] SEAMLESS VIEW & INLINE BANNER HELPERS (TANPA POP-UP)
+// ==========================================
+window.openModal = function(id) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.classList.add('active');
+        if (el.classList.contains('modal-overlay')) {
+            document.body.classList.add('no-scroll');
+            el.scrollTop = 0;
+        }
+    }
+};
+
+window.closeModal = function(id) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.classList.remove('active');
+        document.body.classList.remove('no-scroll');
+    }
+};
+
+window.customAlert = function(title, desc, type = 'info') {
+    document.getElementById('ca-title').innerText = title;
+    document.getElementById('ca-desc').innerHTML = desc;
+    const icon = document.getElementById('ca-icon');
+    icon.className = `msg-icon ${type}`;
+    icon.innerHTML = type === 'success' ? '<i class="fa-solid fa-circle-check"></i>' :
+                     type === 'error' ? '<i class="fa-solid fa-circle-xmark"></i>' :
+                     type === 'warning' ? '<i class="fa-solid fa-triangle-exclamation"></i>' :
+                     '<i class="fa-solid fa-circle-info"></i>';
+    document.getElementById('custom-alert').classList.add('active');
+};
+
+window.closeAlert = function() {
+    document.getElementById('custom-alert').classList.remove('active');
+};
+
+let confirmCallback = null;
+window.openConfirm = function(title, desc, callback, type = 'delete') {
+    document.getElementById('mc-title').innerText = title;
+    document.getElementById('mc-desc').innerHTML = desc;
+    const btn = document.getElementById('mc-confirm-btn');
+    if (btn) {
+        btn.className = type === 'success' ? 'btn btn-success flex-1' : 'btn btn-danger flex-1';
+    }
+    confirmCallback = callback;
+    document.getElementById('modal-confirm').classList.add('active');
+};
+
+window.resolveConfirm = function(res) {
+    document.getElementById('modal-confirm').classList.remove('active');
+    if (confirmCallback) confirmCallback(res);
+};
+
+window.showToast = function(title, msg, type = 'info', actionCallback = null) {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = `toast-item toast-${type}`;
+    let icon = '<i class="fa-solid fa-circle-info"></i>';
+    if (type === 'success') icon = '<i class="fa-solid fa-circle-check"></i>';
+    if (type === 'warning') icon = '<i class="fa-solid fa-triangle-exclamation"></i>';
+    if (type === 'error') icon = '<i class="fa-solid fa-circle-xmark"></i>';
+
+    const hintText = actionCallback ? 'Ketuk untuk buka &bull; Geser untuk tutup' : 'Geser ke kiri/kanan untuk tutup';
+
+    toast.innerHTML = `
+        <div class="toast-icon">${icon}</div>
+        <div class="toast-content">
+            <h4>${window.escapeHtml(title)}</h4>
+            <p>${window.escapeHtml(msg)}</p>
+            <span class="toast-swipe-hint">${hintText}</span>
+        </div>
+    `;
+
+    let startX = 0;
+    let currentX = 0;
+    let isDragging = false;
+    let autoRemoveTimer = null;
+
+    const dismissToast = (dir = 1) => {
+        if (autoRemoveTimer) clearTimeout(autoRemoveTimer);
+        toast.style.transition = 'transform 0.22s ease, opacity 0.22s ease';
+        toast.style.transform = `translateX(${dir * 120}%)`;
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 220);
+    };
+
+    const onDragStart = (clientX) => {
+        startX = clientX;
+        currentX = 0;
+        isDragging = true;
+        toast.style.transition = 'none';
+    };
+
+    const onDragMove = (clientX) => {
+        if (!isDragging) return;
+        currentX = clientX - startX;
+        toast.style.transform = `translateX(${currentX}px)`;
+        toast.style.opacity = String(Math.max(0.2, 1 - Math.abs(currentX) / 180));
+    };
+
+    const onDragEnd = () => {
+        if (!isDragging) return;
+        isDragging = false;
+        if (Math.abs(currentX) > 65) {
+            dismissToast(currentX > 0 ? 1 : -1);
+        } else {
+            toast.style.transition = 'transform 0.2s ease, opacity 0.2s ease';
+            toast.style.transform = 'translateY(0) translateX(0)';
+            toast.style.opacity = '1';
+            if (Math.abs(currentX) < 10 && actionCallback) {
+                actionCallback();
+                dismissToast(1);
+            }
+        }
+    };
+
+    toast.addEventListener('touchstart', (e) => onDragStart(e.touches[0].clientX), { passive: true });
+    toast.addEventListener('touchmove', (e) => onDragMove(e.touches[0].clientX), { passive: true });
+    toast.addEventListener('touchend', onDragEnd);
+
+    toast.addEventListener('mousedown', (e) => onDragStart(e.clientX));
+    window.addEventListener('mousemove', (e) => { if (isDragging) onDragMove(e.clientX); });
+    window.addEventListener('mouseup', () => { if (isDragging) onDragEnd(); });
+
+    toast.style.cursor = actionCallback ? 'pointer' : 'grab';
+    container.appendChild(toast);
+    setTimeout(() => toast.classList.add('show'), 15);
+    autoRemoveTimer = setTimeout(() => {
+        if (document.body.contains(toast)) {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 250);
+        }
+    }, 4800);
+};
+
+// Start Admin Application V27
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initAdminApp);
 } else {
