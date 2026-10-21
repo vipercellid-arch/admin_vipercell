@@ -2139,3 +2139,4 @@ input:checked + .slider:before {
     content-visibility: auto;
     contain-intrinsic-size: 160px;
 }
+ 
