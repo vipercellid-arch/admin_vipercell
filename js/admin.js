@@ -26,6 +26,7 @@ const pathStocks = isWorkspace ? `artifacts/${appId}/public/data/stocks` : 'stoc
 const pathUsers = isWorkspace ? `artifacts/${appId}/public/data/users` : 'users';
 const pathDeviceLocks = isWorkspace ? `artifacts/${appId}/public/data/device_locks` : 'device_locks';
 const pathMutations = isWorkspace ? `artifacts/${appId}/public/data/payment_mutations` : 'payment_mutations';
+const pathSuggestions = isWorkspace ? `artifacts/${appId}/public/data/product_suggestions` : 'product_suggestions';
 
 const fallbackSettingsPath = isWorkspace ? 'settings' : `artifacts/${appId}/public/data/settings`;
 
@@ -49,6 +50,8 @@ let reviewsData = [];
 let stocksData = [];
 let allLiveChats = [];
 let allUsersList = [];
+let allSuggestions = [];
+let currentAdminCsSubTab = 'chat';
 
 let siteSettings = { 
     logoText: 'VIPER',
@@ -72,7 +75,7 @@ let siteSettings = {
     opHoursEnabled: false,
     opOpenTime: '08:00',
     opCloseTime: '22:00',
-    localStockOnlyMode: false,
+    waterRippleEnabled: true,
     deletedUids: [],
     blockedUids: [],
     blockedDevices: []
@@ -134,6 +137,171 @@ window.copyTextToClipboard = function(text, label = 'Data') {
         window.showToast('Disalin', `${label} berhasil disalin.`, 'success');
     });
 };
+
+// ==========================================
+// EFEK SENTUHAN AIR BERWARNA / WATER RIPPLE CANVAS (#9)
+// ==========================================
+let waterRippleEngine = {
+    initialized: false,
+    canvas: null,
+    ctx: null,
+    ripples: [],
+    animFrameId: null,
+    lastMoveTime: 0
+};
+
+const LIGHT_RIPPLE_COLORS = [
+    "rgba(37, 99, 235, ",
+    "rgba(250, 204, 21, ",
+    "rgba(244, 63, 94, ",
+    "rgba(16, 185, 129, ",
+    "rgba(139, 92, 246, "
+];
+
+const DARK_RIPPLE_COLORS = [
+    "rgba(59, 130, 246, ",
+    "rgba(250, 204, 21, ",
+    "rgba(34, 211, 238, ",
+    "rgba(251, 113, 133, ",
+    "rgba(167, 139, 250, "
+];
+
+function initWaterRippleBackground() {
+    if (waterRippleEngine.initialized) {
+        updateWaterRippleVisibility();
+        return;
+    }
+    const canvas = document.getElementById("water-ripple-canvas");
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    waterRippleEngine.initialized = true;
+    waterRippleEngine.canvas = canvas;
+    waterRippleEngine.ctx = ctx;
+
+    const resizeCanvas = () => {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    };
+    resizeCanvas();
+    window.addEventListener("resize", resizeCanvas, { passive: true });
+
+    const spawnRipple = (x, y, isBurst = false) => {
+        if (siteSettings.waterRippleEnabled === false) return;
+        const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+        const palette = isDark ? DARK_RIPPLE_COLORS : LIGHT_RIPPLE_COLORS;
+        const colorPrefix = palette[Math.floor(Math.random() * palette.length)];
+
+        waterRippleEngine.ripples.push({
+            x,
+            y,
+            radius: isBurst ? 6 : 3,
+            maxRadius: isBurst ? 130 : 80,
+            speed: isBurst ? 2.6 : 1.85,
+            alpha: isBurst ? 0.5 : 0.32,
+            lineWidth: isBurst ? 3.1 : 2.0,
+            colorPrefix,
+            secondRing: isBurst
+        });
+
+        if (waterRippleEngine.ripples.length > 35) {
+            waterRippleEngine.ripples.shift();
+        }
+        if (!waterRippleEngine.animFrameId) {
+            waterRippleEngine.animFrameId = requestAnimationFrame(renderWaterRipplesLoop);
+        }
+    };
+
+    window.addEventListener("pointerdown", (e) => spawnRipple(e.clientX, e.clientY, true), { passive: true });
+    window.addEventListener("pointermove", (e) => {
+        const now = performance.now();
+        if (now - waterRippleEngine.lastMoveTime > 55) {
+            waterRippleEngine.lastMoveTime = now;
+            spawnRipple(e.clientX, e.clientY, false);
+        }
+    }, { passive: true });
+    window.addEventListener("touchstart", (e) => {
+        if (e.touches && e.touches[0]) spawnRipple(e.touches[0].clientX, e.touches[0].clientY, true);
+    }, { passive: true });
+    window.addEventListener("touchmove", (e) => {
+        const now = performance.now();
+        if (now - waterRippleEngine.lastMoveTime > 65 && e.touches && e.touches[0]) {
+            waterRippleEngine.lastMoveTime = now;
+            spawnRipple(e.touches[0].clientX, e.touches[0].clientY, false);
+        }
+    }, { passive: true });
+
+    updateWaterRippleVisibility();
+}
+
+function updateWaterRippleVisibility() {
+    const canvas = waterRippleEngine.canvas || document.getElementById("water-ripple-canvas");
+    if (!canvas) return;
+    if (siteSettings.waterRippleEnabled === false) {
+        canvas.style.display = "none";
+        waterRippleEngine.ripples = [];
+        if (waterRippleEngine.ctx) {
+            waterRippleEngine.ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+    } else {
+        canvas.style.display = "block";
+    }
+}
+
+function renderWaterRipplesLoop() {
+    const { canvas, ctx, ripples } = waterRippleEngine;
+    if (!canvas || !ctx || siteSettings.waterRippleEnabled === false) {
+        waterRippleEngine.animFrameId = null;
+        return;
+    }
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (let i = ripples.length - 1; i >= 0; i--) {
+        const r = ripples[i];
+        r.radius += r.speed;
+        const progress = r.radius / r.maxRadius;
+        const currentAlpha = Math.max(0, r.alpha * (1 - progress));
+        if (currentAlpha <= 0.01 || r.radius >= r.maxRadius) {
+            ripples.splice(i, 1);
+            continue;
+        }
+        ctx.beginPath();
+        ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
+        ctx.strokeStyle = `${r.colorPrefix}${currentAlpha.toFixed(3)})`;
+        ctx.lineWidth = r.lineWidth;
+        ctx.stroke();
+
+        const grad = ctx.createRadialGradient(r.x, r.y, r.radius * 0.2, r.x, r.y, r.radius);
+        grad.addColorStop(0, `${r.colorPrefix}0)`);
+        grad.addColorStop(0.75, `${r.colorPrefix}${(currentAlpha * 0.24).toFixed(3)})`);
+        grad.addColorStop(1, `${r.colorPrefix}0)`);
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        if (r.secondRing && r.radius > 18) {
+            ctx.beginPath();
+            ctx.arc(r.x, r.y, r.radius * 0.62, 0, Math.PI * 2);
+            ctx.strokeStyle = `${r.colorPrefix}${(currentAlpha * 0.65).toFixed(3)})`;
+            ctx.lineWidth = Math.max(1, r.lineWidth - 1);
+            ctx.stroke();
+        }
+    }
+    if (ripples.length > 0) {
+        waterRippleEngine.animFrameId = requestAnimationFrame(renderWaterRipplesLoop);
+    } else {
+        waterRippleEngine.animFrameId = null;
+    }
+}
+
+window.previewWaterRippleToggle = function() {
+    const sw = document.getElementById("set-water-ripple");
+    if (sw) {
+        siteSettings.waterRippleEnabled = sw.checked;
+        initWaterRippleBackground();
+        updateWaterRippleVisibility();
+    }
+};
+
 
 // ==========================================
 // PINTASAN BUKA / TUTUP TOKO DI TOPBAR (#16)
@@ -200,8 +368,7 @@ window.syncStoreOpenSwitchPreview = function() {
 // ==========================================
 // JAM OPERASIONAL TOKO PREVIEW (#20)
 // ==========================================
-function checkIsCurrentlyRestrictedByOpHours(opEnabled, localOnly, openStr, closeStr) {
-    if (localOnly === true) return true;
+function checkIsCurrentlyRestrictedByOpHours(opEnabled, openStr, closeStr) {
     if (!opEnabled) return false;
 
     const oStr = String(openStr || '').trim();
@@ -223,25 +390,24 @@ function checkIsCurrentlyRestrictedByOpHours(opEnabled, localOnly, openStr, clos
         }
         return !isWithin;
     }
-    return true;
+    return false;
 }
 
 window.updateOpHoursAdminPreview = function() {
     const opEnabled = Boolean(document.getElementById('set-op-hours-enabled')?.checked);
-    const localOnly = Boolean(document.getElementById('set-local-stock-only')?.checked);
     const openTime = document.getElementById('set-op-open-time')?.value || '08:00';
     const closeTime = document.getElementById('set-op-close-time')?.value || '22:00';
     const badgeEl = document.getElementById('op-hours-admin-status');
 
     if (!badgeEl) return;
 
-    const isRestrictedNow = checkIsCurrentlyRestrictedByOpHours(opEnabled, localOnly, openTime, closeTime);
+    const isRestrictedNow = checkIsCurrentlyRestrictedByOpHours(opEnabled, openTime, closeTime);
     if (isRestrictedNow) {
         badgeEl.className = 'status-badge status-pending';
-        badgeEl.innerHTML = '<i class="fa-solid fa-vault"></i> Mode Hanya Stok Lokal Aktif';
+        badgeEl.innerHTML = `<i class="fa-regular fa-clock"></i> Di Luar Jam Operasional (Hanya Stok Lokal)`;
     } else if (opEnabled) {
         badgeEl.className = 'status-badge status-success';
-        badgeEl.innerHTML = `<i class="fa-regular fa-clock"></i> Jam Layanan Penuh (${openTime} - ${closeTime})`;
+        badgeEl.innerHTML = `<i class="fa-regular fa-clock"></i> Jam Operasional Aktif (${openTime} - ${closeTime})`;
     } else {
         badgeEl.className = 'status-badge status-success';
         badgeEl.innerHTML = 'Semua Produk Dilayani';
@@ -435,6 +601,7 @@ async function fetchInitialAdminDataBeforeUnlock() {
         window.populateSettingsForm();
         updateTopbarStoreStatusUI();
         applyCustomAdminPwaIcon();
+        initWaterRippleBackground();
 
         if (stocksSnap) {
             stocksData = [];
@@ -482,12 +649,21 @@ async function initAdminApp() {
 
     let isFirstAuthCheck = true;
 
+    initWaterRippleBackground();
+
     onAuthStateChanged(auth, async (user) => {
         if (user && !user.isAnonymous) {
             currentAdminUser = user;
-            document.getElementById('admin-email-label').innerText = user.email;
-            document.getElementById('admin-login-screen').style.display = 'none';
-            document.getElementById('admin-dashboard-view').style.display = 'flex';
+            localStorage.setItem('vipercell_admin_session_active', '1');
+            document.documentElement.classList.add('has-admin-session');
+            document.body.classList.remove('admin-auth-locked');
+
+            const emailLbl = document.getElementById('admin-email-label');
+            if (emailLbl) emailLbl.innerText = user.email;
+            const loginScr = document.getElementById('admin-login-screen');
+            if (loginScr) loginScr.style.display = 'none';
+            const dashView = document.getElementById('admin-dashboard-view');
+            if (dashView) dashView.style.display = 'flex';
 
             if (isFirstAuthCheck) {
                 isFirstAuthCheck = false;
@@ -505,8 +681,14 @@ async function initAdminApp() {
             }
         } else {
             currentAdminUser = null;
-            document.getElementById('admin-login-screen').style.display = 'flex';
-            document.getElementById('admin-dashboard-view').style.display = 'none';
+            localStorage.removeItem('vipercell_admin_session_active');
+            document.documentElement.classList.remove('has-admin-session');
+            document.body.classList.add('admin-auth-locked');
+
+            const loginScr = document.getElementById('admin-login-screen');
+            if (loginScr) loginScr.style.display = 'flex';
+            const dashView = document.getElementById('admin-dashboard-view');
+            if (dashView) dashView.style.display = 'none';
 
             if (isFirstAuthCheck) {
                 isFirstAuthCheck = false;
@@ -629,6 +811,9 @@ window.processAdminLogin = async function() {
 };
 
 window.logoutAdmin = async function() {
+    localStorage.removeItem('vipercell_admin_session_active');
+    document.documentElement.classList.remove('has-admin-session');
+    document.body.classList.add('admin-auth-locked');
     await signOut(auth);
     window.showToast('Keluar', 'Kamu telah keluar dari sesi Admin.', 'info');
 };
@@ -942,11 +1127,14 @@ async function attemptAutoStockDelivery(orderData, orderDbId) {
     } : {};
 
     if (item.type === 'game' || procType === 'manual') {
-        if (Object.keys(subFields).length > 0 && !orderData.subscriptionEndAt) {
-            await updateDoc(doc(db, pathOrders, orderDbId), subFields).catch(() => {});
-        }
+        await updateDoc(doc(db, pathOrders, orderDbId), {
+            status: 'PENDING',
+            paymentVerified: true,
+            paidAt: orderData.paidAt || nowMs,
+            ...subFields
+        }).catch(() => {});
         processingAutoOrderIds.delete(orderDbId);
-        return;
+        return false;
     }
 
     try {
@@ -1009,6 +1197,8 @@ async function attemptAutoStockDelivery(orderData, orderDbId) {
             const finalReply = `Terima kasih telah berbelanja di Vipercell.\n\n${deliveredText}`;
             await updateDoc(doc(db, pathOrders, orderDbId), {
                 status: 'SUCCESS',
+                paymentVerified: true,
+                paidAt: orderData.paidAt || nowMs,
                 adminReply: finalReply,
                 autoDelivered: true,
                 deliveredAt: nowMs,
@@ -1018,8 +1208,15 @@ async function attemptAutoStockDelivery(orderData, orderDbId) {
             await triggerAutomatedEmailWebhook({ ...orderData, ...subFields, adminReply: finalReply }, finalReply, true, orderDbId);
             await window.syncAllProductsWithStockVaultV27(false);
             window.showToast('Stok Terkirim', `Stok otomatis dikirim untuk #${orderData.id}`, 'success');
-        } else if (Object.keys(subFields).length > 0 && !orderData.subscriptionEndAt) {
-            await updateDoc(doc(db, pathOrders, orderDbId), subFields).catch(() => {});
+            return true;
+        } else {
+            await updateDoc(doc(db, pathOrders, orderDbId), {
+                status: 'PENDING',
+                paymentVerified: true,
+                paidAt: orderData.paidAt || nowMs,
+                ...subFields
+            }).catch(() => {});
+            return false;
         }
     } catch (e) {
         console.error("Auto Stock Delivery Error:", e);
@@ -1122,6 +1319,7 @@ function startAdminListeners() {
             siteSettings = { ...siteSettings, ...incoming };
             window.populateSettingsForm();
             updateTopbarStoreStatusUI();
+            updateWaterRippleVisibility();
             window.renderAdminNews();
             applyCustomAdminPwaIcon();
 
@@ -1190,11 +1388,6 @@ function startAdminListeners() {
                 data.status = 'EXPIRED';
             }
 
-            if (data.status === 'PAID') {
-                updateDoc(doc(db, pathOrders, data.dbId), { status: 'SUCCESS' }).catch(() => {});
-                data.status = 'SUCCESS';
-            }
-
             orders.push(data);
 
             const durDays = getOrderDurationDays(data);
@@ -1204,8 +1397,8 @@ function startAdminListeners() {
             }
             knownOrderIds.add(data.id);
 
-            // Hanya jalankan auto-delivery jika status SUCCESS dan adminReply masih kosong (#12)
-            if (data.status === 'SUCCESS' && !data.adminReply) {
+            // Jika pembayaran diterima (status PAID atau baru lunas tanpa adminReply), cek stok lokal (#1)
+            if (data.status === 'PAID' || (data.status === 'SUCCESS' && !data.adminReply && !data.autoDelivered)) {
                 attemptAutoStockDelivery(data, data.dbId);
             } else if (data.status === 'SUCCESS' && durDays > 0 && !data.subscriptionEndAt) {
                 ensureOrderSubscriptionInitialized(data, data.dbId);
@@ -1296,6 +1489,8 @@ function startAdminListeners() {
         
         const countBadge = document.getElementById('chat-active-count');
         if (countBadge) countBadge.innerText = `${allLiveChats.length} Sesi`;
+        const subChatCount = document.getElementById('admin-chat-tab-count');
+        if (subChatCount) subChatCount.innerText = String(allLiveChats.length);
 
         window.renderAdminChatList();
         if (activeAdminChatId) {
@@ -1303,6 +1498,17 @@ function startAdminListeners() {
         }
         window.renderAdminMembers();
     });
+
+    onSnapshot(collection(db, pathSuggestions), (snapshot) => {
+        allSuggestions = [];
+        snapshot.forEach((docSnap) => {
+            allSuggestions.push({ dbId: docSnap.id, ...docSnap.data() });
+        });
+        allSuggestions.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        const saranBadge = document.getElementById('admin-saran-tab-count');
+        if (saranBadge) saranBadge.innerText = String(allSuggestions.length);
+        window.renderAdminSuggestions();
+    }, () => {});
 
     onSnapshot(collection(db, pathUsers), (snapshot) => {
         allUsersList = [];
@@ -1322,9 +1528,15 @@ async function autoMatchIncomingPaymentAmount(detectedAmount) {
     );
     if (unpaidMatch) {
         try {
-            await updateDoc(doc(db, pathOrders, unpaidMatch.dbId), { status: 'SUCCESS' });
             playNotificationSound('order');
-            window.showToast('Pembayaran Diterima', `Nominal Rp${detectedAmount.toLocaleString('id-ID')} melunasi #${unpaidMatch.id}`, 'success');
+            const delivered = await attemptAutoStockDelivery(unpaidMatch, unpaidMatch.dbId);
+            window.showToast(
+                'Pembayaran Diterima',
+                delivered
+                    ? `Nominal Rp${detectedAmount.toLocaleString('id-ID')} melunasi #${unpaidMatch.id} & stok terkirim.`
+                    : `Nominal Rp${detectedAmount.toLocaleString('id-ID')} diterima. #${unpaidMatch.id} menunggu dikirim Admin.`,
+                'success'
+            );
         } catch (e) {}
     }
 }
@@ -1430,15 +1642,12 @@ window.approveCashBarcodeDirectly = async function(dbId) {
 
     try {
         window.closeBarcodeScannerModal();
-        const isGameOrManual = order.items && order.items.some(i => i.type === 'game' || i.processType === 'manual');
-        if (isGameOrManual) {
-            await updateDoc(doc(db, pathOrders, dbId), { status: 'SUCCESS' });
-            await ensureOrderSubscriptionInitialized(order, dbId);
+        const delivered = await attemptAutoStockDelivery(order, dbId);
+        if (!delivered) {
             window.promptProcessOrder(dbId);
-            window.showToast('Tunai Diterima', `Silakan isi detail pesanan untuk ${order.id}.`, 'success');
+            window.showToast('Tunai Diterima (Pending)', `Pembayaran diterima. Silakan kirim pesanan ${order.id}.`, 'info');
         } else {
-            await updateDoc(doc(db, pathOrders, dbId), { status: 'SUCCESS' });
-            window.showToast('Tunai Diterima', `Pembayaran ${order.id} diterima & stok otomatis dikirim.`, 'success');
+            window.showToast('Tunai Diterima & Terkirim', `Pembayaran ${order.id} diterima & stok otomatis dikirim.`, 'success');
         }
     } catch (e) {
         window.customAlert('Gagal', 'Gagal memverifikasi pembayaran kasir.', 'error');
@@ -1528,7 +1737,7 @@ window.renderAdminMembers = function() {
     if (totalMemberEl) totalMemberEl.innerText = enrichedUsers.filter(u => !u.isAnon).length;
     if (totalAnonEl) totalAnonEl.innerText = enrichedUsers.filter(u => u.isAnon).length;
     if (anonSubEl) anonSubEl.innerText = siteSettings.anonAutoDelete6h !== false ? 'Pembersihan 6 Jam: Aktif' : 'Pembersihan 6 Jam: Nonaktif';
-    if (phoneEl) phoneEl.innerText = enrichedUsers.filter(u => u.resolvedPhone && u.resolvedPhone.trim() !== '').length;
+    if (phoneEl) phoneEl.innerText = enrichedUsers.filter(u => u.email && u.email.includes('@')).length;
     if (buyerEl) buyerEl.innerText = enrichedUsers.filter(u => u.successTrx > 0).length;
 
     let filtered = enrichedUsers.filter(u => {
@@ -1596,8 +1805,7 @@ window.renderAdminMembers = function() {
                             <strong class="text-dark" style="font-size:0.94rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${window.escapeHtml(displayName)}</strong>
                             ${statusRoleBadge}
                         </div>
-                        <span class="text-xs text-muted d-block" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"><i class="fa-regular fa-envelope"></i> ${window.escapeHtml(u.email || 'Tanpa Email')}</span>
-                        <span class="text-xs text-success fw-bold d-block"><i class="fa-brands fa-whatsapp"></i> ${window.escapeHtml(phoneStr || 'Belum ada No. WA')}</span>
+                        <span class="text-xs text-muted d-block" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"><i class="fa-regular fa-envelope"></i> ${window.escapeHtml(u.email || 'Akun Tamu')}</span>
                     </div>
                 </div>
 
@@ -1621,7 +1829,6 @@ window.renderAdminMembers = function() {
                 <button class="btn btn-primary btn-sm flex-1" onclick="window.startChatWithMember('${escapeJsStr(u.uid)}', '${escapeJsStr(displayName)}', '${escapeJsStr(u.email || '')}')">
                     <i class="fa-solid fa-comments"></i> Chat
                 </button>
-                ${waBtnHtml}
                 ${emailBtnHtml}
                 ${blockBtnHtml}
                 <button class="btn btn-danger btn-sm" onclick="window.promptDeleteAccount('${escapeJsStr(u.uid)}')" title="Hapus">
@@ -1989,15 +2196,15 @@ window.renderAdminOrders = function() {
         const isSubActive = o.status === 'SUCCESS' && endAt > 0 && now < endAt && o.subscriptionStatus !== 'KICKED';
         const isSubKicked = o.status === 'SUCCESS' && o.subscriptionStatus === 'KICKED';
 
-        let sBadge = `<span class="status-badge status-unpaid">UNPAID</span>`;
-        if (o.status === 'PENDING') sBadge = `<span class="status-badge status-pending">PENDING</span>`;
-        else if (o.status === 'FAILED') sBadge = `<span class="status-badge status-failed">FAILED</span>`;
+        let sBadge = `<span class="status-badge status-unpaid">MENUNGGU PEMBAYARAN</span>`;
+        if (o.status === 'PENDING') sBadge = `<span class="status-badge status-pending">DIPROSES ADMIN (PENDING)</span>`;
+        else if (o.status === 'FAILED') sBadge = `<span class="status-badge status-failed">GAGAL</span>`;
         else if (o.status === 'CANCELLED') sBadge = `<span class="status-badge status-failed">DIBATALKAN</span>`;
-        else if (o.status === 'EXPIRED') sBadge = `<span class="status-badge status-failed">EXPIRED</span>`;
-        else if (o.status === 'SUCCESS' && !o.adminReply) sBadge = `<span class="status-badge status-pending">BELUM DIKIRIM</span>`;
+        else if (o.status === 'EXPIRED') sBadge = `<span class="status-badge status-failed">WAKTU HABIS</span>`;
+        else if (o.status === 'SUCCESS' && !o.adminReply) sBadge = `<span class="status-badge status-pending">DIPROSES ADMIN (PENDING)</span>`;
         else if (isSubExpired) sBadge = `<span class="status-badge status-failed">WAJIB KICK</span>`;
         else if (isSubKicked) sBadge = `<span class="status-badge status-anon">SUDAH DI-KICK</span>`;
-        else if (o.status === 'SUCCESS') sBadge = `<span class="status-badge status-success">SELESAI</span>`;
+        else if (o.status === 'SUCCESS') sBadge = `<span class="status-badge status-success">TERKIRIM & SELESAI</span>`;
 
         const emailBadgeHtml = o.emailSent
             ? `<div class="mt-1"><span class="status-badge status-success" style="font-size:0.58rem; padding:1px 6px;"><i class="fa-solid fa-envelope-circle-check"></i> EMAIL TERKIRIM</span></div>`
@@ -2065,7 +2272,6 @@ window.renderAdminOrders = function() {
             <td>${itemsDesc}${promoDesc}${subCountdownHtml}</td>
             <td>
                 <span class="text-xs fw-bold d-block">${window.escapeHtml(o.userEmail || '-')}</span>
-                ${buyerPhone ? `<small class="text-success fw-bold text-xs"><i class="fa-brands fa-whatsapp"></i> ${window.escapeHtml(buyerPhone)}</small>` : ''}
             </td>
             <td>${paymentMethodStr}</td>
             <td class="text-primary fw-bold">Rp${(o.finalTotal || 0).toLocaleString('id-ID')}</td>
@@ -2141,14 +2347,21 @@ window.promptProcessOrder = function(dbId) {
     const memberMatch = allUsersList.find(u => u.uid === order.userId || (order.userEmail && u.email?.toLowerCase() === order.userEmail.toLowerCase()));
     const buyerPhone = order.userPhone || (memberMatch ? (memberMatch.phone || memberMatch.whatsapp || '') : '');
 
+    let statusText = 'MENUNGGU PEMBAYARAN';
+    if (order.status === 'SUCCESS' && order.adminReply) statusText = 'TERKIRIM & SELESAI';
+    else if (order.status === 'PENDING' || (order.status === 'SUCCESS' && !order.adminReply)) statusText = 'DIPROSES ADMIN (PENDING)';
+    else if (order.status === 'CANCELLED' || order.status === 'EXPIRED' || order.status === 'FAILED') statusText = order.status;
+
     let itemsHtml = (order.items || []).map(i => `<div><b>${window.escapeHtml(i.name)}</b><br><span class="text-muted">${window.escapeHtml(i.playerInfo)}</span></div>`).join('<hr style="margin:6px 0; border-color:var(--border-subtle);">');
     document.getElementById('proc-order-summary').innerHTML = `
-        <div class="flex-between mb-1">
+        <div class="flex-between align-center mb-1 flex-wrap-gap">
             <span>Invoice: <b class="text-primary code-mono">#${window.escapeHtml(order.id)}</b></span>
-            <span>Total: <b class="text-success">Rp${(order.finalTotal || 0).toLocaleString('id-ID')}</b></span>
+            <span class="status-badge ${order.status === 'SUCCESS' && order.adminReply ? 'status-success' : (order.status === 'PENDING' ? 'status-pending' : 'status-unpaid')}">${statusText}</span>
         </div>
-        <div class="text-xs mb-1">Email: <b>${window.escapeHtml(order.userEmail || '-')}</b></div>
-        <div class="text-xs mb-2">WhatsApp: <b class="text-success">${window.escapeHtml(buyerPhone || '-')}</b></div>
+        <div class="flex-between align-center text-xs mb-2 flex-wrap-gap">
+            <span>Email Pembeli: <b>${window.escapeHtml(order.userEmail || '-')}</b></span>
+            <span>Total Bayar: <b class="text-success" style="font-size:0.9rem;">Rp${(order.finalTotal || 0).toLocaleString('id-ID')}</b></span>
+        </div>
         ${itemsHtml}
     `;
 
@@ -2434,6 +2647,111 @@ window.promptDeleteOrder = function(dbId, invId) {
             }
         }
     });
+};
+
+
+// ==========================================
+// SUB-TAB CS BANTUAN: CHAT BANTUAN VS SARAN PRODUK (#14)
+// ==========================================
+window.switchAdminCsSubTab = function(subTab) {
+    currentAdminCsSubTab = subTab === "saran" ? "saran" : "chat";
+    const btnChat = document.getElementById("admin-subtab-btn-chat");
+    const btnSaran = document.getElementById("admin-subtab-btn-saran");
+    const panelChat = document.getElementById("admin-cs-panel-chat");
+    const panelSaran = document.getElementById("admin-cs-panel-saran");
+
+    if (btnChat) btnChat.classList.toggle("active", currentAdminCsSubTab === "chat");
+    if (btnSaran) btnSaran.classList.toggle("active", currentAdminCsSubTab === "saran");
+
+    if (panelChat && panelSaran) {
+        if (currentAdminCsSubTab === "chat") {
+            panelSaran.style.display = "none";
+            panelChat.style.display = "block";
+        } else {
+            panelChat.style.display = "none";
+            panelSaran.style.display = "block";
+            window.renderAdminSuggestions();
+        }
+    }
+};
+
+window.renderAdminSuggestions = function() {
+    const grid = document.getElementById("admin-suggestions-grid");
+    const btnAll = document.getElementById("btn-mark-all-suggestions");
+    if (!grid) return;
+
+    if (btnAll) {
+        btnAll.style.display = allSuggestions.length > 0 ? "inline-flex" : "none";
+    }
+
+    if (allSuggestions.length === 0) {
+        grid.innerHTML = `<div class="info-box text-center text-muted grid-span-full" style="padding: 2rem;">Belum ada saran produk baru dari pelanggan.</div>`;
+        return;
+    }
+
+    let html = "";
+    allSuggestions.forEach((s) => {
+        const safeDbId = escapeJsStr(s.dbId);
+        const safeProd = escapeJsStr(s.productName || "Saran");
+        const dateStr = s.createdAt
+            ? new Date(s.createdAt).toLocaleString("id-ID", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
+            : "-";
+        const roleBadge = s.isMember
+            ? `<span class="status-badge status-success" style="font-size:0.58rem;">MEMBER</span>`
+            : `<span class="status-badge status-anon" style="font-size:0.58rem;">TAMU</span>`;
+
+        html += `
+        <div class="suggestion-admin-card">
+            <div>
+                <div class="flex-between align-center flex-wrap-gap mb-2">
+                    <span class="status-badge status-pending">${window.escapeHtml(s.category || "Produk")}</span>
+                    <span class="text-xs text-muted fw-bold">${dateStr}</span>
+                </div>
+                <h4 class="text-dark mb-1" style="font-size:1.04rem; font-weight:900;">${window.escapeHtml(s.productName || "-")}</h4>
+                <div class="flex-gap align-center mb-2">
+                    <span class="text-xs text-muted">Pengirim: <b class="text-dark">${window.escapeHtml(s.senderName || "Pelanggan")}</b></span>
+                    ${roleBadge}
+                </div>
+                ${s.notes ? `<div class="suggestion-notes-box">${window.escapeHtml(s.notes)}</div>` : `<div class="text-xs text-muted">Tidak ada catatan tambahan.</div>`}
+            </div>
+            <button type="button" class="btn btn-success btn-sm w-full" onclick="window.markSuggestionAsRead('${safeDbId}', '${safeProd}')">
+                <i class="fa-solid fa-check"></i> Tandai Dibaca (Hapus dari Database)
+            </button>
+        </div>`;
+    });
+
+    grid.innerHTML = html;
+};
+
+// Saat Admin menandai sudah dibaca, hapus saran produk dari database Firestore (#14)
+window.markSuggestionAsRead = async function(dbId, prodName = "Saran") {
+    if (!dbId) return;
+    try {
+        await deleteDoc(doc(db, pathSuggestions, dbId));
+        window.showToast("Saran Dibaca & Dihapus", `Usulan "${prodName}" telah ditandai dibaca dan dihapus dari database.`, "success");
+    } catch (e) {
+        window.customAlert("Gagal", "Tidak dapat menghapus saran produk dari database.", "error");
+    }
+};
+
+window.markAllSuggestionsAsRead = function() {
+    if (allSuggestions.length === 0) return;
+    window.openConfirm(
+        "Tandai Semua Dibaca?",
+        `Hapus seluruh <b>${allSuggestions.length} saran produk</b> dari database sekarang?`,
+        async (confirmed) => {
+            if (!confirmed) return;
+            try {
+                for (const item of allSuggestions) {
+                    await deleteDoc(doc(db, pathSuggestions, item.dbId)).catch(() => {});
+                }
+                window.showToast("Selesai", "Semua saran produk telah ditandai dibaca & dihapus dari database.", "success");
+            } catch (e) {
+                window.customAlert("Gagal", "Terjadi kesalahan saat menghapus saran produk.", "error");
+            }
+        },
+        "success"
+    );
 };
 
 // ==========================================
@@ -3733,7 +4051,7 @@ window.openAddPromoModal = function() {
     document.getElementById('manage-promo-quota').value = '50';
     document.getElementById('manage-promo-minorder').value = '0';
     document.getElementById('manage-promo-brand').value = 'all';
-    document.getElementById('manage-promo-user').value = 'all';
+    document.getElementById('manage-promo-user').value = 'member';
     document.getElementById('manage-promo-expiry').value = '';
     const oneEmailEl = document.getElementById('manage-promo-one-per-email');
     if (oneEmailEl) oneEmailEl.checked = true;
@@ -3756,7 +4074,7 @@ window.openEditPromoModal = function(dbId) {
     document.getElementById('manage-promo-quota').value = p.maxUses || 50;
     document.getElementById('manage-promo-minorder').value = p.minOrder || 0;
     document.getElementById('manage-promo-brand').value = p.targetBrand || 'all';
-    document.getElementById('manage-promo-user').value = p.memberOnly ? 'member' : (p.targetUser || 'all');
+    document.getElementById('manage-promo-user').value = p.targetUser === 'new' ? 'new' : 'member';
     document.getElementById('manage-promo-expiry').value = p.expiryDate || '';
     const oneEmailEl = document.getElementById('manage-promo-one-per-email');
     if (oneEmailEl) oneEmailEl.checked = p.onePerEmail !== false;
@@ -3843,7 +4161,7 @@ window.saveManagedPromo = async function() {
         minOrder,
         targetBrand,
         targetUser,
-        memberOnly: targetUser === 'member',
+        memberOnly: true,
         onePerEmail: onePerEmail,
         expiryDate,
         active: true
@@ -4225,7 +4543,7 @@ function ensureMarqueeListInitialized() {
     if (!Array.isArray(siteSettings.marqueeList) || siteSettings.marqueeList.length === 0) {
         const raw = String(siteSettings.marquee || 'Selamat datang di Vipercell.').trim();
         const parts = raw.includes('||') ? raw.split('||') : raw.split(/\r?\n/);
-        siteSettings.marqueeList = parts.map(s => s.trim()).filter(Boolean).slice(0, 6).map(txt => ({
+        siteSettings.marqueeList = parts.map(s => s.trim()).filter(Boolean).slice(0, 20).map(txt => ({
             text: txt,
             type: 'info',
             promoCode: '',
@@ -4270,8 +4588,8 @@ window.toggleMarqueeSlotActionFields = function() {
 
 window.openMarqueeSlotForm = function(editIdx = -1) {
     const list = ensureMarqueeListInitialized();
-    if (editIdx === -1 && list.length >= 6) {
-        window.customAlert('Maksimal 6 Pesan', 'Running Text mendukung maksimal 6 pesan berjalan.', 'warning');
+    if (editIdx === -1 && list.length >= 20) {
+        window.customAlert('Maksimal 20 Teks', 'Running Text mendukung maksimal 20 teks berjalan.', 'warning');
         return;
     }
 
@@ -4339,8 +4657,8 @@ window.saveMarqueeSlotItem = async function() {
     if (editIdx >= 0 && editIdx < list.length) {
         list[editIdx] = slotObj;
     } else {
-        if (list.length >= 6) {
-            window.customAlert('Batas 6 Pesan', 'Maksimal 6 pesan running text.', 'warning');
+        if (list.length >= 20) {
+            window.customAlert('Batas 20 Teks', 'Maksimal 20 teks running text.', 'warning');
             return;
         }
         list.push(slotObj);
@@ -4358,7 +4676,7 @@ window.saveMarqueeSlotItem = async function() {
 
     window.closeMarqueeSlotForm();
     window.renderMarqueeStudioSlots();
-    window.showToast('Tersimpan', `Daftar running text (${list.length}/6) berhasil diperbarui.`, 'success');
+    window.showToast('Tersimpan', `Daftar running text (${list.length}/20) berhasil diperbarui.`, 'success');
 };
 
 window.deleteMarqueeSlotItem = async function(idx) {
@@ -4383,8 +4701,8 @@ window.renderMarqueeStudioSlots = function() {
     if (!container) return;
 
     const list = ensureMarqueeListInitialized();
-    if (countBadge) countBadge.innerText = `${list.length}/6`;
-    if (btnAdd) btnAdd.disabled = list.length >= 6;
+    if (countBadge) countBadge.innerText = `${list.length}/20`;
+    if (btnAdd) btnAdd.disabled = list.length >= 20;
 
     if (list.length === 0) {
         container.innerHTML = `<div class="info-box text-center text-muted grid-span-full">Belum ada pesan running text.</div>`;
@@ -4441,14 +4759,15 @@ window.populateSettingsForm = function() {
     const anonToggle = document.getElementById('set-anon-autodelete-6h');
     if (anonToggle) anonToggle.checked = siteSettings.anonAutoDelete6h !== false;
 
-    // Jam Operasional Toko (#20)
+    const waterToggle = document.getElementById('set-water-ripple');
+    if (waterToggle) waterToggle.checked = siteSettings.waterRippleEnabled !== false;
+
+    // Jam Operasional Toko (#4 & #5)
     const opHoursToggle = document.getElementById('set-op-hours-enabled');
-    const localStockToggle = document.getElementById('set-local-stock-only');
     const opOpenInp = document.getElementById('set-op-open-time');
     const opCloseInp = document.getElementById('set-op-close-time');
 
     if (opHoursToggle) opHoursToggle.checked = Boolean(siteSettings.opHoursEnabled);
-    if (localStockToggle) localStockToggle.checked = Boolean(siteSettings.localStockOnlyMode);
     if (opOpenInp) opOpenInp.value = siteSettings.opOpenTime || '08:00';
     if (opCloseInp) opCloseInp.value = siteSettings.opCloseTime || '22:00';
     window.updateOpHoursAdminPreview();
@@ -4669,7 +4988,7 @@ window.saveSiteSettings = async function() {
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Menyimpan...</span>';
     btn.disabled = true;
 
-    const marqueeListClean = ensureMarqueeListInitialized().slice(0, 6);
+    const marqueeListClean = ensureMarqueeListInitialized().slice(0, 20);
     const combinedMarqueeText = marqueeListClean.length > 0
         ? marqueeListClean.map(i => i.text).join(' || ')
         : document.getElementById('set-marquee').value.trim();
@@ -4677,9 +4996,9 @@ window.saveSiteSettings = async function() {
     const updated = {
         isStoreOpen: document.getElementById('set-store-open').checked,
         anonAutoDelete6h: document.getElementById('set-anon-autodelete-6h') ? document.getElementById('set-anon-autodelete-6h').checked : true,
-        // Pengaturan Jam Operasional Toko (#20)
+        waterRippleEnabled: document.getElementById('set-water-ripple') ? document.getElementById('set-water-ripple').checked : true,
+        // Pengaturan Jam Operasional Toko (#4 & #5)
         opHoursEnabled: Boolean(document.getElementById('set-op-hours-enabled')?.checked),
-        localStockOnlyMode: Boolean(document.getElementById('set-local-stock-only')?.checked),
         opOpenTime: document.getElementById('set-op-open-time')?.value || '08:00',
         opCloseTime: document.getElementById('set-op-close-time')?.value || '22:00',
         logoText: document.getElementById('set-logo-text').value.trim() || 'VIPER',
@@ -4818,6 +5137,7 @@ window.showToast = function(title, msg, type = 'info', actionCallback = null) {
             <h4>${window.escapeHtml(title)}</h4>
             <p>${window.escapeHtml(msg)}</p>
         </div>
+        <div class="toast-progress-bar"></div>
     `;
 
     let autoRemoveTimer = null;
