@@ -1107,9 +1107,9 @@
                             </div>
                         </div>
 
-                        <!-- 5. Konfigurasi QRIS & Server Email -->
+                        <!-- 5. Konfigurasi QRIS & Server Validasi Pembayaran (MacroDroid) -->
                         <div class="info-box bg-primary-light border-primary mt-3 mb-3">
-                            <h4 class="text-primary mb-2"><i class="fa-solid fa-qrcode"></i> Pengaturan QRIS &amp; Pengiriman Email</h4>
+                            <h4 class="text-primary mb-2"><i class="fa-solid fa-qrcode"></i> Pengaturan QRIS &amp; Validasi Pembayaran Otomatis</h4>
                             <div class="form-group">
                                 <label>String Data QRIS Statis</label>
                                 <div class="flex-gap mb-2 flex-wrap-gap">
@@ -1123,15 +1123,15 @@
                             </div>
                             <div class="grid-2col">
                                 <div class="form-group mb-0">
-                                    <label>URL Google Apps Script (Bisa Multi-URL pisah koma untuk Email Tanpa Batas Kuota)</label>
+                                    <label>URL Google Apps Script (Khusus Validasi Pembayaran MacroDroid)</label>
                                     <input type="text" id="set-email-webhook" class="form-control" placeholder="https://script.google.com/macros/s/.../exec">
                                 </div>
                                 <div class="form-group mb-0">
                                     <label>Webhook Secret Key</label>
                                     <div class="flex-gap">
                                         <input type="text" id="set-webhook-secret" class="form-control code-mono" placeholder="VIPERCELL_SECRET_2026">
-                                        <button type="button" class="btn btn-warning btn-sm" onclick="window.testEmailWebhookConnection()" title="Tes Kirim Email">
-                                            <i class="fa-solid fa-vial"></i> Tes
+                                        <button type="button" class="btn btn-warning btn-sm" onclick="window.testEmailWebhookConnection()" title="Tes Koneksi Server Validasi">
+                                            <i class="fa-solid fa-vial"></i> Tes Koneksi
                                         </button>
                                     </div>
                                 </div>
@@ -1238,9 +1238,7 @@
                 </div>
                 <div id="proc-sub-timer-text" class="text-xs fw-bold mb-2">-</div>
                 <div class="flex-gap flex-wrap-gap">
-                    <button type="button" class="btn btn-warning btn-sm flex-1" onclick="window.sendExpiryReminderEmail()">
-                        <i class="fa-solid fa-bell"></i> Kirim Email Pengingat
-                    </button>
+
                     <button type="button" id="btn-proc-mark-kicked" class="btn btn-danger btn-sm flex-1" onclick="window.markSubscriptionKickedFromModal()">
                         <i class="fa-solid fa-user-slash"></i> Tandai Sudah Di-Kick
                     </button>
@@ -1260,18 +1258,7 @@
                 <textarea id="proc-admin-reply" class="form-control code-mono" rows="5" placeholder="Masukkan detail akun atau catatan pengiriman untuk pembeli..."></textarea>
             </div>
 
-            <div id="proc-email-delivery-box" class="info-box bg-primary-light border-primary mb-3">
-                <div class="flex-between align-center mb-2 flex-wrap-gap">
-                    <span class="text-xs fw-bold text-primary"><i class="fa-solid fa-paper-plane"></i> Pengiriman Struk Email (Khusus Produk Berstok Gudang):</span>
-                    <span id="proc-email-sent-badge" class="status-badge status-unpaid">BELUM TERKIRIM</span>
-                </div>
-                <div id="proc-email-eligibility-note" class="text-xs text-muted mb-2" style="display:none;"></div>
-                <div class="flex-gap flex-wrap-gap">
-                    <button type="button" id="btn-send-order-email" class="btn btn-primary btn-sm w-full" onclick="window.sendOrderDeliveryViaEmail()">
-                        <i class="fa-solid fa-envelope-circle-check"></i> Kirim ke Email
-                    </button>
-                </div>
-            </div>
+
             
             <div class="flex-col-gap">
                 <button id="btn-mark-order-success" class="btn btn-success w-full" onclick="window.markOrderComplete('SUCCESS')">

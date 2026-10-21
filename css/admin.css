@@ -1818,8 +1818,8 @@ input:checked + .slider:before {
     position: fixed;
     inset: 0;
     background: rgba(15, 23, 42, 0.62);
-    backdrop-filter: blur(5px);
-    -webkit-backdrop-filter: blur(5px);
+    
+    
     z-index: 99990;
     display: none;
     align-items: center;
@@ -1894,8 +1894,8 @@ input:checked + .slider:before {
     position: fixed;
     inset: 0;
     background: rgba(15, 23, 42, 0.58);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
+    
+    
     z-index: 99999;
     display: none;
     align-items: center;
@@ -2059,7 +2059,7 @@ input:checked + .slider:before {
     position: fixed;
     inset: 0;
     background: rgba(15, 23, 42, 0.55);
-    backdrop-filter: blur(3px);
+    
     z-index: 998;
 }
 
@@ -2139,4 +2139,3 @@ input:checked + .slider:before {
     content-visibility: auto;
     contain-intrinsic-size: 160px;
 }
- 

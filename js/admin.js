@@ -222,23 +222,16 @@ function initWaterRippleBackground() {
         }
     };
 
-    window.addEventListener("pointerdown", (e) => spawnRipple(e.clientX, e.clientY, true), { passive: true });
-    window.addEventListener("pointermove", (e) => {
-        const now = performance.now();
-        if (now - waterRippleEngine.lastMoveTime > 55) {
-            waterRippleEngine.lastMoveTime = now;
-            spawnRipple(e.clientX, e.clientY, false);
-        }
+    let isAdminScrolling = false;
+    let adminScrollTimer = null;
+    window.addEventListener("scroll", () => {
+        isAdminScrolling = true;
+        if (adminScrollTimer) clearTimeout(adminScrollTimer);
+        adminScrollTimer = setTimeout(() => { isAdminScrolling = false; }, 140);
     }, { passive: true });
-    window.addEventListener("touchstart", (e) => {
-        if (e.touches && e.touches[0]) spawnRipple(e.touches[0].clientX, e.touches[0].clientY, true);
-    }, { passive: true });
-    window.addEventListener("touchmove", (e) => {
-        const now = performance.now();
-        if (now - waterRippleEngine.lastMoveTime > 65 && e.touches && e.touches[0]) {
-            waterRippleEngine.lastMoveTime = now;
-            spawnRipple(e.touches[0].clientX, e.touches[0].clientY, false);
-        }
+
+    window.addEventListener("pointerdown", (e) => {
+        if (!isAdminScrolling) spawnRipple(e.clientX, e.clientY, true);
     }, { passive: true });
 
     updateWaterRippleVisibility();
@@ -647,7 +640,7 @@ async function initAdminApp() {
 
     const safetyTimeout = setTimeout(() => {
         unlockAdminAppUI();
-    }, 1100);
+    }, 7500);
 
     await setPersistence(auth, browserLocalPersistence).catch(() => {});
 
@@ -1312,7 +1305,6 @@ async function attemptAutoStockDelivery(orderData, orderDbId) {
                 ...subFields
             });
 
-            await triggerAutomatedEmailWebhook({ ...orderData, ...subFields, adminReply: finalReply }, finalReply, true, orderDbId);
             await window.syncAllProductsWithStockVaultV27(false);
             window.showToast('Stok Terkirim', `Stok otomatis dikirim untuk #${orderData.id}`, 'success');
             return true;
@@ -2394,9 +2386,7 @@ window.renderAdminOrders = function() {
         else if (isSubKicked) sBadge = `<span class="status-badge status-anon">SUDAH DI-KICK</span>`;
         else if (o.status === 'SUCCESS') sBadge = `<span class="status-badge status-success">TERKIRIM & SELESAI</span>`;
 
-        const emailBadgeHtml = o.emailSent
-            ? `<div class="mt-1"><span class="status-badge status-success" style="font-size:0.58rem; padding:1px 6px;"><i class="fa-solid fa-envelope-circle-check"></i> EMAIL TERKIRIM</span></div>`
-            : '';
+        const emailBadgeHtml = '';
         
         let itemsDesc = (o.items || []).map(i => {
             const safeTarget = escapeJsStr(i.playerInfo || '');
@@ -2768,16 +2758,22 @@ window.sendOrderDeliveryViaWhatsApp = async function() {
 
 window.markOrderComplete = async function(newStatus) {
     const dbId = document.getElementById('proc-order-dbid').value;
-    const replyText = document.getElementById('proc-admin-reply').value.trim();
+    let replyText = document.getElementById('proc-admin-reply').value.trim();
     if (!dbId) return;
     
     const order = orders.find(o => o.dbId === dbId);
     const durDays = getOrderDurationDays(order);
     const now = Date.now();
 
+    // Saat Admin menekan Selesaikan (SUCCESS), pastikan adminReply terisi agar status beralih ke TERKIRIM & SELESAI
+    if (newStatus === 'SUCCESS' && !replyText) {
+        replyText = 'Pesanan telah selesai diproses oleh Admin.';
+    }
+
     const updatePayload = {
         status: newStatus,
-        adminReply: replyText
+        adminReply: newStatus === 'PENDING' ? '' : replyText,
+        paymentVerified: newStatus === 'SUCCESS' || newStatus === 'PENDING'
     };
 
     if (newStatus === 'SUCCESS' && durDays > 0 && order && !order.subscriptionEndAt) {
@@ -2798,18 +2794,7 @@ window.markOrderComplete = async function(newStatus) {
         await updateDoc(doc(db, pathOrders, dbId), updatePayload);
 
         if (newStatus === 'SUCCESS' && order) {
-            const canSendEmail = !order.emailSent && doesOrderHaveStockInWarehouse(order) && isOrderEmailReceiptAllowedByUser(order);
-            if (canSendEmail) {
-                const emailOk = await triggerAutomatedEmailWebhook({ ...order, ...updatePayload }, replyText, true, dbId);
-                if (emailOk) {
-                    window.showToast('Pesanan Selesai', `Pesanan #${order.id} selesai & struk dikirim ke email.`, 'success');
-                } else {
-                    window.showToast('Pesanan Selesai', `Pesanan #${order.id} telah diselesaikan.`, 'success');
-                }
-            } else {
-                updateEmailButtonLockStateUI(Boolean(order.emailSent), order);
-                window.showToast('Pesanan Selesai', `Pesanan #${order.id} telah diselesaikan.`, 'success');
-            }
+            window.showToast('Pesanan Selesai', `Pesanan #${order.id} telah diselesaikan.`, 'success');
         } else {
             window.showToast('Diperbarui', `Status pesanan diubah menjadi ${newStatus}.`, 'success');
         }
@@ -5460,28 +5445,15 @@ window.testEmailWebhookConnection = async function() {
     siteSettings.emailWebhookUrl = url;
     siteSettings.webhookSecret = secret || 'VIPERCELL_SECRET_2026';
 
-    const targetEmail = currentAdminUser?.email || 'miler.teves@gmail.com';
-    window.showToast('Menguji...', `Mengirim email tes ke ${targetEmail}...`, 'info');
+    window.showToast('Menguji...', 'Mengecek koneksi ke Server Validasi Pembayaran QRIS...', 'info');
 
     try {
-        await callUnifiedGasWebhook({
-            action: 'SEND_ORDER_DELIVERY',
-            orderId: 'VP-TEST-' + Math.floor(1000 + Math.random() * 8999),
-            invoice: 'VP-TEST',
-            email: targetEmail,
-            buyerEmail: targetEmail,
-            buyerName: 'Admin Vipercell',
-            itemName: 'Tes Pengiriman Email Vipercell',
-            productName: 'Tes Koneksi Email',
-            variantName: 'Tes',
-            totalAmount: 15000,
-            totalFormatted: 'Rp 15.000',
-            accountDetails: '[PRODUK EMAIL]\nFORMAT_UTUH : demo@outlook.com|Pass123!|M.C542_TOKEN|9e5f94bc-client-id\nEmail : demo@outlook.com\nPassword : Pass123!',
-            targetId: 'Admin'
+        const res = await callUnifiedGasWebhook({
+            action: 'PING_TEST'
         });
         window.customAlert(
-            'Tes Email Berhasil',
-            `Email percobaan telah dikirim ke <b>${window.escapeHtml(targetEmail)}</b>.`,
+            'Server Validasi QRIS Aktif!',
+            `Terhubung ke <b>${window.escapeHtml(res.engine || 'VIPERCELL_QRIS_VALIDATOR')}</b> (${window.escapeHtml(res.version || 'V27.5')}).<br>Project Firebase: <b>${window.escapeHtml(res.projectId || 'vipercell-fc50e')}</b>.<br>Siap menerima POST JSON dari MacroDroid!`,
             'success'
         );
     } catch (err) {
