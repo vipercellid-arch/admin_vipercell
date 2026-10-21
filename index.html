@@ -1010,15 +1010,72 @@
                                 <input type="text" id="set-marquee" class="form-control" placeholder="Selamat datang di Vipercell.">
                             </div>
 
-                            <div class="info-box mt-3 mb-0" style="background: #060911; color: #ffffff; border: 2.5px solid #0f172a;">
-                                <div class="flex-between align-center flex-wrap-gap mb-2">
-                                    <strong style="color: #facc15; font-size: 0.88rem;"><i class="fa-solid fa-sparkles"></i> Teks Running Bawah (Pemisah Isi &amp; Footer di Semua Tab)</strong>
-                                    <span class="status-badge status-success" style="font-size: 0.62rem;">HITAM • PUTIH GLOW • MANIK-MANIK</span>
+                            <!-- Studio Teks Running Bawah (Gaya Tambah & Kelola Sama Persis dengan Teks Running Atas #2) -->
+                            <div class="dashboard-panel mt-4 mb-0" style="background: var(--surface); border-color: var(--border);">
+                                <div class="panel-header">
+                                    <div>
+                                        <h3><i class="fa-solid fa-wand-magic-sparkles text-primary"></i> Teks Info Berjalan Bawah (Pemisah Isi &amp; Footer 15–20 Slot)</h3>
+                                        <small class="text-muted">Tampil smooth dengan efek berkilau berkala di bagian bawah seluruh tab. Gaya kelola sama dengan teks running atas.</small>
+                                    </div>
+                                    <button type="button" id="btn-add-footer-marquee-slot" class="btn btn-primary btn-sm" onclick="window.openFooterMarqueeSlotForm(-1)">
+                                        <i class="fa-solid fa-plus"></i> Tambah Teks Bawah (<span id="footer-marquee-slot-count-badge">0/20</span>)
+                                    </button>
                                 </div>
-                                <p style="font-size: 0.76rem; color: #cbd5e1; margin-bottom: 8px;">
-                                    Tampil dari ujung ke ujung tanpa kotak penghalang di bagian bawah seluruh tab. Pisahkan beberapa kalimat dengan tanda <code>||</code>.
-                                </p>
-                                <textarea id="set-footer-marquee" class="form-control code-mono" rows="2" style="background:#0f172a; color:#ffffff; border-color:#334155;" placeholder="TERIMA KASIH TELAH BERBELANJA DI VIPERCELL — LAYANAN APLIKASI PREMIUM, TOP UP GAME & PRODUK DIGITAL || TRANSAKSI OTOMATIS & BERGARANSI"></textarea>
+
+                                <div id="footer-marquee-slot-editor" class="info-box mb-3" style="display: none; background: var(--surface-elevated); border: var(--brutal-border-thin);">
+                                    <input type="hidden" id="edit-footer-marquee-idx" value="-1">
+                                    <div class="flex-between align-center mb-2">
+                                        <strong id="footer-marquee-editor-title" class="text-primary"><i class="fa-solid fa-pen-to-square"></i> Tambah Teks Running Bawah</strong>
+                                        <button type="button" class="btn btn-outline btn-sm" onclick="window.closeFooterMarqueeSlotForm()"><i class="fa-solid fa-xmark"></i> Tutup</button>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="fmq-slot-text">Isi Teks Berjalan Bawah <span class="text-danger">*</span></label>
+                                        <input type="text" id="fmq-slot-text" class="form-control" placeholder="Contoh: Terima kasih telah berbelanja di Vipercell — Layanan Aplikasi Premium & Top Up Game!">
+                                    </div>
+
+                                    <div class="grid-2col">
+                                        <div class="form-group">
+                                            <label for="fmq-slot-type">Tindakan Saat Diklik</label>
+                                            <select id="fmq-slot-type" class="form-control" onchange="window.toggleFooterMarqueeSlotActionFields()">
+                                                <option value="info">Informasi Umum</option>
+                                                <option value="product">Buka Produk Tertentu</option>
+                                                <option value="promo">Pakai Kode Promo Member</option>
+                                                <option value="news">Buka Artikel Berita</option>
+                                            </select>
+                                        </div>
+
+                                        <div class="form-group" id="fmq-field-promo" style="display: none;">
+                                            <label for="fmq-slot-promo">Kode Promo</label>
+                                            <input type="text" id="fmq-slot-promo" class="form-control code-mono" placeholder="Contoh: DISKON5K" style="text-transform: uppercase;">
+                                        </div>
+
+                                        <div class="form-group" id="fmq-field-brand" style="display: none;">
+                                            <label for="fmq-slot-brand">Pilih Produk Tujuan</label>
+                                            <select id="fmq-slot-brand" class="form-control">
+                                                <option value="">-- Otomatis Sesuai Promo / Katalog --</option>
+                                            </select>
+                                        </div>
+
+                                        <div class="form-group" id="fmq-field-news" style="display: none;">
+                                            <label for="fmq-slot-news">Pilih Artikel Berita</label>
+                                            <select id="fmq-slot-news" class="form-control">
+                                                <option value="0">Berita Terbaru (#1)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <button type="button" class="btn btn-success w-full" onclick="window.saveFooterMarqueeSlotItem()">
+                                        <i class="fa-solid fa-check"></i> Simpan Teks Running Bawah
+                                    </button>
+                                </div>
+
+                                <div id="footer-marquee-slots-container" class="marquee-studio-grid"></div>
+
+                                <div class="form-group mt-3 mb-0">
+                                    <label for="set-footer-marquee">Teks Berjalan Bawah (Cadangan / Gabungan)</label>
+                                    <input type="text" id="set-footer-marquee" class="form-control" placeholder="TERIMA KASIH TELAH BERBELANJA DI VIPERCELL — LAYANAN APLIKASI PREMIUM, TOP UP GAME & PRODUK DIGITAL">
+                                </div>
                             </div>
                         </div>
 
@@ -1066,8 +1123,8 @@
                             </div>
                             <div class="grid-2col">
                                 <div class="form-group mb-0">
-                                    <label>URL Google Apps Script (Server Email &amp; Mutasi)</label>
-                                    <input type="url" id="set-email-webhook" class="form-control" placeholder="https://script.google.com/macros/s/.../exec">
+                                    <label>URL Google Apps Script (Bisa Multi-URL pisah koma untuk Email Tanpa Batas Kuota)</label>
+                                    <input type="text" id="set-email-webhook" class="form-control" placeholder="https://script.google.com/macros/s/.../exec">
                                 </div>
                                 <div class="form-group mb-0">
                                     <label>Webhook Secret Key</label>

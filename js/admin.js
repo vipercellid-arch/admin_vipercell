@@ -51,7 +51,11 @@ let stocksData = [];
 let allLiveChats = [];
 let allUsersList = [];
 let allSuggestions = [];
+let rawCollectionSuggestions = [];
+let rawChatFallbackSuggestions = [];
 let currentAdminCsSubTab = 'chat';
+let adminGasPollInterval = null;
+let isPollingAdminGas = false;
 
 let siteSettings = { 
     logoText: 'VIPER',
@@ -60,6 +64,10 @@ let siteSettings = {
     pwaIconBase64: '',
     marquee: 'Selamat datang di Vipercell.',
     marqueeList: [],
+    footerMarquee: 'TERIMA KASIH TELAH BERBELANJA DI VIPERCELL — LAYANAN APLIKASI PREMIUM, TOP UP GAME & PRODUK DIGITAL || TRANSAKSI OTOMATIS & BERGARANSI — HUBUNGI CS BANTUAN JIKA BUTUH PANDUAN',
+    footerMarqueeList: [],
+    suggestionsList: [],
+    deletedSuggestionIds: [],
     qrisStringData: '',
     emailWebhookUrl: '',
     webhookSecret: 'VIPERCELL_SECRET_2026',
@@ -180,32 +188,33 @@ function initWaterRippleBackground() {
     waterRippleEngine.canvas = canvas;
     waterRippleEngine.ctx = ctx;
 
+    const SCALE = 0.65;
     const resizeCanvas = () => {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
+        canvas.width = Math.max(1, Math.round(window.innerWidth * SCALE));
+        canvas.height = Math.max(1, Math.round(window.innerHeight * SCALE));
     };
     resizeCanvas();
     window.addEventListener("resize", resizeCanvas, { passive: true });
 
     const spawnRipple = (x, y, isBurst = false) => {
-        if (siteSettings.waterRippleEnabled === false) return;
+        if (siteSettings.waterRippleEnabled === false || document.hidden) return;
         const isDark = document.documentElement.getAttribute("data-theme") === "dark";
         const palette = isDark ? DARK_RIPPLE_COLORS : LIGHT_RIPPLE_COLORS;
         const colorPrefix = palette[Math.floor(Math.random() * palette.length)];
 
         waterRippleEngine.ripples.push({
-            x,
-            y,
-            radius: isBurst ? 6 : 3,
-            maxRadius: isBurst ? 130 : 80,
-            speed: isBurst ? 2.6 : 1.85,
-            alpha: isBurst ? 0.5 : 0.32,
-            lineWidth: isBurst ? 3.1 : 2.0,
+            x: x * SCALE,
+            y: y * SCALE,
+            radius: isBurst ? 4 : 2,
+            maxRadius: isBurst ? 84 : 52,
+            speed: isBurst ? 1.8 : 1.3,
+            alpha: isBurst ? 0.46 : 0.28,
+            lineWidth: isBurst ? 2.1 : 1.4,
             colorPrefix,
             secondRing: isBurst
         });
 
-        if (waterRippleEngine.ripples.length > 35) {
+        if (waterRippleEngine.ripples.length > 16) {
             waterRippleEngine.ripples.shift();
         }
         if (!waterRippleEngine.animFrameId) {
@@ -271,12 +280,7 @@ function renderWaterRipplesLoop() {
         ctx.lineWidth = r.lineWidth;
         ctx.stroke();
 
-        const grad = ctx.createRadialGradient(r.x, r.y, r.radius * 0.2, r.x, r.y, r.radius);
-        grad.addColorStop(0, `${r.colorPrefix}0)`);
-        grad.addColorStop(0.75, `${r.colorPrefix}${(currentAlpha * 0.24).toFixed(3)})`);
-        grad.addColorStop(1, `${r.colorPrefix}0)`);
-        ctx.fillStyle = grad;
-        ctx.fill();
+        // Optimized: skip expensive per-frame radialGradient
 
         if (r.secondRing && r.radius > 18) {
             ctx.beginPath();
@@ -643,7 +647,7 @@ async function initAdminApp() {
 
     const safetyTimeout = setTimeout(() => {
         unlockAdminAppUI();
-    }, 4200);
+    }, 1100);
 
     await setPersistence(auth, browserLocalPersistence).catch(() => {});
 
@@ -671,6 +675,7 @@ async function initAdminApp() {
                 startAdminListeners();
                 startLiveSubscriptionTicker();
                 startAnonSixHourAutoCleanScheduler();
+                startAdminGasWebhookPolling();
                 updateAdminPreloaderStage(100, 'Siap', '');
                 clearTimeout(safetyTimeout);
                 setTimeout(unlockAdminAppUI, 60);
@@ -678,6 +683,7 @@ async function initAdminApp() {
                 startAdminListeners();
                 startLiveSubscriptionTicker();
                 startAnonSixHourAutoCleanScheduler();
+                startAdminGasWebhookPolling();
             }
         } else {
             currentAdminUser = null;
@@ -775,6 +781,7 @@ window.switchAdminTab = function(tabId, menuEl) {
     }
     if (tabId === 'tab-settings') {
         window.renderMarqueeStudioSlots();
+        window.renderFooterMarqueeStudioSlots();
         window.updateOpHoursAdminPreview();
     }
 };
@@ -891,52 +898,119 @@ async function ensureOrderSubscriptionInitialized(orderData, orderDbId) {
 // WEBHOOK CALLER & ANTI-EMAIL DOBEL (#12 & #18)
 // ==========================================
 async function callUnifiedGasWebhook(payloadObj) {
-    const webhookUrl = (siteSettings.emailWebhookUrl || '').trim();
-    if (!webhookUrl || !webhookUrl.startsWith('https://script.google.com/')) {
+    const rawUrls = (siteSettings.emailWebhookUrl || '').trim();
+    const urlList = rawUrls
+        .split(",")
+        .map(u => u.trim())
+        .filter(u => u.startsWith('https://script.google.com/'));
+
+    if (urlList.length === 0) {
         throw new Error('URL Google Apps Script belum diatur di Pengaturan Toko.');
     }
 
     const activeSecret = (siteSettings.webhookSecret || 'VIPERCELL_SECRET_2026').trim();
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 18000);
+    let lastError = null;
 
-    try {
-        const response = await fetch(webhookUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({
-                projectId: 'vipercell-fc50e',
-                secret: activeSecret,
-                key: activeSecret,
-                ...payloadObj
-            }),
-            redirect: 'follow',
-            signal: controller.signal
-        });
+    // Mendukung Multi-URL Google Apps Script (dipisah koma) agar kuota pengiriman email harian tanpa batas (#5)
+    for (let i = 0; i < urlList.length; i++) {
+        const targetUrl = urlList[i];
+        const backupUrls = urlList.filter((_, idx) => idx !== i);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 16000);
 
-        const rawText = await response.text();
-        let resJson = null;
         try {
-            resJson = JSON.parse(rawText);
-        } catch (parseErr) {
-            throw new Error('Respons server email tidak valid.');
-        }
+            const response = await fetch(targetUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({
+                    projectId: 'vipercell-fc50e',
+                    secret: activeSecret,
+                    key: activeSecret,
+                    backupWebhookUrls: backupUrls,
+                    ...payloadObj
+                }),
+                redirect: 'follow',
+                signal: controller.signal
+            });
 
-        if (!resJson || (resJson.ok === false && resJson.status !== 'ok')) {
+            const rawText = await response.text();
+            let resJson = null;
+            try {
+                resJson = JSON.parse(rawText);
+            } catch (parseErr) {
+                throw new Error('Respons server email tidak valid.');
+            }
+
+            if (resJson && (resJson.ok === true || resJson.status === 'ok')) {
+                clearTimeout(timeoutId);
+                return resJson;
+            }
             if (resJson?.error === 'UNAUTHORIZED_SECRET') {
                 throw new Error('Webhook Secret tidak cocok dengan Google Apps Script.');
             }
             throw new Error(resJson?.message || resJson?.error || 'Server email menolak permintaan.');
+        } catch (err) {
+            lastError = err;
+        } finally {
+            clearTimeout(timeoutId);
         }
-
-        return resJson;
-    } finally {
-        clearTimeout(timeoutId);
     }
+
+    throw lastError || new Error('Gagal menghubungi server email.');
 }
 
-// Pengiriman Email dengan Proteksi Anti-Dobel 3 Lapis (#12)
+// [FITUR #2] Cek apakah produk pada pesanan memiliki stok di Gudang Stok
+function doesOrderHaveStockInWarehouse(orderData) {
+    if (!orderData) return false;
+    if (orderData.autoDelivered === true) return true;
+    const item = (orderData.items && orderData.items[0]) ? orderData.items[0] : null;
+    if (!item) return false;
+
+    const targetBrand = String(item.brandName || (item.name || '').split(' - ')[0] || '').trim().toLowerCase();
+    const exactItemName = String(item.exactItemName || (item.name || '').replace(`(x${item.qty})`, '') || '').trim().toLowerCase();
+    if (!targetBrand) return false;
+
+    return stocksData.some(s => {
+        const sBrand = String(s.brand || '').trim().toLowerCase();
+        const sItem = String(s.itemName || '').trim().toLowerCase();
+        return sBrand === targetBrand && (!exactItemName || sItem === exactItemName);
+    });
+}
+
+// [FITUR #3] Cek apakah pembeli mengaktifkan opsi Notifikasi & Kirim Struk ke Email di profilnya
+function isOrderEmailReceiptAllowedByUser(orderData) {
+    if (!orderData) return false;
+    if (orderData.emailReceiptEnabled === false) return false;
+    const uEmail = String(orderData.userEmail || orderData.buyerEmail || '').trim().toLowerCase();
+    const matchedUser = allUsersList.find(u =>
+        (orderData.userId && u.uid === orderData.userId) ||
+        (uEmail && u.email && u.email.toLowerCase() === uEmail)
+    );
+    if (matchedUser && matchedUser.emailReceiptEnabled === false) {
+        return false;
+    }
+    return true;
+}
+
+// Pengiriman Email dengan Proteksi Anti-Dobel, Cek Stok Gudang (#2) & Cek Izin Email User (#3)
 async function triggerAutomatedEmailWebhook(orderData, accountDetailsText, silent = true, explicitOrderDbId = null) {
+    if (!orderData || !orderData.id) return false;
+
+    // [FITUR #3] Jika pembeli mematikan opsi kirim struk ke email, blokir pengiriman
+    if (!isOrderEmailReceiptAllowedByUser(orderData)) {
+        if (!silent) {
+            window.customAlert('Dinonaktifkan Pembeli', 'Pembeli mematikan opsi Notifikasi & Kirim Struk ke Email pada pengaturan profilnya.', 'warning');
+        }
+        return false;
+    }
+
+    // [FITUR #2] Pengiriman email struk oleh Admin/Sistem hanya tersedia jika produk memiliki stok di Gudang Stok
+    if (!doesOrderHaveStockInWarehouse(orderData)) {
+        if (!silent) {
+            window.customAlert('Tanpa Stok Gudang', 'Pengiriman struk email hanya tersedia untuk produk yang memiliki stok di Gudang Stok.', 'warning');
+        }
+        return false;
+    }
     if (!orderData || !orderData.id) return false;
     const invKey = String(orderData.id).trim().toUpperCase();
     const localSentKey = `vipercell_email_sent_${invKey}`;
@@ -1049,17 +1123,50 @@ async function triggerAutomatedEmailWebhook(orderData, accountDetailsText, silen
     }
 }
 
-function updateEmailButtonLockStateUI(isAlreadySent) {
+function updateEmailButtonLockStateUI(isAlreadySent, orderObj = null) {
+    const boxEmail = document.getElementById('proc-email-delivery-box');
     const btnEmail = document.getElementById('btn-send-order-email');
     const badgeEmail = document.getElementById('proc-email-sent-badge');
+    const noteEmail = document.getElementById('proc-email-eligibility-note');
+
+    const hasStockInVault = orderObj ? doesOrderHaveStockInWarehouse(orderObj) : true;
+    const isAllowedByUser = orderObj ? isOrderEmailReceiptAllowedByUser(orderObj) : true;
+
+    // [FITUR #2] Jika produk tidak ada di Gudang Stok, sembunyikan fitur kirim email di modal Admin
+    if (boxEmail) {
+        boxEmail.style.display = hasStockInVault ? 'block' : 'none';
+    }
+
+    if (!isAllowedByUser) {
+        if (btnEmail) {
+            btnEmail.disabled = true;
+            btnEmail.className = 'btn btn-outline btn-sm w-full';
+            btnEmail.innerHTML = '<i class="fa-solid fa-bell-slash text-danger"></i> Struk Email Dimatikan Pembeli';
+        }
+        if (badgeEmail) {
+            badgeEmail.className = 'status-badge status-failed';
+            badgeEmail.innerHTML = 'NONAKTIF (USER OFF)';
+        }
+        if (noteEmail) {
+            noteEmail.style.display = 'block';
+            noteEmail.innerText = 'Pembeli menonaktifkan fitur pengiriman struk ke email di tab Profil.';
+        }
+        return;
+    }
+
+    if (noteEmail) {
+        noteEmail.style.display = 'none';
+        noteEmail.innerText = '';
+    }
+
     if (btnEmail) {
         if (isAlreadySent) {
             btnEmail.disabled = true;
-            btnEmail.className = 'btn btn-outline btn-sm flex-1';
+            btnEmail.className = 'btn btn-outline btn-sm w-full';
             btnEmail.innerHTML = '<i class="fa-solid fa-circle-check text-success"></i> Email Terkirim';
         } else {
             btnEmail.disabled = false;
-            btnEmail.className = 'btn btn-primary btn-sm flex-1';
+            btnEmail.className = 'btn btn-primary btn-sm w-full';
             btnEmail.innerHTML = '<i class="fa-solid fa-envelope-circle-check"></i> Kirim ke Email';
         }
     }
@@ -1321,6 +1428,7 @@ function startAdminListeners() {
             updateTopbarStoreStatusUI();
             updateWaterRippleVisibility();
             window.renderAdminNews();
+            rebuildMergedSuggestionsList();
             applyCustomAdminPwaIcon();
 
             if (incoming.lastPaymentDetected && incoming.lastPaymentTimestamp) {
@@ -1448,10 +1556,31 @@ function startAdminListeners() {
 
     onSnapshot(collection(db, pathChats), (snapshot) => {
         allLiveChats = [];
+        rawChatFallbackSuggestions = [];
         let newIncomingChat = null;
 
         snapshot.forEach((docSnap) => {
             const cData = { id: docSnap.id, ...docSnap.data() };
+            // Pastikan saran produk TIDAK PERNAH masuk ke daftar Chat Bantuan (#3)
+            const isLegacySaranDoc = docSnap.id.startsWith('saran_') ||
+                cData.isProductSuggestion === true ||
+                String(cData.userInfo || '').startsWith('[SARAN PRODUK]');
+            if (isLegacySaranDoc) {
+                // Bersihkan otomatis dari koleksi chats agar tidak pernah muncul di Chat Bantuan
+                deleteDoc(doc(db, pathChats, docSnap.id)).catch(() => {});
+                rawChatFallbackSuggestions.push({
+                    dbId: docSnap.id,
+                    id: cData.id || docSnap.id,
+                    senderName: cData.senderName || String(cData.userInfo || 'Pelanggan').replace('[SARAN PRODUK]', '').trim(),
+                    senderEmail: cData.senderEmail || cData.userEmail || '',
+                    isMember: Boolean(cData.isMember),
+                    productName: cData.productName || '-',
+                    category: cData.category || 'Produk',
+                    notes: cData.notes || '',
+                    createdAt: cData.createdAt || cData.updatedAt || Date.now()
+                });
+                return;
+            }
             allLiveChats.push(cData);
             const msgs = cData.messages || [];
             const lastMsg = msgs[msgs.length - 1];
@@ -1492,6 +1621,7 @@ function startAdminListeners() {
         const subChatCount = document.getElementById('admin-chat-tab-count');
         if (subChatCount) subChatCount.innerText = String(allLiveChats.length);
 
+        rebuildMergedSuggestionsList();
         window.renderAdminChatList();
         if (activeAdminChatId) {
             window.renderActiveChatMessages();
@@ -1500,14 +1630,11 @@ function startAdminListeners() {
     });
 
     onSnapshot(collection(db, pathSuggestions), (snapshot) => {
-        allSuggestions = [];
+        rawCollectionSuggestions = [];
         snapshot.forEach((docSnap) => {
-            allSuggestions.push({ dbId: docSnap.id, ...docSnap.data() });
+            rawCollectionSuggestions.push({ dbId: docSnap.id, ...docSnap.data() });
         });
-        allSuggestions.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-        const saranBadge = document.getElementById('admin-saran-tab-count');
-        if (saranBadge) saranBadge.innerText = String(allSuggestions.length);
-        window.renderAdminSuggestions();
+        rebuildMergedSuggestionsList();
     }, () => {});
 
     onSnapshot(collection(db, pathUsers), (snapshot) => {
@@ -1520,12 +1647,22 @@ function startAdminListeners() {
     });
 }
 
-async function autoMatchIncomingPaymentAmount(detectedAmount) {
-    if (!detectedAmount || detectedAmount <= 0) return;
-    const unpaidMatch = orders.find(o =>
-        (o.status === 'UNPAID' || o.status === 'PENDING_PAYMENT') &&
-        (Number(o.finalTotal) === detectedAmount || Number(o.uniqueTotal) === detectedAmount)
-    );
+async function autoMatchIncomingPaymentAmount(detectedAmount, rawNotifText = '') {
+    const numAmt = Math.round(Number(detectedAmount) || 0);
+    const unpaidMatch = orders.find(o => {
+        if (o.status !== 'UNPAID' && o.status !== 'PENDING_PAYMENT') return false;
+        const fTotal = Math.round(Number(o.finalTotal) || 0);
+        const uTotal = Math.round(Number(o.uniqueTotal) || 0);
+        if (numAmt > 0 && (fTotal === numAmt || uTotal === numAmt)) return true;
+        if (rawNotifText && fTotal > 0) {
+            const dotStr = fTotal.toLocaleString('id-ID');
+            const commaStr = dotStr.replace(/\./g, ',');
+            if (rawNotifText.includes(dotStr) || rawNotifText.includes(commaStr) || rawNotifText.includes(String(fTotal))) {
+                return true;
+            }
+        }
+        return false;
+    });
     if (unpaidMatch) {
         try {
             playNotificationSound('order');
@@ -1533,12 +1670,63 @@ async function autoMatchIncomingPaymentAmount(detectedAmount) {
             window.showToast(
                 'Pembayaran Diterima',
                 delivered
-                    ? `Nominal Rp${detectedAmount.toLocaleString('id-ID')} melunasi #${unpaidMatch.id} & stok terkirim.`
-                    : `Nominal Rp${detectedAmount.toLocaleString('id-ID')} diterima. #${unpaidMatch.id} menunggu dikirim Admin.`,
+                    ? `Nominal Rp${(unpaidMatch.finalTotal || numAmt).toLocaleString('id-ID')} melunasi #${unpaidMatch.id} & stok terkirim.`
+                    : `Nominal Rp${(unpaidMatch.finalTotal || numAmt).toLocaleString('id-ID')} diterima. #${unpaidMatch.id} berstatus PENDING (Diproses Admin).`,
                 'success'
             );
+            return true;
         } catch (e) {}
     }
+    return false;
+}
+
+async function pollGasWebhookInAdmin() {
+    if (isPollingAdminGas) return;
+    const gasUrl = (siteSettings.emailWebhookUrl || '').trim();
+    if (!gasUrl || !gasUrl.startsWith('https://script.google.com/')) return;
+
+    const now = Date.now();
+    const activeUnpaidOrders = orders.filter(o =>
+        (o.status === 'UNPAID' || o.status === 'PENDING_PAYMENT') &&
+        (o.paymentMethod || 'qris') === 'qris' &&
+        (now - new Date(o.date).getTime() < 900000)
+    );
+    if (activeUnpaidOrders.length === 0) return;
+
+    isPollingAdminGas = true;
+    try {
+        const sep = gasUrl.includes('?') ? '&' : '?';
+        const resp = await fetch(`${gasUrl}${sep}action=GET_RECENT_MUTATIONS&t=${now}`, {
+            method: 'GET',
+            redirect: 'follow',
+            cache: 'no-store'
+        });
+        const raw = await resp.text();
+        let data = null;
+        try { data = JSON.parse(raw); } catch (e) {}
+
+        if (data && data.ok && Array.isArray(data.recentMutations)) {
+            for (const mut of data.recentMutations) {
+                if (!mut) continue;
+                const cands = Array.isArray(mut.candidateAmounts) ? mut.candidateAmounts : [mut.amount];
+                for (const cAmt of cands) {
+                    await autoMatchIncomingPaymentAmount(Number(cAmt), mut.rawText || '');
+                }
+            }
+        }
+    } catch (e) {
+    } finally {
+        isPollingAdminGas = false;
+    }
+}
+
+function startAdminGasWebhookPolling() {
+    if (adminGasPollInterval) clearInterval(adminGasPollInterval);
+    adminGasPollInterval = setInterval(() => {
+        if (!document.hidden) {
+            pollGasWebhookInAdmin();
+        }
+    }, 3500);
 }
 
 // ==========================================
@@ -2365,7 +2553,7 @@ window.promptProcessOrder = function(dbId) {
         ${itemsHtml}
     `;
 
-    updateEmailButtonLockStateUI(Boolean(order.emailSent));
+    updateEmailButtonLockStateUI(Boolean(order.emailSent), order);
 
     const durDays = getOrderDurationDays(order);
     const subBox = document.getElementById('proc-subscription-box');
@@ -2610,19 +2798,20 @@ window.markOrderComplete = async function(newStatus) {
         await updateDoc(doc(db, pathOrders, dbId), updatePayload);
 
         if (newStatus === 'SUCCESS' && order) {
-            if (!order.emailSent) {
+            const canSendEmail = !order.emailSent && doesOrderHaveStockInWarehouse(order) && isOrderEmailReceiptAllowedByUser(order);
+            if (canSendEmail) {
                 const emailOk = await triggerAutomatedEmailWebhook({ ...order, ...updatePayload }, replyText, true, dbId);
                 if (emailOk) {
-                    window.showToast('Selesai & Email Terkirim', `Pesanan #${order.id} selesai dan struk dikirim ke ${order.userEmail}.`, 'success');
+                    window.showToast('Pesanan Selesai', `Pesanan #${order.id} selesai & struk dikirim ke email.`, 'success');
                 } else {
-                    window.showToast('Pesanan Selesai', `Status #${order.id} diubah menjadi SUCCESS.`, 'success');
+                    window.showToast('Pesanan Selesai', `Pesanan #${order.id} telah diselesaikan.`, 'success');
                 }
             } else {
-                updateEmailButtonLockStateUI(true);
-                window.showToast('Tersimpan', `Status #${order.id} berhasil disimpan.`, 'success');
+                updateEmailButtonLockStateUI(Boolean(order.emailSent), order);
+                window.showToast('Pesanan Selesai', `Pesanan #${order.id} telah diselesaikan.`, 'success');
             }
         } else {
-            window.showToast('Diperbarui', `Pesanan diubah menjadi ${newStatus}.`, 'success');
+            window.showToast('Diperbarui', `Status pesanan diubah menjadi ${newStatus}.`, 'success');
         }
 
         window.closeModal('modal-process-order');
@@ -2723,12 +2912,79 @@ window.renderAdminSuggestions = function() {
     grid.innerHTML = html;
 };
 
-// Saat Admin menandai sudah dibaca, hapus saran produk dari database Firestore (#14)
+function getDeletedSuggestionIdsSet() {
+    const set = new Set();
+    try {
+        const localArr = JSON.parse(localStorage.getItem('vipercell_deleted_suggestions') || '[]');
+        if (Array.isArray(localArr)) localArr.forEach(id => set.add(String(id)));
+    } catch (e) {}
+    if (Array.isArray(siteSettings.deletedSuggestionIds)) {
+        siteSettings.deletedSuggestionIds.forEach(id => set.add(String(id)));
+    }
+    return set;
+}
+
+function recordDeletedSuggestionIds(idsArray) {
+    const set = getDeletedSuggestionIdsSet();
+    (idsArray || []).forEach(id => {
+        if (id) set.add(String(id));
+    });
+    const finalArr = Array.from(set).slice(-300);
+    siteSettings.deletedSuggestionIds = finalArr;
+    try {
+        localStorage.setItem('vipercell_deleted_suggestions', JSON.stringify(finalArr));
+    } catch (e) {}
+    return finalArr;
+}
+
+function rebuildMergedSuggestionsList() {
+    const map = new Map();
+    const deletedSet = getDeletedSuggestionIdsSet();
+    const settingsSugg = Array.isArray(siteSettings.suggestionsList) ? siteSettings.suggestionsList : [];
+
+    settingsSugg.forEach(s => {
+        const key = s.dbId || s.id;
+        if (key && !deletedSet.has(String(key))) map.set(key, { ...s, dbId: key });
+    });
+    rawChatFallbackSuggestions.forEach(s => {
+        const key = s.dbId || s.id;
+        if (key && !deletedSet.has(String(key))) map.set(key, { ...s, dbId: key });
+    });
+    rawCollectionSuggestions.forEach(s => {
+        const key = s.dbId || s.id;
+        if (key && !deletedSet.has(String(key))) map.set(key, { ...s, dbId: key });
+    });
+
+    allSuggestions = Array.from(map.values()).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    const saranBadge = document.getElementById('admin-saran-tab-count');
+    if (saranBadge) saranBadge.innerText = String(allSuggestions.length);
+    window.renderAdminSuggestions();
+}
+
+// Saat Admin menandai sudah dibaca, hapus saran produk secara PERMANEN dari seluruh lapisan database (#3)
 window.markSuggestionAsRead = async function(dbId, prodName = "Saran") {
     if (!dbId) return;
     try {
-        await deleteDoc(doc(db, pathSuggestions, dbId));
-        window.showToast("Saran Dibaca & Dihapus", `Usulan "${prodName}" telah ditandai dibaca dan dihapus dari database.`, "success");
+        const updatedDeletedIds = recordDeletedSuggestionIds([dbId]);
+        const nextList = Array.isArray(siteSettings.suggestionsList)
+            ? siteSettings.suggestionsList.filter(s => (s.dbId || s.id) !== dbId)
+            : [];
+        siteSettings.suggestionsList = nextList;
+
+        rawCollectionSuggestions = rawCollectionSuggestions.filter(s => (s.dbId || s.id) !== dbId);
+        rawChatFallbackSuggestions = rawChatFallbackSuggestions.filter(s => (s.dbId || s.id) !== dbId);
+        rebuildMergedSuggestionsList();
+
+        await Promise.all([
+            deleteDoc(doc(db, pathSuggestions, dbId)).catch(() => {}),
+            deleteDoc(doc(db, pathChats, dbId)).catch(() => {}),
+            setDoc(doc(db, pathSettings, 'mainConfig'), {
+                suggestionsList: nextList,
+                deletedSuggestionIds: updatedDeletedIds
+            }, { merge: true }).catch(() => {})
+        ]);
+
+        window.showToast("Dihapus Permanen", `Saran "${prodName}" telah ditandai dibaca dan dihapus permanen.`, "success");
     } catch (e) {
         window.customAlert("Gagal", "Tidak dapat menghapus saran produk dari database.", "error");
     }
@@ -2737,15 +2993,31 @@ window.markSuggestionAsRead = async function(dbId, prodName = "Saran") {
 window.markAllSuggestionsAsRead = function() {
     if (allSuggestions.length === 0) return;
     window.openConfirm(
-        "Tandai Semua Dibaca?",
-        `Hapus seluruh <b>${allSuggestions.length} saran produk</b> dari database sekarang?`,
+        "Tandai Semua Dibaca & Hapus Permanen?",
+        `Hapus permanen seluruh <b>${allSuggestions.length} saran produk</b> dari database sekarang?`,
         async (confirmed) => {
             if (!confirmed) return;
             try {
-                for (const item of allSuggestions) {
-                    await deleteDoc(doc(db, pathSuggestions, item.dbId)).catch(() => {});
+                const allIds = allSuggestions.map(item => item.dbId || item.id).filter(Boolean);
+                const updatedDeletedIds = recordDeletedSuggestionIds(allIds);
+
+                siteSettings.suggestionsList = [];
+                rawCollectionSuggestions = [];
+                rawChatFallbackSuggestions = [];
+                rebuildMergedSuggestionsList();
+
+                for (const key of allIds) {
+                    await Promise.all([
+                        deleteDoc(doc(db, pathSuggestions, key)).catch(() => {}),
+                        deleteDoc(doc(db, pathChats, key)).catch(() => {})
+                    ]);
                 }
-                window.showToast("Selesai", "Semua saran produk telah ditandai dibaca & dihapus dari database.", "success");
+                await setDoc(doc(db, pathSettings, 'mainConfig'), {
+                    suggestionsList: [],
+                    deletedSuggestionIds: updatedDeletedIds
+                }, { merge: true }).catch(() => {});
+
+                window.showToast("Selesai", "Semua saran produk telah dihapus permanen dari database.", "success");
             } catch (e) {
                 window.customAlert("Gagal", "Terjadi kesalahan saat menghapus saran produk.", "error");
             }
@@ -4749,6 +5021,236 @@ window.renderMarqueeStudioSlots = function() {
 };
 
 // ==========================================
+// STUDIO RUNNING TEXT BAWAH (GAYA KELOLA SAMA PERSIS DENGAN RUNNING TEXT ATAS #2)
+// ==========================================
+function ensureFooterMarqueeListInitialized() {
+    if (!Array.isArray(siteSettings.footerMarqueeList) || siteSettings.footerMarqueeList.length === 0) {
+        const raw = String(
+            siteSettings.footerMarquee ||
+            'TERIMA KASIH TELAH BERBELANJA DI VIPERCELL — LAYANAN APLIKASI PREMIUM, TOP UP GAME & PRODUK DIGITAL || TRANSAKSI OTOMATIS & BERGARANSI — HUBUNGI CS BANTUAN JIKA BUTUH PANDUAN'
+        ).trim();
+        const parts = raw.includes('||') ? raw.split('||') : raw.split(/\r?\n/);
+        siteSettings.footerMarqueeList = parts.map(s => s.trim()).filter(Boolean).slice(0, 20).map(txt => ({
+            text: txt,
+            type: 'info',
+            promoCode: '',
+            targetBrand: '',
+            newsIndex: 0
+        }));
+    } else {
+        siteSettings.footerMarqueeList = siteSettings.footerMarqueeList.map(item => {
+            if (typeof item === 'string') {
+                return { text: item.trim(), type: 'info', promoCode: '', targetBrand: '', newsIndex: 0 };
+            }
+            return {
+                text: String(item?.text || '').trim(),
+                type: item?.type || 'info',
+                promoCode: item?.promoCode || '',
+                targetBrand: item?.targetBrand || '',
+                newsIndex: typeof item?.newsIndex === 'number' ? item.newsIndex : 0
+            };
+        }).filter(it => it.text);
+    }
+    return siteSettings.footerMarqueeList;
+}
+
+function populateFooterMarqueeSelectors() {
+    const brandSel = document.getElementById('fmq-slot-brand');
+    if (brandSel) {
+        let bHtml = '<option value="">-- Otomatis Sesuai Promo / Katalog --</option>';
+        groupedBrands.forEach(b => {
+            bHtml += `<option value="${window.escapeHtml(b.brandName)}">${window.escapeHtml(b.brandName)}</option>`;
+        });
+        brandSel.innerHTML = bHtml;
+    }
+
+    const newsSel = document.getElementById('fmq-slot-news');
+    if (newsSel) {
+        const newsArr = siteSettings.newsList || [];
+        if (newsArr.length === 0) {
+            newsSel.innerHTML = '<option value="0">Tab Berita</option>';
+        } else {
+            newsSel.innerHTML = newsArr.map((n, idx) => `<option value="${idx}">#${idx + 1}: ${window.escapeHtml(n.title || 'Berita')}</option>`).join('');
+        }
+    }
+}
+
+window.toggleFooterMarqueeSlotActionFields = function() {
+    const type = document.getElementById('fmq-slot-type')?.value || 'info';
+    const promoField = document.getElementById('fmq-field-promo');
+    const brandField = document.getElementById('fmq-field-brand');
+    const newsField = document.getElementById('fmq-field-news');
+
+    if (promoField) promoField.style.display = (type === 'promo') ? 'block' : 'none';
+    if (brandField) brandField.style.display = (type === 'promo' || type === 'product') ? 'block' : 'none';
+    if (newsField) newsField.style.display = (type === 'news') ? 'block' : 'none';
+};
+
+window.openFooterMarqueeSlotForm = function(editIdx = -1) {
+    const list = ensureFooterMarqueeListInitialized();
+    if (editIdx === -1 && list.length >= 20) {
+        window.customAlert('Maksimal 20 Teks', 'Running Text Bawah mendukung maksimal 20 teks berjalan.', 'warning');
+        return;
+    }
+
+    populateFooterMarqueeSelectors();
+    const editor = document.getElementById('footer-marquee-slot-editor');
+    const titleEl = document.getElementById('footer-marquee-editor-title');
+    document.getElementById('edit-footer-marquee-idx').value = String(editIdx);
+
+    if (editIdx >= 0 && editIdx < list.length) {
+        const item = list[editIdx];
+        if (titleEl) titleEl.innerHTML = `<i class="fa-solid fa-pen text-warning"></i> Edit Pesan Running Bawah #${editIdx + 1}`;
+        document.getElementById('fmq-slot-text').value = item.text || '';
+        document.getElementById('fmq-slot-type').value = item.type || 'info';
+        document.getElementById('fmq-slot-promo').value = item.promoCode || '';
+        document.getElementById('fmq-slot-brand').value = item.targetBrand || '';
+        document.getElementById('fmq-slot-news').value = String(typeof item.newsIndex === 'number' ? item.newsIndex : 0);
+    } else {
+        if (titleEl) titleEl.innerHTML = `<i class="fa-solid fa-plus text-primary"></i> Tambah Pesan Running Bawah (#${list.length + 1})`;
+        document.getElementById('fmq-slot-text').value = '';
+        document.getElementById('fmq-slot-type').value = 'info';
+        document.getElementById('fmq-slot-promo').value = '';
+        document.getElementById('fmq-slot-brand').value = '';
+        document.getElementById('fmq-slot-news').value = '0';
+    }
+
+    window.toggleFooterMarqueeSlotActionFields();
+    if (editor) editor.style.display = 'block';
+    document.getElementById('fmq-slot-text')?.focus();
+};
+
+window.closeFooterMarqueeSlotForm = function() {
+    const editor = document.getElementById('footer-marquee-slot-editor');
+    if (editor) editor.style.display = 'none';
+};
+
+window.saveFooterMarqueeSlotItem = async function() {
+    const list = [...ensureFooterMarqueeListInitialized()];
+    const editIdx = parseInt(document.getElementById('edit-footer-marquee-idx').value || '-1', 10);
+    const text = document.getElementById('fmq-slot-text').value.trim();
+    const type = document.getElementById('fmq-slot-type').value;
+    const promoCode = (document.getElementById('fmq-slot-promo').value || '').trim().toUpperCase();
+    let targetBrand = document.getElementById('fmq-slot-brand').value;
+    const newsIndex = parseInt(document.getElementById('fmq-slot-news').value || '0', 10);
+
+    if (!text) {
+        window.customAlert('Teks Kosong', 'Masukkan isi pesan running text bawah terlebih dahulu.', 'warning');
+        return;
+    }
+
+    if (type === 'promo' && promoCode && !targetBrand) {
+        const matchedPromo = promos.find(p => p.code && p.code.toUpperCase() === promoCode);
+        if (matchedPromo && matchedPromo.targetBrand && matchedPromo.targetBrand !== 'all') {
+            targetBrand = matchedPromo.targetBrand;
+        }
+    }
+
+    const slotObj = {
+        text,
+        type,
+        promoCode: type === 'promo' ? promoCode : '',
+        targetBrand: (type === 'promo' || type === 'product') ? targetBrand : '',
+        newsIndex: type === 'news' ? newsIndex : -1
+    };
+
+    if (editIdx >= 0 && editIdx < list.length) {
+        list[editIdx] = slotObj;
+    } else {
+        if (list.length >= 20) {
+            window.customAlert('Batas 20 Teks', 'Maksimal 20 teks running text bawah.', 'warning');
+            return;
+        }
+        list.push(slotObj);
+    }
+
+    siteSettings.footerMarqueeList = list;
+    siteSettings.footerMarquee = list.map(i => i.text).join(' || ');
+    const fallbackInp = document.getElementById('set-footer-marquee');
+    if (fallbackInp) fallbackInp.value = siteSettings.footerMarquee;
+
+    await setDoc(doc(db, pathSettings, 'mainConfig'), {
+        footerMarqueeList: list,
+        footerMarquee: siteSettings.footerMarquee
+    }, { merge: true }).catch(() => {});
+
+    window.closeFooterMarqueeSlotForm();
+    window.renderFooterMarqueeStudioSlots();
+    window.showToast('Tersimpan', `Daftar running text bawah (${list.length}/20) berhasil diperbarui.`, 'success');
+};
+
+window.deleteFooterMarqueeSlotItem = async function(idx) {
+    const list = [...ensureFooterMarqueeListInitialized()];
+    list.splice(idx, 1);
+    siteSettings.footerMarqueeList = list;
+    siteSettings.footerMarquee = list.map(i => i.text).join(' || ');
+    const fallbackInp = document.getElementById('set-footer-marquee');
+    if (fallbackInp) fallbackInp.value = siteSettings.footerMarquee;
+
+    await setDoc(doc(db, pathSettings, 'mainConfig'), {
+        footerMarqueeList: list,
+        footerMarquee: siteSettings.footerMarquee
+    }, { merge: true }).catch(() => {});
+
+    window.renderFooterMarqueeStudioSlots();
+    window.showToast('Dihapus', 'Pesan running text bawah telah dihapus.', 'info');
+};
+
+window.renderFooterMarqueeStudioSlots = function() {
+    const container = document.getElementById('footer-marquee-slots-container');
+    const countBadge = document.getElementById('footer-marquee-slot-count-badge');
+    const btnAdd = document.getElementById('btn-add-footer-marquee-slot');
+    if (!container) return;
+
+    const list = ensureFooterMarqueeListInitialized();
+    if (countBadge) countBadge.innerText = `${list.length}/20`;
+    if (btnAdd) btnAdd.disabled = list.length >= 20;
+
+    if (list.length === 0) {
+        container.innerHTML = `<div class="info-box text-center text-muted grid-span-full">Belum ada pesan running text bawah.</div>`;
+        return;
+    }
+
+    let html = '';
+    list.forEach((slot, idx) => {
+        let actionBadge = `<span class="status-badge status-anon">INFO</span>`;
+        let targetDetail = 'Membuka Katalog';
+
+        if (slot.type === 'promo' || slot.promoCode) {
+            actionBadge = `<span class="status-badge status-vip">PROMO: ${window.escapeHtml(slot.promoCode || '-')}</span>`;
+            targetDetail = `Kode <b>${window.escapeHtml(slot.promoCode)}</b> &bull; Produk: <b>${window.escapeHtml(slot.targetBrand || 'Semua')}</b>`;
+        } else if (slot.type === 'product' && slot.targetBrand) {
+            actionBadge = `<span class="status-badge status-success">PRODUK: ${window.escapeHtml(slot.targetBrand)}</span>`;
+            targetDetail = `Membuka produk <b>${window.escapeHtml(slot.targetBrand)}</b>`;
+        } else if (slot.type === 'news') {
+            actionBadge = `<span class="status-badge status-pending">BERITA #${(slot.newsIndex >= 0 ? slot.newsIndex + 1 : 1)}</span>`;
+            targetDetail = `Membaca Berita #${(slot.newsIndex >= 0 ? slot.newsIndex + 1 : 1)}`;
+        }
+
+        html += `
+        <div class="marquee-slot-card">
+            <div>
+                <div class="marquee-slot-head mb-2">
+                    <span class="marquee-slot-num">TEKS BAWAH #${idx + 1}</span>
+                    ${actionBadge}
+                </div>
+                <div class="fw-bold text-dark text-sm mb-1">"${window.escapeHtml(slot.text)}"</div>
+                <div class="text-xs text-muted">${targetDetail}</div>
+            </div>
+            <div class="flex-gap mt-2">
+                <button type="button" class="btn btn-outline btn-sm flex-1" onclick="window.openFooterMarqueeSlotForm(${idx})">
+                    <i class="fa-solid fa-pen"></i> Edit
+                </button>
+                <button type="button" class="btn btn-danger btn-sm" onclick="window.deleteFooterMarqueeSlotItem(${idx})">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
+            </div>
+        </div>`;
+    });
+    container.innerHTML = html;
+};
+
+// ==========================================
 // PENGATURAN TOKO & JAM OPERASIONAL (#18 & #20)
 // ==========================================
 window.populateSettingsForm = function() {
@@ -4775,6 +5277,10 @@ window.populateSettingsForm = function() {
     document.getElementById('set-logo-text').value = siteSettings.logoText || 'VIPER';
     document.getElementById('set-logo-accent').value = siteSettings.logoAccent || 'CELL';
     document.getElementById('set-marquee').value = siteSettings.marquee || '';
+    const footerMarqueeEl = document.getElementById('set-footer-marquee');
+    if (footerMarqueeEl) {
+        footerMarqueeEl.value = siteSettings.footerMarquee || 'TERIMA KASIH TELAH BERBELANJA DI VIPERCELL — LAYANAN APLIKASI PREMIUM, TOP UP GAME & PRODUK DIGITAL || TRANSAKSI OTOMATIS & BERGARANSI — HUBUNGI CS BANTUAN JIKA BUTUH PANDUAN';
+    }
     document.getElementById('set-wa').value = siteSettings.adminWa || '';
     document.getElementById('set-wa-channel').value = siteSettings.waChannelLink || '';
     document.getElementById('set-ig').value = siteSettings.igLink || '';
@@ -4815,6 +5321,7 @@ window.populateSettingsForm = function() {
     }
 
     window.renderMarqueeStudioSlots();
+    window.renderFooterMarqueeStudioSlots();
     window.renderAdminBanners();
 };
 
@@ -5005,6 +5512,10 @@ window.saveSiteSettings = async function() {
         logoAccent: document.getElementById('set-logo-accent').value.trim() || 'CELL',
         marquee: combinedMarqueeText,
         marqueeList: marqueeListClean,
+        footerMarquee: ensureFooterMarqueeListInitialized().length > 0
+            ? ensureFooterMarqueeListInitialized().map(i => i.text).join(' || ')
+            : ((document.getElementById('set-footer-marquee')?.value || '').trim() || 'TERIMA KASIH TELAH BERBELANJA DI VIPERCELL — LAYANAN APLIKASI PREMIUM, TOP UP GAME & PRODUK DIGITAL'),
+        footerMarqueeList: ensureFooterMarqueeListInitialized().slice(0, 20),
         adminWa: document.getElementById('set-wa').value.trim(),
         waChannelLink: document.getElementById('set-wa-channel').value.trim(),
         igLink: document.getElementById('set-ig').value.trim(),
