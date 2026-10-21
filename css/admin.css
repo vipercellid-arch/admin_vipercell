@@ -2139,3 +2139,23 @@ input:checked + .slider:before {
     content-visibility: auto;
     contain-intrinsic-size: 160px;
 }
+
+/* ============================================================================
+ * PEMBARUAN v27.5 — POLISH UI NEO-BRUTALISM ADMIN PANEL LEBIH MATANG & SMOOTH
+ * ============================================================================ */
+.stat-card,
+.dashboard-panel,
+.catalog-card,
+.member-card,
+.suggestion-admin-card,
+.marquee-slot-card {
+    transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.16s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.16s ease;
+}
+
+.stat-card:hover,
+.catalog-card:hover,
+.member-card:hover,
+.suggestion-admin-card:hover {
+    transform: translate(-2px, -2px);
+}
+

@@ -401,10 +401,10 @@ window.updateOpHoursAdminPreview = function() {
     const isRestrictedNow = checkIsCurrentlyRestrictedByOpHours(opEnabled, openTime, closeTime);
     if (isRestrictedNow) {
         badgeEl.className = 'status-badge status-pending';
-        badgeEl.innerHTML = `<i class="fa-regular fa-clock"></i> Di Luar Jam Operasional (Hanya Stok Lokal)`;
+        badgeEl.innerHTML = `<i class="fa-regular fa-clock"></i> Di Luar Jam Layanan (Katalog Buka, Pembelian Dikunci)`;
     } else if (opEnabled) {
         badgeEl.className = 'status-badge status-success';
-        badgeEl.innerHTML = `<i class="fa-regular fa-clock"></i> Jam Operasional Aktif (${openTime} - ${closeTime})`;
+        badgeEl.innerHTML = `<i class="fa-regular fa-clock"></i> Jam Layanan Aktif (${openTime} - ${closeTime})`;
     } else {
         badgeEl.className = 'status-badge status-success';
         badgeEl.innerHTML = 'Semua Produk Dilayani';
@@ -668,7 +668,7 @@ async function initAdminApp() {
                 startAdminListeners();
                 startLiveSubscriptionTicker();
                 startAnonSixHourAutoCleanScheduler();
-                startAdminGasWebhookPolling();
+                // Validasi pembayaran langsung dari Apps Script ke Firebase (tanpa polling web)
                 updateAdminPreloaderStage(100, 'Siap', '');
                 clearTimeout(safetyTimeout);
                 setTimeout(unlockAdminAppUI, 60);
@@ -676,7 +676,7 @@ async function initAdminApp() {
                 startAdminListeners();
                 startLiveSubscriptionTicker();
                 startAnonSixHourAutoCleanScheduler();
-                startAdminGasWebhookPolling();
+                // Validasi pembayaran langsung dari Apps Script ke Firebase (tanpa polling web)
             }
         } else {
             currentAdminUser = null;
