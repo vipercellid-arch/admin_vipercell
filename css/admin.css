@@ -2122,3 +2122,20 @@ input:checked + .slider:before {
         max-width: 280px;
     }
 }
+
+
+/* ==========================================================================
+   PEMBARUAN v27.3 — GUDANG STOK DROPDOWN MURNI (TANPA KOTAK PRODUK) &
+   OPTIMASI PERFORMA LIGHTHOUSE 90+
+   ========================================================================== */
+#stock-brand-cards-grid,
+#stock-check-variants-panel {
+    display: none !important;
+}
+
+.catalog-card,
+.member-card,
+.suggestion-admin-card {
+    content-visibility: auto;
+    contain-intrinsic-size: 160px;
+}

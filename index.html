@@ -25,7 +25,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Space+Grotesk:wght@700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Space+Grotesk:wght@700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Space+Grotesk:wght@700;800&display=swap" rel="stylesheet"></noscript>
     
     <!-- FontAwesome 6 -->
     <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
@@ -671,19 +672,12 @@
                             </div>
                         </div>
 
-                        <!-- Daftar Cepat Produk (Minimalist Pills) -->
-                        <div id="stock-brand-cards-grid" class="stock-hierarchy-grid"></div>
-
-                        <!-- Daftar Varian Produk Terpilih (Muncul setelah pilih Produk) -->
-                        <div id="stock-check-variants-panel" class="stock-variants-box" style="display: none;">
-                            <div class="flex-between align-center flex-wrap-gap mb-2">
-                                <div class="flex-gap align-center">
-                                    <span class="stock-step-badge">2</span>
-                                    <h4 id="stock-selected-brand-title" class="m-0 text-primary" style="font-size:1rem;">-</h4>
-                                </div>
-                                <span id="stock-selected-brand-summary" class="status-badge status-pending">0 Varian</span>
-                            </div>
-                            <div id="stock-variant-cards-grid" class="stock-variant-pills-grid"></div>
+                        <!-- Kotak-kotak produk & varian dihilangkan sesuai permintaan v27.3 (#6): murni menggunakan Opsi Pilih (Select Dropdown) di atas -->
+                        <div id="stock-brand-cards-grid" style="display:none !important;" aria-hidden="true"></div>
+                        <div id="stock-check-variants-panel" style="display:none !important;" aria-hidden="true">
+                            <span id="stock-selected-brand-title"></span>
+                            <span id="stock-selected-brand-summary"></span>
+                            <div id="stock-variant-cards-grid"></div>
                         </div>
 
                         <!-- Daftar Stok pada Varian Terpilih (Muncul setelah pilih Varian) -->
@@ -1011,9 +1005,20 @@
 
                             <div id="marquee-slots-container" class="marquee-studio-grid"></div>
 
-                            <div class="form-group mt-3 mb-0">
-                                <label for="set-marquee">Teks Cadangan</label>
+                            <div class="form-group mt-3">
+                                <label for="set-marquee">Teks Berjalan Atas (Cadangan / Gabungan)</label>
                                 <input type="text" id="set-marquee" class="form-control" placeholder="Selamat datang di Vipercell.">
+                            </div>
+
+                            <div class="info-box mt-3 mb-0" style="background: #060911; color: #ffffff; border: 2.5px solid #0f172a;">
+                                <div class="flex-between align-center flex-wrap-gap mb-2">
+                                    <strong style="color: #facc15; font-size: 0.88rem;"><i class="fa-solid fa-sparkles"></i> Teks Running Bawah (Pemisah Isi &amp; Footer di Semua Tab)</strong>
+                                    <span class="status-badge status-success" style="font-size: 0.62rem;">HITAM • PUTIH GLOW • MANIK-MANIK</span>
+                                </div>
+                                <p style="font-size: 0.76rem; color: #cbd5e1; margin-bottom: 8px;">
+                                    Tampil dari ujung ke ujung tanpa kotak penghalang di bagian bawah seluruh tab. Pisahkan beberapa kalimat dengan tanda <code>||</code>.
+                                </p>
+                                <textarea id="set-footer-marquee" class="form-control code-mono" rows="2" style="background:#0f172a; color:#ffffff; border-color:#334155;" placeholder="TERIMA KASIH TELAH BERBELANJA DI VIPERCELL — LAYANAN APLIKASI PREMIUM, TOP UP GAME & PRODUK DIGITAL || TRANSAKSI OTOMATIS & BERGARANSI"></textarea>
                             </div>
                         </div>
 
@@ -1198,21 +1203,22 @@
                 <textarea id="proc-admin-reply" class="form-control code-mono" rows="5" placeholder="Masukkan detail akun atau catatan pengiriman untuk pembeli..."></textarea>
             </div>
 
-            <div class="info-box bg-primary-light border-primary mb-3">
+            <div id="proc-email-delivery-box" class="info-box bg-primary-light border-primary mb-3">
                 <div class="flex-between align-center mb-2 flex-wrap-gap">
-                    <span class="text-xs fw-bold text-primary"><i class="fa-solid fa-paper-plane"></i> Pengiriman Email ke Pembeli:</span>
+                    <span class="text-xs fw-bold text-primary"><i class="fa-solid fa-paper-plane"></i> Pengiriman Struk Email (Khusus Produk Berstok Gudang):</span>
                     <span id="proc-email-sent-badge" class="status-badge status-unpaid">BELUM TERKIRIM</span>
                 </div>
+                <div id="proc-email-eligibility-note" class="text-xs text-muted mb-2" style="display:none;"></div>
                 <div class="flex-gap flex-wrap-gap">
                     <button type="button" id="btn-send-order-email" class="btn btn-primary btn-sm w-full" onclick="window.sendOrderDeliveryViaEmail()">
-                        <i class="fa-solid fa-envelope-circle-check"></i> Kirim Rincian ke Email Pembeli
+                        <i class="fa-solid fa-envelope-circle-check"></i> Kirim ke Email
                     </button>
                 </div>
             </div>
             
             <div class="flex-col-gap">
                 <button id="btn-mark-order-success" class="btn btn-success w-full" onclick="window.markOrderComplete('SUCCESS')">
-                    <i class="fa-solid fa-circle-check"></i> <span>Kirim &amp; Selesaikan Pesanan (SUCCESS)</span>
+                    <i class="fa-solid fa-check"></i> <span>Selesaikan</span>
                 </button>
                 <div class="flex-gap">
                     <button class="btn btn-warning flex-1" onclick="window.markOrderComplete('PENDING')">
