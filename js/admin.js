@@ -1460,16 +1460,33 @@ function startAdminListeners() {
             if (change.type === 'added' || change.type === 'modified') {
                 const mut = change.doc.data();
                 const docId = change.doc.id;
+                const cands = extractAdminCandidateAmountsFromMutation(mut);
+                const primaryAmt = cands[0] || 0;
+                const cleanFullText = getAdminCombinedMutationText(mut);
+
+                // Jika dokumen baru ditembak langsung oleh MacroDroid ke Firebase (belum ada receivedAt),
+                // otomatis catat waktu terima & nominal yang terdeteksi ke dokumen tersebut
+                if (docId && !mut.receivedAt) {
+                    const nowStamp = Date.now();
+                    mut.receivedAt = nowStamp;
+                    updateDoc(doc(db, pathMutations, docId), {
+                        receivedAt: nowStamp,
+                        receivedAtIso: new Date(nowStamp).toISOString(),
+                        amount: primaryAmt,
+                        candidateAmounts: cands,
+                        cleanText: cleanFullText,
+                        status: mut.status || 'UNMATCHED'
+                    }).catch(() => {});
+                }
+
                 if (processedAdminMutationIds.has(docId)) return;
                 const mutStatus = String(mut.status || '').toUpperCase();
                 if (mutStatus === 'MATCHED' && mut.matchedOrderId) return;
 
-                const mutTime = getAdminMutationTimestampMs(mut, change.type === 'added');
+                const mutTime = getAdminMutationTimestampMs(mut, true);
                 if (mutTime > 0 && Math.abs(Date.now() - mutTime) < 1200000) {
-                    const cands = extractAdminCandidateAmountsFromMutation(mut);
-                    const combinedRaw = [mut.rawText, mut.text, mut.title, mut.big_text].filter(Boolean).join(' | ');
                     cands.forEach(amt => {
-                        autoMatchIncomingPaymentAmount(Number(amt), combinedRaw, docId);
+                        autoMatchIncomingPaymentAmount(Number(amt), cleanFullText, docId);
                     });
                 }
             }
@@ -1658,6 +1675,36 @@ function startAdminListeners() {
     });
 }
 
+function stripAdminMacroDroidPlaceholders(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/\[notification\]/gi, ' ')
+        .replace(/\{notification\}/gi, ' ')
+        .replace(/\[not_[a-z0-9_]+\]/gi, ' ')
+        .replace(/\{not_[a-z0-9_]+\}/gi, ' ')
+        .replace(/\[(?:hour|minute|second|system_time|dayofmonth|month_digit|year)\]/gi, ' ')
+        .replace(/\{(?:hour|minute|second|system_time|dayofmonth|month_digit|year)\}/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function getAdminCombinedMutationText(mut) {
+    if (!mut) return '';
+    const parts = [
+        mut.title, mut.not_title,
+        mut.text, mut.notification, mut.not_text,
+        mut.bigText, mut.big_text, mut.not_big_text,
+        mut.subText, mut.not_sub_text,
+        mut.rawText, mut.cleanText, mut.message, mut.body, mut.isi
+    ].map(stripAdminMacroDroidPlaceholders).filter(Boolean);
+
+    const unique = [];
+    parts.forEach(p => {
+        if (p && !unique.includes(p)) unique.push(p);
+    });
+    return unique.join(' — ');
+}
+
 function cleanAdminCurrencyNumber(str) {
     if (str === null || str === undefined) return 0;
     let s = String(str).trim();
@@ -1670,38 +1717,38 @@ function cleanAdminCurrencyNumber(str) {
 
 function extractAdminSmartCurrencyAmounts(rawText, directAmount) {
     const results = [];
-    const addCand = (val) => {
+    const addCand = (val, minAllowed = 1) => {
         const num = parseInt(val, 10);
-        if (!isNaN(num) && num >= 100 && num <= 50000000 && !results.includes(num)) {
+        if (!isNaN(num) && num >= minAllowed && num <= 50000000 && !results.includes(num)) {
             results.push(num);
         }
     };
     if (directAmount !== undefined && directAmount !== null && String(directAmount).trim() !== '') {
         const c = cleanAdminCurrencyNumber(directAmount);
-        if (c > 0) addCand(c);
+        if (c > 0) addCand(c, 1);
     }
     if (!rawText) return results;
 
-    let text = String(rawText)
-        .replace(/\{not_[a-z0-9_]+\}/gi, ' ')
-        .replace(/\[not_[a-z0-9_]+\]/gi, ' ')
+    let text = stripAdminMacroDroidPlaceholders(rawText)
         .replace(/\b\d{1,4}[\/\-]\d{1,2}[\/\-]\d{1,4}\b/g, ' ')
         .replace(/\b\d{1,2}:\d{2}(:\d{2})?\b/g, ' ')
         .replace(/\b\d{1,2}\.\d{2}\s*(WIB|WITA|WIT|AM|PM)\b/gi, ' ');
 
-    const rpRegex = /(?:Rp\.?|IDR|sebesar|senilai|masuk|diterima|pembayaran|qris|total|nominal|\+)\s*[:\.]?\s*([0-9]{1,3}(?:[.,][0-9]{3})+(?:[.,][0-9]{1,2})?|[0-9]{3,8}(?:[.,][0-9]{1,2})?)/gi;
+    // Prioritas 1: Angka dengan Rp / IDR / qris / diterima (mendukung Rp 1 s/d Rp 50.000.000 termasuk Rp 345)
+    const rpRegex = /(?:Rp\.?|IDR|sebesar|senilai|masuk|diterima|pembayaran|qris|total|nominal|\+)\s*[:\.]?\s*([0-9]{1,3}(?:[.,][0-9]{3})+(?:[.,][0-9]{1,2})?|[0-9]{1,8}(?:[.,][0-9]{1,2})?)/gi;
     let m;
     while ((m = rpRegex.exec(text)) !== null) {
         const parsed = cleanAdminCurrencyNumber(m[1]);
-        if (parsed > 0) addCand(parsed);
+        if (parsed > 0) addCand(parsed, 1);
     }
 
+    // Prioritas 2: Angka ribuan atau 3-8 digit
     const genRegex = /\b([0-9]{1,3}(?:[.,][0-9]{3})+(?:[.,][0-9]{1,2})?|[0-9]{3,8})\b/g;
     while ((m = genRegex.exec(text)) !== null) {
         const token = m[1];
         const parsed = cleanAdminCurrencyNumber(token);
         if (parsed > 0 && (parsed < 2020 || parsed > 2035 || token.includes('.') || token.includes(','))) {
-            addCand(parsed);
+            addCand(parsed, 50);
         }
     }
     return results;
@@ -1712,11 +1759,12 @@ function extractAdminCandidateAmountsFromMutation(mut) {
     const list = [];
     const add = (n) => {
         const v = Math.round(Number(n) || 0);
-        if (v >= 100 && !list.includes(v)) list.push(v);
+        if (v >= 1 && !list.includes(v)) list.push(v);
     };
     if (Array.isArray(mut.candidateAmounts)) mut.candidateAmounts.forEach(add);
     if (mut.amount !== undefined && mut.amount !== null) add(cleanAdminCurrencyNumber(mut.amount));
-    const combined = [mut.rawText, mut.text, mut.title, mut.big_text, mut.message, mut.body].filter(Boolean).join(' | ');
+    if (mut.detectedAmount !== undefined && mut.detectedAmount !== null) add(cleanAdminCurrencyNumber(mut.detectedAmount));
+    const combined = getAdminCombinedMutationText(mut);
     if (combined) {
         extractAdminSmartCurrencyAmounts(combined, mut.amount).forEach(add);
     }
@@ -1742,7 +1790,8 @@ async function autoMatchIncomingPaymentAmount(detectedAmount, rawNotifText = '',
         if (o.status !== 'UNPAID' && o.status !== 'PENDING_PAYMENT') return false;
         const fTotal = Math.round(Number(o.finalTotal) || 0);
         const uTotal = Math.round(Number(o.uniqueTotal) || 0);
-        if (numAmt > 0 && (fTotal === numAmt || uTotal === numAmt)) return true;
+        const bTotal = Math.round(Number(o.baseTotal) || 0);
+        if (numAmt > 0 && (fTotal === numAmt || uTotal === numAmt || (bTotal > 0 && bTotal === numAmt))) return true;
         if (rawNotifText && fTotal > 0) {
             const dotStr = fTotal.toLocaleString('id-ID');
             const commaStr = dotStr.replace(/\./g, ',');
@@ -1758,7 +1807,8 @@ async function autoMatchIncomingPaymentAmount(detectedAmount, rawNotifText = '',
                 processedAdminMutationIds.add(sourceMutationDocId);
                 updateDoc(doc(db, pathMutations, sourceMutationDocId), {
                     status: 'MATCHED',
-                    matchedOrderId: unpaidMatch.id
+                    matchedOrderId: unpaidMatch.id,
+                    amount: numAmt
                 }).catch(() => {});
             }
             playNotificationSound('order');
@@ -1776,53 +1826,8 @@ async function autoMatchIncomingPaymentAmount(detectedAmount, rawNotifText = '',
     return false;
 }
 
-async function pollGasWebhookInAdmin() {
-    if (isPollingAdminGas) return;
-    const gasUrl = (siteSettings.emailWebhookUrl || '').trim();
-    if (!gasUrl || !gasUrl.startsWith('https://script.google.com/')) return;
-
-    const now = Date.now();
-    const activeUnpaidOrders = orders.filter(o =>
-        (o.status === 'UNPAID' || o.status === 'PENDING_PAYMENT') &&
-        (o.paymentMethod || 'qris') === 'qris' &&
-        (now - new Date(o.date).getTime() < 900000)
-    );
-    if (activeUnpaidOrders.length === 0) return;
-
-    isPollingAdminGas = true;
-    try {
-        const sep = gasUrl.includes('?') ? '&' : '?';
-        const resp = await fetch(`${gasUrl}${sep}action=GET_RECENT_MUTATIONS&t=${now}`, {
-            method: 'GET',
-            redirect: 'follow',
-            cache: 'no-store'
-        });
-        const raw = await resp.text();
-        let data = null;
-        try { data = JSON.parse(raw); } catch (e) {}
-
-        if (data && data.ok && Array.isArray(data.recentMutations)) {
-            for (const mut of data.recentMutations) {
-                if (!mut) continue;
-                const cands = Array.isArray(mut.candidateAmounts) ? mut.candidateAmounts : [mut.amount];
-                for (const cAmt of cands) {
-                    await autoMatchIncomingPaymentAmount(Number(cAmt), mut.rawText || '');
-                }
-            }
-        }
-    } catch (e) {
-    } finally {
-        isPollingAdminGas = false;
-    }
-}
-
 function startAdminGasWebhookPolling() {
-    if (adminGasPollInterval) clearInterval(adminGasPollInterval);
-    adminGasPollInterval = setInterval(() => {
-        if (!document.hidden) {
-            pollGasWebhookInAdmin();
-        }
-    }, 3500);
+    // 100% Direct Firebase via onSnapshot(collection(db, pathMutations)) - tidak perlu lagi polling ke Google Apps Script
 }
 
 // ==========================================
@@ -5171,17 +5176,22 @@ window.updateFooterMarqueeControlPreview = function() {
 
 window.renderAdminQrisControlMonitor = function() {
     const unpaidContainer = document.getElementById('admin-unpaid-qris-control-list');
+    const unpaidBadge = document.getElementById('admin-unpaid-qris-count-badge');
     const mutContainer = document.getElementById('admin-recent-mutations-log');
+    const mutTotalBadge = document.getElementById('admin-mutations-total-badge');
+    const searchVal = (document.getElementById('admin-search-mutation-log')?.value || '').trim().toLowerCase();
 
     if (unpaidContainer) {
         const unpaidQris = orders.filter(o =>
             (o.status === 'UNPAID' || o.status === 'PENDING_PAYMENT') &&
             (o.paymentMethod || 'qris') === 'qris'
         );
+        if (unpaidBadge) unpaidBadge.innerText = `${unpaidQris.length} Tagihan Aktif`;
+
         if (unpaidQris.length === 0) {
-            unpaidContainer.innerHTML = `<div class="text-xs text-muted p-2">Tidak ada tagihan QRIS yang sedang menunggu pembayaran.</div>`;
+            unpaidContainer.innerHTML = `<div class="text-xs text-muted p-2">Tidak ada tagihan QRIS yang sedang menunggu pembayaran saat ini.</div>`;
         } else {
-            unpaidContainer.innerHTML = unpaidQris.slice(0, 12).map(o => {
+            unpaidContainer.innerHTML = unpaidQris.slice(0, 15).map(o => {
                 const itemTitle = (o.items && o.items[0]) ? o.items[0].name : (o.productName || 'Pesanan');
                 const amt = Number(o.finalTotal || o.uniqueTotal || 0);
                 return `
@@ -5202,29 +5212,89 @@ window.renderAdminQrisControlMonitor = function() {
     }
 
     if (mutContainer) {
-        if (!Array.isArray(recentMutationsList) || recentMutationsList.length === 0) {
-            mutContainer.innerHTML = `<div class="text-xs text-muted p-2">Belum ada sinyal mutasi masuk.</div>`;
+        const allMuts = Array.isArray(recentMutationsList) ? recentMutationsList : [];
+        if (mutTotalBadge) mutTotalBadge.innerText = `${allMuts.length} Pesan Masuk`;
+
+        let filteredMuts = allMuts;
+        if (searchVal) {
+            filteredMuts = allMuts.filter(m => {
+                const fullTxt = getAdminCombinedMutationText(m).toLowerCase();
+                const cands = extractAdminCandidateAmountsFromMutation(m).join(' ');
+                const app = String(m.appName || m.source || '').toLowerCase();
+                const ordId = String(m.matchedOrderId || '').toLowerCase();
+                return fullTxt.includes(searchVal) || cands.includes(searchVal) || app.includes(searchVal) || ordId.includes(searchVal);
+            });
+        }
+
+        if (filteredMuts.length === 0) {
+            mutContainer.innerHTML = `<div class="text-xs text-muted p-3 text-center">Belum ada log pesan notifikasi yang cocok di Firebase.</div>`;
         } else {
-            mutContainer.innerHTML = recentMutationsList.slice(0, 10).map(m => {
+            mutContainer.innerHTML = filteredMuts.slice(0, 40).map((m, idx) => {
                 const cands = extractAdminCandidateAmountsFromMutation(m);
                 const primaryAmt = cands[0] || Number(m.amount || 0);
                 const isMatched = String(m.status || '').toUpperCase() === 'MATCHED';
-                const badge = isMatched
-                    ? `<span class="status-badge status-success" style="font-size:0.55rem;">COCOK (${window.escapeHtml(m.matchedOrderId || 'OK')})</span>`
-                    : `<span class="status-badge status-pending" style="font-size:0.55rem;">TERCATAT</span>`;
+                const statusBadge = isMatched
+                    ? `<span class="status-badge status-success"><i class="fa-solid fa-circle-check"></i> COCOK (${window.escapeHtml(m.matchedOrderId || 'LUNAS')})</span>`
+                    : `<span class="status-badge status-pending"><i class="fa-solid fa-inbox"></i> TERCATAT DI FIREBASE</span>`;
+
                 const ts = getAdminMutationTimestampMs(m, false);
-                const timeStr = ts > 0 ? new Date(ts).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '-';
-                const rawPreview = String(m.rawText || m.text || m.title || '').substring(0, 75);
+                const timeStr = ts > 0
+                    ? new Date(ts).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                    : (m.timeSent ? `Jam ${window.escapeHtml(m.timeSent)}` : 'Baru saja');
+
+                const cleanTitle = stripAdminMacroDroidPlaceholders(m.title || m.not_title || '');
+                const cleanBody = stripAdminMacroDroidPlaceholders(m.text || m.notification || m.not_text || m.bigText || m.big_text || '');
+                const cleanCombined = getAdminCombinedMutationText(m);
+                const appLabel = stripAdminMacroDroidPlaceholders(m.appName || '') || (m.source || 'MacroDroid Direct Firebase');
+
+                // Cek apakah masih ada placeholder MacroDroid yang belum terganti karena salah ketik variabel
+                const rawOriginal = [m.title, m.text, m.rawText].filter(Boolean).join(' ');
+                const hasUnexpandedNotText = /\[not_text\]|\{not_text\}/i.test(rawOriginal) && !cleanBody;
+
+                const allCandPills = cands.length > 0
+                    ? cands.map(c => `<span class="v279-amount-pill">Rp${Number(c).toLocaleString('id-ID')}</span>`).join(' ')
+                    : `<span class="status-badge status-failed" style="font-size:0.62rem;">Nominal Belum Terbaca</span>`;
+
+                const safeCopyText = escapeJsStr(cleanCombined || rawOriginal || '');
+                const safeDocId = escapeJsStr(m.dbId || '');
 
                 return `
-                <div class="v278-monitor-item">
-                    <div style="min-width:0; flex:1;">
-                        <div class="flex-between align-center">
-                            <strong class="text-dark text-xs">${primaryAmt > 0 ? 'Rp' + primaryAmt.toLocaleString('id-ID') : 'Notifikasi'}</strong>
-                            ${badge}
+                <div class="v279-firebase-log-card ${isMatched ? 'log-matched' : ''}">
+                    <div class="v279-log-head">
+                        <div class="flex-gap align-center flex-wrap-gap">
+                            <span class="v279-log-index">#${idx + 1}</span>
+                            <strong class="v279-log-amount">${primaryAmt > 0 ? 'Rp' + primaryAmt.toLocaleString('id-ID') : 'Tanpa Nominal'}</strong>
+                            ${statusBadge}
+                            <span class="v279-log-app-tag"><i class="fa-solid fa-mobile-screen"></i> ${window.escapeHtml(appLabel)}</span>
                         </div>
-                        <div class="text-xs text-muted" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${window.escapeHtml(rawPreview)}">${window.escapeHtml(rawPreview || m.appName || '-')}</div>
-                        <span class="text-xs text-muted" style="font-size:0.62rem;">${timeStr} &bull; ${window.escapeHtml(m.source || m.appName || 'Webhook')}</span>
+                        <div class="flex-gap align-center">
+                            <span class="text-xs text-muted fw-bold"><i class="fa-regular fa-clock"></i> ${timeStr}</span>
+                            <button type="button" class="btn-icon-only" style="width:28px; height:28px; font-size:0.72rem;" title="Salin Isi Pesan" onclick="window.copyTextToClipboard('${safeCopyText}', 'Isi Notifikasi')">
+                                <i class="fa-regular fa-copy"></i>
+                            </button>
+                            ${m.dbId ? `<button type="button" class="btn-icon-only text-danger" style="width:28px; height:28px; font-size:0.72rem;" title="Hapus Log Ini" onclick="window.deleteSinglePaymentMutation('${safeDocId}')"><i class="fa-solid fa-trash"></i></button>` : ''}
+                        </div>
+                    </div>
+
+                    <div class="v279-log-body">
+                        ${cleanTitle ? `<div class="v279-log-field"><span>JUDUL NOTIFIKASI:</span> <strong>${window.escapeHtml(cleanTitle)}</strong></div>` : ''}
+                        ${cleanBody ? `<div class="v279-log-field"><span>ISI RINCIAN UANG:</span> <strong class="text-primary">${window.escapeHtml(cleanBody)}</strong></div>` : ''}
+                        <div class="v279-log-raw-box">
+                            <span class="text-xs fw-bold text-muted d-block mb-1">ISI PESAN LENGKAP DI FIREBASE:</span>
+                            <div class="code-mono text-xs" style="word-break:break-word; white-space:pre-wrap;">${window.escapeHtml(cleanCombined || rawOriginal || '(Pesan Kosong)')}</div>
+                        </div>
+                        ${hasUnexpandedNotText ? `
+                        <div class="text-xs text-danger fw-bold mt-1">
+                            <i class="fa-solid fa-triangle-exclamation"></i> Terdeteksi tag <code>[not_text]</code> yang tidak dikenali MacroDroid. Gunakan <code>[notification]</code> pada JSON MacroDroid agar isi rincian uang tertarik!
+                        </div>` : ''}
+                    </div>
+
+                    <div class="v279-log-footer">
+                        <div class="flex-gap align-center flex-wrap-gap">
+                            <span class="text-xs text-muted fw-bold">Kandidat Angka Terbaca:</span>
+                            ${allCandPills}
+                        </div>
+                        <span class="code-mono text-xs text-muted">ID Dokumen: ${window.escapeHtml(m.dbId || '-')}</span>
                     </div>
                 </div>`;
             }).join('');
@@ -5236,7 +5306,32 @@ window.refreshAdminControlCenterUI = function(showToastMsg = false) {
     window.updateFooterMarqueeControlPreview();
     window.renderAdminQrisControlMonitor();
     if (showToastMsg) {
-        window.showToast('Disegarkan', 'Panel Kontrol Running Text & Monitor QRIS diperbarui.', 'info');
+        window.showToast('Disegarkan', 'Panel Kontrol Running Text & Log Firebase diperbarui.', 'info');
+    }
+};
+
+window.refreshFirebaseMutationsLogNow = async function() {
+    try {
+        const snap = await getDocs(collection(db, pathMutations));
+        recentMutationsList = [];
+        snap.forEach(d => recentMutationsList.push({ dbId: d.id, ...d.data() }));
+        recentMutationsList.sort((a, b) => getAdminMutationTimestampMs(b, false) - getAdminMutationTimestampMs(a, false));
+        window.renderAdminQrisControlMonitor();
+        window.showToast('Log Disegarkan', `Memuat ${recentMutationsList.length} pesan notifikasi dari Firebase.`, 'success');
+    } catch (e) {
+        window.showToast('Gagal', 'Tidak dapat memuat ulang log dari Firebase.', 'error');
+    }
+};
+
+window.deleteSinglePaymentMutation = async function(docId) {
+    if (!docId) return;
+    try {
+        await deleteDoc(doc(db, pathMutations, docId));
+        recentMutationsList = recentMutationsList.filter(m => m.dbId !== docId);
+        window.renderAdminQrisControlMonitor();
+        window.showToast('Dihapus', '1 item log notifikasi dihapus dari Firebase.', 'info');
+    } catch (e) {
+        window.customAlert('Gagal', 'Tidak dapat menghapus item log.', 'error');
     }
 };
 
@@ -5245,36 +5340,39 @@ window.copyMacroDroidDirectFirebaseUrl = function() {
     window.copyTextToClipboard(directUrl, 'URL Direct Firebase MacroDroid');
 };
 
-window.copyMacroDroidDirectFirebaseJson = function() {
-    const jsonBody = JSON.stringify({
-        fields: {
-            rawText: { stringValue: "{not_title} [not_title] | {not_text} [not_text] | {not_big_text} [not_big_text]" },
-            appName: { stringValue: "{not_app_name} [not_app_name]" },
-            source: { stringValue: "MACRODROID_DIRECT_FIREBASE" }
-        }
-    }, null, 2);
-    window.copyTextToClipboard(jsonBody, 'Body JSON Direct Firebase');
-};
+window.copyMacroDroidDirectFirebaseJson = function(bracketStyle = 'square') {
+    const isCurly = bracketStyle === 'curly';
+    const jsonBody = isCurly
+        ? JSON.stringify({
+            fields: {
+                appName: { stringValue: "{not_app_name}" },
+                title: { stringValue: "{not_title}" },
+                text: { stringValue: "{notification}" },
+                bigText: { stringValue: "{not_big_text}" },
+                rawText: { stringValue: "{not_title} | {notification} | {not_big_text} | {not_sub_text} | {not_ticker}" },
+                timeSent: { stringValue: "{hour}:{minute}:{second}" },
+                source: { stringValue: "MACRODROID_DIRECT_FIREBASE" }
+            }
+        }, null, 2)
+        : JSON.stringify({
+            fields: {
+                appName: { stringValue: "[not_app_name]" },
+                title: { stringValue: "[not_title]" },
+                text: { stringValue: "[notification]" },
+                bigText: { stringValue: "[not_big_text]" },
+                rawText: { stringValue: "[not_title] | [notification] | [not_big_text] | [not_sub_text] | [not_ticker]" },
+                timeSent: { stringValue: "[hour]:[minute]:[second]" },
+                source: { stringValue: "MACRODROID_DIRECT_FIREBASE" }
+            }
+        }, null, 2);
 
-window.copyMacroDroidGasUrl = function() {
-    const url = (document.getElementById('set-email-webhook')?.value || siteSettings.emailWebhookUrl || '').trim();
-    if (!url) {
-        window.customAlert('URL Belum Diisi', 'Masukkan URL Google Apps Script terlebih dahulu pada kolom URL di atas.', 'warning');
-        return;
-    }
-    window.copyTextToClipboard(url, 'URL Google Apps Script');
-};
+    const previewEl = document.getElementById('macrodroid-json-code-preview');
+    if (previewEl) previewEl.textContent = jsonBody;
 
-window.copyMacroDroidGasJson = function() {
-    const secret = (document.getElementById('set-webhook-secret')?.value || siteSettings.webhookSecret || 'VIPERCELL_SECRET_2026').trim();
-    const jsonBody = JSON.stringify({
-        secret: secret,
-        app: "{not_app_name} [not_app_name]",
-        title: "{not_title} [not_title]",
-        text: "{not_text} [not_text]",
-        big_text: "{not_big_text} [not_big_text]"
-    }, null, 2);
-    window.copyTextToClipboard(jsonBody, 'Body JSON Apps Script');
+    window.copyTextToClipboard(
+        jsonBody,
+        isCurly ? 'JSON MacroDroid {notification}' : 'JSON MacroDroid [notification]'
+    );
 };
 
 window.simulateOrVerifyOrderPaymentNow = async function(orderDbId) {
@@ -5283,22 +5381,22 @@ window.simulateOrVerifyOrderPaymentNow = async function(orderDbId) {
 
     const amt = Math.round(Number(ord.finalTotal || ord.uniqueTotal || 0));
     const nowMs = Date.now();
-    const mutId = `SIM-${nowMs}-${Math.floor(100 + Math.random() * 899)}`;
+    const mutId = `VERIFY-${nowMs}-${Math.floor(100 + Math.random() * 899)}`;
 
     try {
         await setDoc(doc(db, pathMutations, mutId), {
             mutationId: mutId,
             amount: amt,
             candidateAmounts: [amt],
-            appName: 'Admin-Instant-Verify',
-            title: 'Verifikasi Pembayaran QRIS',
-            text: `Pembayaran QRIS Rp ${amt.toLocaleString('id-ID')} untuk #${ord.id}`,
-            rawText: `Pembayaran QRIS Rp ${amt.toLocaleString('id-ID')} (#${ord.id})`,
+            appName: 'Admin-Manual-Verify',
+            title: 'Verifikasi Pembayaran QRIS oleh Admin',
+            text: `Rp ${amt.toLocaleString('id-ID')} di ViperCell (#${ord.id})`,
+            rawText: `Verifikasi Pembayaran QRIS | Rp ${amt.toLocaleString('id-ID')} di ViperCell (#${ord.id})`,
             receivedAt: nowMs,
             receivedAtIso: new Date(nowMs).toISOString(),
             matchedOrderId: ord.id,
             status: 'MATCHED',
-            source: 'ADMIN_CONTROL_PANEL'
+            source: 'ADMIN_DIRECT_FIREBASE'
         }).catch(() => {});
 
         await setDoc(doc(db, pathSettings, 'mainConfig'), {
@@ -5308,7 +5406,7 @@ window.simulateOrVerifyOrderPaymentNow = async function(orderDbId) {
                 mutationId: mutId,
                 amount: amt,
                 candidateAmounts: [amt],
-                appName: 'Admin-Instant-Verify',
+                appName: 'Admin-Manual-Verify',
                 timestamp: nowMs,
                 matchedOrderIds: [ord.id]
             }
@@ -5331,34 +5429,38 @@ window.simulateIncomingQrisWebhookFromAdmin = async function() {
     const inp = document.getElementById('sim-qris-notif-input');
     const rawStr = inp ? inp.value.trim() : '';
     if (!rawStr) {
-        window.customAlert('Teks Kosong', 'Masukkan contoh teks notifikasi atau angka nominal (misal: Pembayaran QRIS Rp 15.123 diterima).', 'warning');
+        window.customAlert('Teks Kosong', 'Masukkan contoh teks notifikasi (misal: Pembayaran QRIS statis diterima | Rp 345 di ViperCell.).', 'warning');
         return;
     }
 
     const cands = extractAdminSmartCurrencyAmounts(rawStr, '');
     if (cands.length === 0) {
-        window.customAlert('Nominal Tidak Ditemukan', 'Tidak ditemukan angka nominal Rupiah yang valid (minimal Rp100) pada teks tersebut.', 'warning');
+        window.customAlert('Nominal Tidak Ditemukan', 'Tidak ditemukan angka nominal Rupiah pada teks tersebut.', 'warning');
         return;
     }
 
     const primaryAmt = cands[0];
     const nowMs = Date.now();
-    const mutId = `TEST-${nowMs}-${Math.floor(100 + Math.random() * 899)}`;
+    const mutId = `SIM-${nowMs}-${Math.floor(100 + Math.random() * 899)}`;
+    const parts = rawStr.split('|').map(s => s.trim()).filter(Boolean);
+    const simTitle = parts.length > 1 ? parts[0] : 'Pembayaran QRIS statis diterima';
+    const simBody = parts.length > 1 ? parts.slice(1).join(' | ') : rawStr;
 
     try {
         await setDoc(doc(db, pathMutations, mutId), {
             mutationId: mutId,
             amount: primaryAmt,
             candidateAmounts: cands,
-            appName: 'Simulator-Panel-Admin',
-            title: 'Simulasi QRIS Masuk',
-            text: rawStr,
+            appName: 'GoPay Merchant (Simulasi)',
+            title: simTitle,
+            text: simBody,
             rawText: rawStr,
+            cleanText: `${simTitle} — ${simBody}`,
             receivedAt: nowMs,
             receivedAtIso: new Date(nowMs).toISOString(),
             matchedOrderId: '',
             status: 'UNMATCHED',
-            source: 'ADMIN_SIMULATOR'
+            source: 'SIMULATOR_DIRECT_FIREBASE'
         });
 
         await setDoc(doc(db, pathSettings, 'mainConfig'), {
@@ -5368,7 +5470,7 @@ window.simulateIncomingQrisWebhookFromAdmin = async function() {
                 mutationId: mutId,
                 amount: primaryAmt,
                 candidateAmounts: cands,
-                appName: 'Simulator-Panel-Admin',
+                appName: 'GoPay Merchant (Simulasi)',
                 timestamp: nowMs
             }
         }, { merge: true });
@@ -5379,27 +5481,26 @@ window.simulateIncomingQrisWebhookFromAdmin = async function() {
             if (ok) matchedAny = true;
         }
 
-        if (inp) inp.value = '';
         if (!matchedAny) {
             window.showToast(
-                'Sinyal Mutasi Dikirim',
-                `Nominal Rp${primaryAmt.toLocaleString('id-ID')} berhasil dicatat di Firebase (tidak ada order UNPAID dengan nominal tersebut saat ini).`,
-                'info'
+                'Tercatat di Log Firebase!',
+                `Pesan "${simBody}" (Nominal Rp${primaryAmt.toLocaleString('id-ID')}) berhasil masuk ke Firebase.`,
+                'success'
             );
         }
     } catch (e) {
-        window.customAlert('Error', 'Gagal mengirim sinyal simulasi ke Firebase.', 'error');
+        window.customAlert('Error', 'Gagal mengirim simulasi ke Firebase.', 'error');
     }
 };
 
 window.cleanOldPaymentMutations = function() {
     if (recentMutationsList.length === 0) {
-        window.showToast('Bersih', 'Log sinyal mutasi sudah kosong.', 'info');
+        window.showToast('Bersih', 'Log notifikasi Firebase sudah kosong.', 'info');
         return;
     }
     window.openConfirm(
-        'Bersihkan Log Mutasi QRIS',
-        `Hapus <b>${recentMutationsList.length} riwayat sinyal mutasi</b> dari koleksi payment_mutations?`,
+        'Bersihkan Log Notifikasi Firebase',
+        `Hapus seluruh <b>${recentMutationsList.length} riwayat pesan notifikasi</b> dari koleksi <code>payment_mutations</code> di Firebase?`,
         async (confirmed) => {
             if (!confirmed) return;
             for (const m of recentMutationsList) {
@@ -5407,7 +5508,7 @@ window.cleanOldPaymentMutations = function() {
                     await deleteDoc(doc(db, pathMutations, m.dbId)).catch(() => {});
                 }
             }
-            window.showToast('Dibersihkan', 'Log mutasi pembayaran berhasil dibersihkan.', 'success');
+            window.showToast('Dibersihkan', 'Seluruh log notifikasi di Firebase berhasil dihapus.', 'success');
         },
         'delete'
     );

@@ -1107,15 +1107,19 @@
                             </div>
                         </div>
 
-                        <!-- 5. PANEL KONTROL & PUSAT VALIDASI PEMBAYARAN QRIS OTOMATIS v27.8 -->
+                        <!-- 5. PUSAT VALIDASI QRIS LANGSUNG KE FIREBASE (TANPA APPS SCRIPT) & MONITOR LOG REALTIME v27.9 -->
                         <div class="dashboard-panel mt-3 mb-3 v278-qris-control-center" style="background: var(--surface-elevated); border-color: var(--primary);">
                             <div class="panel-header" style="margin-bottom: 0.9rem;">
                                 <div>
-                                    <h3><i class="fa-solid fa-bolt text-warning"></i> Panel Kontrol &amp; Pusat Validasi Pembayaran QRIS Otomatis (Multi-Jalur v27.8)</h3>
-                                    <small class="text-muted">Mendukung Jalur Direct Firebase REST (0.1 detik tanpa Apps Script), Jalur Google Apps Script Webhook, serta Simulator &amp; Verifikasi Instan 1-Klik.</small>
+                                    <h3><i class="fa-solid fa-fire text-warning"></i> Pusat Validasi QRIS Direct Firebase &amp; Monitor Log Pesan Masuk (Tanpa Apps Script)</h3>
+                                    <small class="text-muted">MacroDroid kini menembak langsung ke Database Firebase (koleksi <code>payment_mutations</code>) dalam 0.1 detik tanpa perantara Google Apps Script. Seluruh rincian uang &amp; isi pesan notifikasi yang masuk tampil secara utuh di bawah ini.</small>
                                 </div>
-                                <span class="status-badge status-success"><i class="fa-solid fa-shield-check"></i> TRIPLE-ENGINE AKTIF</span>
+                                <span class="status-badge status-success"><i class="fa-solid fa-bolt"></i> DIRECT FIREBASE AKTIF</span>
                             </div>
+
+                            <!-- Input tersembunyi untuk kompatibilitas mundur -->
+                            <input type="hidden" id="set-email-webhook" value="">
+                            <input type="hidden" id="set-webhook-secret" value="VIPERCELL_SECRET_2026">
 
                             <div class="form-group">
                                 <label>String Data QRIS Statis Toko</label>
@@ -1129,88 +1133,104 @@
                                 <textarea id="set-qris-data" class="form-control code-mono" rows="2" placeholder="00020101021126..."></textarea>
                             </div>
 
-                            <div class="grid-2col mb-3">
-                                <div class="form-group mb-0">
-                                    <label>URL Google Apps Script (Jalur Server Webhook)</label>
-                                    <input type="text" id="set-email-webhook" class="form-control" placeholder="https://script.google.com/macros/s/.../exec">
+                            <!-- Panduan & Salin 1-Klik URL + JSON Matang MacroDroid Direct Firebase -->
+                            <div class="info-box mb-3" style="background: var(--surface); border-color: var(--primary);">
+                                <div class="flex-between align-center flex-wrap-gap mb-2">
+                                    <div>
+                                        <strong class="text-primary text-sm"><i class="fa-solid fa-mobile-screen-button"></i> Konfigurasi HTTP Request MacroDroid &rarr; Direct Firebase (0.1 Detik)</strong>
+                                        <span class="text-xs text-muted d-block">Gunakan variabel resmi <code>[not_title]</code> (Judul) dan <code>[notification]</code> (Isi Rincian Uang seperti <i>"Rp 345 di ViperCell."</i>) agar nominal selalu tertarik 100% akurat.</span>
+                                    </div>
+                                    <span class="status-badge status-success">POST &bull; application/json</span>
                                 </div>
-                                <div class="form-group mb-0">
-                                    <label>Webhook Secret Key</label>
-                                    <div class="flex-gap">
-                                        <input type="text" id="set-webhook-secret" class="form-control code-mono" placeholder="VIPERCELL_SECRET_2026">
-                                        <button type="button" class="btn btn-warning btn-sm" onclick="window.testEmailWebhookConnection()" title="Tes Koneksi Server Validasi">
-                                            <i class="fa-solid fa-vial"></i> Tes Server
-                                        </button>
+
+                                <div class="grid-2col mb-2">
+                                    <div class="form-group mb-0">
+                                        <label class="text-xs">1. URL Tujuan (HTTP POST ke Firebase Firestore)</label>
+                                        <div class="flex-gap">
+                                            <input type="text" id="macrodroid-direct-fb-url-display" class="form-control code-mono text-xs" readonly value="https://firestore.googleapis.com/v1/projects/vipercell-fc50e/databases/(default)/documents/payment_mutations?key=AIzaSyBQGZjl7uj5CRiLWCvPQKjiK4HvIYnXSJg">
+                                            <button type="button" class="btn btn-primary btn-sm" onclick="window.copyMacroDroidDirectFirebaseUrl()" style="white-space:nowrap;">
+                                                <i class="fa-regular fa-copy"></i> Salin URL
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group mb-0">
+                                        <label class="text-xs">2. Salin Format Body JSON MacroDroid (Pilih Kurung Siku atau Kurawal)</label>
+                                        <div class="flex-gap flex-wrap-gap">
+                                            <button type="button" class="btn btn-success btn-sm flex-1" onclick="window.copyMacroDroidDirectFirebaseJson('square')">
+                                                <i class="fa-solid fa-code"></i> Salin JSON [notification] (Standar)
+                                            </button>
+                                            <button type="button" class="btn btn-outline btn-sm flex-1" onclick="window.copyMacroDroidDirectFirebaseJson('curly')">
+                                                <i class="fa-solid fa-code"></i> Salin JSON {notification} (Alternatif)
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
+
+                                <details class="v279-json-preview-details">
+                                    <summary class="text-xs fw-bold text-primary pointer"><i class="fa-solid fa-eye"></i> Lihat Kode JSON Lengkap untuk Ditaruh di MacroDroid (Content Body)</summary>
+                                    <pre id="macrodroid-json-code-preview" class="code-mono v279-json-pre">{
+  "fields": {
+    "appName": { "stringValue": "[not_app_name]" },
+    "title": { "stringValue": "[not_title]" },
+    "text": { "stringValue": "[notification]" },
+    "bigText": { "stringValue": "[not_big_text]" },
+    "rawText": { "stringValue": "[not_title] | [notification] | [not_big_text] | [not_sub_text] | [not_ticker]" },
+    "timeSent": { "stringValue": "[hour]:[minute]:[second]" },
+    "source": { "stringValue": "MACRODROID_DIRECT_FIREBASE" }
+  }
+}</pre>
+                                </details>
                             </div>
 
-                            <!-- 2 Opsi Konfigurasi MacroDroid Siap Salin 1-Klik -->
-                            <div class="grid-2col mb-3">
-                                <div class="info-box mb-0" style="background: var(--surface); border-color: var(--success);">
-                                    <div class="flex-between align-center mb-1">
-                                        <strong class="text-success text-xs"><i class="fa-solid fa-fire"></i> JALUR 1: DIRECT FIREBASE (TANPA APPS SCRIPT)</strong>
-                                        <span class="status-badge status-success" style="font-size:0.58rem;">TERCEPAT 0.1 DETIK</span>
-                                    </div>
-                                    <p class="text-xs text-muted mb-2">MacroDroid mengirim notifikasi langsung ke Database Firebase tanpa perantara Apps Script (bebas masalah redirect/izin).</p>
-                                    <div class="flex-gap flex-wrap-gap">
-                                        <button type="button" class="btn btn-success btn-sm flex-1" onclick="window.copyMacroDroidDirectFirebaseUrl()">
-                                            <i class="fa-regular fa-copy"></i> Salin URL Firebase
-                                        </button>
-                                        <button type="button" class="btn btn-outline btn-sm flex-1" onclick="window.copyMacroDroidDirectFirebaseJson()">
-                                            <i class="fa-solid fa-code"></i> Salin Body JSON
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div class="info-box mb-0" style="background: var(--surface); border-color: var(--primary);">
-                                    <div class="flex-between align-center mb-1">
-                                        <strong class="text-primary text-xs"><i class="fa-solid fa-server"></i> JALUR 2: APPS SCRIPT WEBHOOK v27.8</strong>
-                                        <span class="status-badge status-pending" style="font-size:0.58rem;">DUAL SYNTAX {} &amp; []</span>
-                                    </div>
-                                    <p class="text-xs text-muted mb-2">Format JSON sudah mendukung variabel MacroDroid kurung kurawal <code>{not_text}</code> maupun siku <code>[not_text]</code> sekaligus.</p>
-                                    <div class="flex-gap flex-wrap-gap">
-                                        <button type="button" class="btn btn-primary btn-sm flex-1" onclick="window.copyMacroDroidGasUrl()">
-                                            <i class="fa-regular fa-copy"></i> Salin URL Script
-                                        </button>
-                                        <button type="button" class="btn btn-outline btn-sm flex-1" onclick="window.copyMacroDroidGasJson()">
-                                            <i class="fa-solid fa-code"></i> Salin Body JSON
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Simulator & Verifikasi Instan Pesanan UNPAID -->
+                            <!-- Simulator & Monitor Tagihan UNPAID + Log Pesan Masuk Firebase Lengkap -->
                             <div class="info-box mb-0" style="background: var(--surface);">
                                 <div class="flex-between align-center flex-wrap-gap mb-2">
                                     <div>
-                                        <strong class="text-dark text-sm"><i class="fa-solid fa-bolt-lightning text-warning"></i> Simulator &amp; Monitor Verifikasi Pembayaran Realtime</strong>
-                                        <span class="text-xs text-muted d-block">Uji coba verifikasi nominal otomatis atau lunasi tagihan QRIS yang sedang menunggu pembayaran dalam 1 klik.</span>
+                                        <strong class="text-dark text-sm"><i class="fa-solid fa-satellite-dish text-success"></i> Simulator &amp; Monitor Log Pesan Notifikasi Masuk di Firebase (Realtime)</strong>
+                                        <span class="text-xs text-muted d-block">Pantau seluruh pesan notifikasi yang ditembak MacroDroid ke Firebase beserta rincian uang yang terdeteksi secara langsung.</span>
                                     </div>
-                                    <button type="button" class="btn btn-outline btn-sm" onclick="window.cleanOldPaymentMutations()">
-                                        <i class="fa-solid fa-broom text-danger"></i> Bersihkan Log Mutasi
-                                    </button>
+                                    <div class="flex-gap flex-wrap-gap">
+                                        <button type="button" class="btn btn-outline btn-sm" onclick="window.refreshFirebaseMutationsLogNow()">
+                                            <i class="fa-solid fa-rotate text-primary"></i> Segarkan Log
+                                        </button>
+                                        <button type="button" class="btn btn-outline btn-sm" onclick="window.cleanOldPaymentMutations()">
+                                            <i class="fa-solid fa-broom text-danger"></i> Hapus Semua Log
+                                        </button>
+                                    </div>
                                 </div>
 
+                                <!-- Baris Simulator Tembak Langsung ke Firebase -->
                                 <div class="flex-gap mb-3 flex-wrap-gap">
-                                    <input type="text" id="sim-qris-notif-input" class="form-control" style="flex:2; min-width:220px;" placeholder="Contoh: Pembayaran QRIS Rp 15.123 berhasil diterima (GoPay Merchant)">
+                                    <input type="text" id="sim-qris-notif-input" class="form-control" style="flex:2; min-width:240px;" value="Pembayaran QRIS statis diterima | Rp 345 di ViperCell." placeholder="Contoh: Pembayaran QRIS statis diterima | Rp 345 di ViperCell.">
                                     <button type="button" class="btn btn-warning btn-sm" onclick="window.simulateIncomingQrisWebhookFromAdmin()">
-                                        <i class="fa-solid fa-paper-plane"></i> Simulasikan Notifikasi Masuk
+                                        <i class="fa-solid fa-paper-plane"></i> Tes Tembak ke Firebase Sekarang
                                     </button>
                                 </div>
 
-                                <div class="grid-2col">
-                                    <div>
-                                        <span class="text-xs fw-bold text-muted d-block mb-1">TAGIHAN QRIS MENUNGGU BAYAR (KLIK UNTUK VERIFIKASI):</span>
-                                        <div id="admin-unpaid-qris-control-list" class="v278-monitor-list">
-                                            <div class="text-xs text-muted p-2">Tidak ada tagihan QRIS yang sedang menunggu pembayaran.</div>
-                                        </div>
+                                <!-- Tagihan QRIS yang Sedang Menunggu Pembayaran -->
+                                <div class="mb-3">
+                                    <div class="flex-between align-center mb-1">
+                                        <span class="text-xs fw-bold text-muted"><i class="fa-regular fa-clock text-primary"></i> TAGIHAN QRIS MENUNGGU PEMBAYARAN (KLIK UNTUK VERIFIKASI LUNAS):</span>
+                                        <span id="admin-unpaid-qris-count-badge" class="status-badge status-unpaid" style="font-size:0.6rem;">0 Tagihan Aktif</span>
                                     </div>
-                                    <div>
-                                        <span class="text-xs fw-bold text-muted d-block mb-1">LOG SINYAL MUTASI QRIS TERBARU:</span>
-                                        <div id="admin-recent-mutations-log" class="v278-monitor-list">
-                                            <div class="text-xs text-muted p-2">Belum ada sinyal mutasi pembayaran.</div>
+                                    <div id="admin-unpaid-qris-control-list" class="v278-monitor-list" style="max-height: 190px;">
+                                        <div class="text-xs text-muted p-2">Tidak ada tagihan QRIS yang sedang menunggu pembayaran.</div>
+                                    </div>
+                                </div>
+
+                                <!-- Tabel & Kartu Lengkap Log Pesan Masuk di Firebase (payment_mutations) -->
+                                <div>
+                                    <div class="flex-between align-center flex-wrap-gap mb-2">
+                                        <div class="flex-gap align-center flex-wrap-gap">
+                                            <span class="text-xs fw-bold text-dark"><i class="fa-solid fa-database text-success"></i> LOG &amp; ISI PESAN NOTIFIKASI MASUK DI FIREBASE (<code>payment_mutations</code>):</span>
+                                            <span id="admin-mutations-total-badge" class="status-badge status-success" style="font-size:0.62rem;">0 Pesan Masuk</span>
                                         </div>
+                                        <input type="text" id="admin-search-mutation-log" class="form-control" style="max-width: 260px; padding: 5px 10px; font-size: 0.76rem;" placeholder="Cari nominal atau isi pesan..." oninput="window.renderAdminQrisControlMonitor()">
+                                    </div>
+
+                                    <div id="admin-recent-mutations-log" class="v279-firebase-log-container">
+                                        <div class="text-xs text-muted p-3 text-center">Belum ada pesan notifikasi yang masuk di Firebase.</div>
                                     </div>
                                 </div>
                             </div>

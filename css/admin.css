@@ -2254,3 +2254,142 @@ input:checked + .slider:before {
     flex-wrap: wrap;
 }
 
+
+
+/* ==========================================================================
+   V27.9 DIRECT FIREBASE NOTIFICATION LOG VIEWER & JSON PREVIEW
+   ========================================================================== */
+.v279-json-preview-details {
+    margin-top: 8px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: var(--surface-elevated);
+    border: 1.5px dashed var(--border);
+}
+
+.v279-json-pre {
+    margin: 8px 0 0;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: #090d16;
+    color: #f8fafc;
+    font-size: 0.74rem;
+    line-height: 1.45;
+    overflow-x: auto;
+    border: 1.5px solid var(--border);
+}
+
+.v279-firebase-log-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 460px;
+    overflow-y: auto;
+    padding: 6px;
+    border-radius: 12px;
+    background: var(--surface-elevated);
+    border: var(--brutal-border-thin);
+}
+
+.v279-firebase-log-card {
+    background: var(--surface);
+    border: var(--brutal-border-thin);
+    border-radius: 10px;
+    padding: 10px 12px;
+    box-shadow: var(--brutal-shadow-sm);
+    transition: transform 0.12s ease;
+}
+
+.v279-firebase-log-card.log-matched {
+    border-color: var(--success);
+}
+
+.v279-log-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-bottom: 8px;
+    margin-bottom: 8px;
+    border-bottom: 1.5px dashed var(--border-subtle);
+}
+
+.v279-log-index {
+    font-family: var(--font-heading);
+    font-size: 0.7rem;
+    font-weight: 800;
+    padding: 2px 7px;
+    border-radius: 6px;
+    background: var(--primary);
+    color: #ffffff;
+}
+
+.v279-log-amount {
+    font-family: var(--font-heading);
+    font-size: 1rem;
+    font-weight: 900;
+    color: var(--success);
+}
+
+.v279-log-app-tag {
+    font-size: 0.68rem;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--surface-elevated);
+    color: var(--text-muted);
+    border: 1px solid var(--border-subtle);
+}
+
+.v279-log-body {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.v279-log-field {
+    font-size: 0.78rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: baseline;
+}
+
+.v279-log-field span {
+    font-size: 0.66rem;
+    font-weight: 900;
+    color: var(--text-muted);
+    letter-spacing: 0.03em;
+}
+
+.v279-log-raw-box {
+    margin-top: 4px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: var(--surface-elevated);
+    border: 1.5px solid var(--border-subtle);
+}
+
+.v279-log-footer {
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px dashed var(--border-subtle);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.v279-amount-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: 800;
+    background: rgba(16, 185, 129, 0.14);
+    color: var(--success);
+    border: 1px solid var(--success);
+}
