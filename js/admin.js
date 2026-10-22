@@ -32,6 +32,8 @@ const fallbackSettingsPath = isWorkspace ? 'settings' : `artifacts/${appId}/publ
 
 // Durasi pembersihan otomatis akun tamu 6 jam
 const ANON_AUTO_DELETE_TTL_MS = 6 * 60 * 60 * 1000;
+// Durasi pembersihan otomatis log mutasi Firebase setiap 1 jam (v27.9)
+const MUTATION_AUTO_CLEAN_1H_MS = 60 * 60 * 1000;
 
 // SVG Default Favicon Vipercell
 const DEFAULT_VIPERCELL_SVG_ICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='116' fill='%232563eb' stroke='%230f172a' stroke-width='28'/%3E%3Cpath d='M298 88L136 288h116l-44 136 168-200H260l38-136z' fill='%23facc15' stroke='%230f172a' stroke-width='18' stroke-linejoin='round'/%3E%3C/svg%3E";
@@ -118,6 +120,9 @@ const inFlightEmailOrderIds = new Set();
 let html5BarcodeScanner = null;
 let liveSubCountdownInterval = null;
 let anonSixHourAutoCleanInterval = null;
+let mutationOneHourAutoCleanInterval = null;
+let adminWelcomeClockInterval = null;
+let lastAdminTopMarqueeSig = '';
 
 // Temp Buffers untuk Modal Produk, Gambar & Berita
 let tempLogoBase64 = '';
@@ -662,6 +667,7 @@ async function initAdminApp() {
 
             const emailLbl = document.getElementById('admin-email-label');
             if (emailLbl) emailLbl.innerText = user.email;
+            if (typeof window.updateAdminWelcomeHeroUI === 'function') window.updateAdminWelcomeHeroUI(user);
             const loginScr = document.getElementById('admin-login-screen');
             if (loginScr) loginScr.style.display = 'none';
             const dashView = document.getElementById('admin-dashboard-view');
@@ -1450,9 +1456,18 @@ function startAdminListeners() {
     });
 
     onSnapshot(collection(db, pathMutations), (snapshot) => {
+        const nowMs = Date.now();
         recentMutationsList = [];
+
         snapshot.forEach((docSnap) => {
-            recentMutationsList.push({ dbId: docSnap.id, ...docSnap.data() });
+            const mData = { dbId: docSnap.id, ...docSnap.data() };
+            const ts = getAdminMutationTimestampMs(mData, false);
+            // Bersihkan otomatis log yang sudah melewati 1 jam (3.600.000 ms) langsung dari Firebase
+            if (ts > 0 && (nowMs - ts >= MUTATION_AUTO_CLEAN_1H_MS)) {
+                deleteDoc(doc(db, pathMutations, docSnap.id)).catch(() => {});
+                return;
+            }
+            recentMutationsList.push(mData);
         });
         recentMutationsList.sort((a, b) => getAdminMutationTimestampMs(b, false) - getAdminMutationTimestampMs(a, false));
 
@@ -1464,8 +1479,6 @@ function startAdminListeners() {
                 const primaryAmt = cands[0] || 0;
                 const cleanFullText = getAdminCombinedMutationText(mut);
 
-                // Jika dokumen baru ditembak langsung oleh MacroDroid ke Firebase (belum ada receivedAt),
-                // otomatis catat waktu terima & nominal yang terdeteksi ke dokumen tersebut
                 if (docId && !mut.receivedAt) {
                     const nowStamp = Date.now();
                     mut.receivedAt = nowStamp;
@@ -1479,20 +1492,25 @@ function startAdminListeners() {
                     }).catch(() => {});
                 }
 
-                if (processedAdminMutationIds.has(docId)) return;
-                const mutStatus = String(mut.status || '').toUpperCase();
-                if (mutStatus === 'MATCHED' && mut.matchedOrderId) return;
-
-                const mutTime = getAdminMutationTimestampMs(mut, true);
-                if (mutTime > 0 && Math.abs(Date.now() - mutTime) < 1200000) {
-                    cands.forEach(amt => {
-                        autoMatchIncomingPaymentAmount(Number(amt), cleanFullText, docId);
-                    });
+                if (!processedAdminMutationIds.has(docId)) {
+                    const mutStatus = String(mut.status || '').toUpperCase();
+                    if (mutStatus !== 'MATCHED' || !mut.matchedOrderId) {
+                        const mutTime = getAdminMutationTimestampMs(mut, true);
+                        if (mutTime > 0 && Math.abs(Date.now() - mutTime) < 1200000) {
+                            cands.forEach(amt => {
+                                autoMatchIncomingPaymentAmount(Number(amt), cleanFullText, docId);
+                            });
+                        }
+                    }
                 }
             }
         });
 
+        // Jalankan pencocokan dua arah otomatis tanpa perlu Admin menekan tombol segarkan
+        crossCheckAllUnpaidOrdersAgainstMutations();
         window.renderAdminQrisControlMonitor();
+        window.generateAdminReports();
+        window.renderAdminTopMultiMarquee();
     }, () => {});
 
     onSnapshot(collection(db, pathProducts), (snapshot) => {
@@ -1556,10 +1574,12 @@ function startAdminListeners() {
         initialOrdersLoaded = true;
         orders.sort((a, b) => new Date(b.date) - new Date(a.date));
         
+        crossCheckAllUnpaidOrdersAgainstMutations();
         window.generateAdminReports();
         window.renderAdminOrders();
         window.renderAdminMembers();
         if (typeof window.renderAdminQrisControlMonitor === 'function') window.renderAdminQrisControlMonitor();
+        if (typeof window.renderAdminTopMultiMarquee === 'function') window.renderAdminTopMultiMarquee();
     });
 
     onSnapshot(collection(db, pathPromos), (snapshot) => {
@@ -1826,8 +1846,80 @@ async function autoMatchIncomingPaymentAmount(detectedAmount, rawNotifText = '',
     return false;
 }
 
+function crossCheckAllUnpaidOrdersAgainstMutations() {
+    if (!Array.isArray(orders) || !Array.isArray(recentMutationsList)) return;
+    if (orders.length === 0 || recentMutationsList.length === 0) return;
+
+    const nowMs = Date.now();
+    const unpaidList = orders.filter(o => o.status === 'UNPAID' || o.status === 'PENDING_PAYMENT');
+    if (unpaidList.length === 0) return;
+
+    for (const mut of recentMutationsList) {
+        if (!mut || !mut.dbId) continue;
+        if (processedAdminMutationIds.has(mut.dbId)) continue;
+        if (String(mut.status || '').toUpperCase() === 'MATCHED' && mut.matchedOrderId) continue;
+
+        const mutTs = getAdminMutationTimestampMs(mut, true);
+        if (mutTs > 0 && Math.abs(nowMs - mutTs) > 1200000) continue;
+
+        const cands = extractAdminCandidateAmountsFromMutation(mut);
+        const cleanFullText = getAdminCombinedMutationText(mut);
+        for (const amt of cands) {
+            autoMatchIncomingPaymentAmount(Number(amt), cleanFullText, mut.dbId);
+        }
+    }
+}
+
+async function autoCleanExpiredMutations1Hour(showToastIfCleaned = false) {
+    const nowMs = Date.now();
+    const expiredMuts = (recentMutationsList || []).filter(m => {
+        if (!m || !m.dbId) return false;
+        const ts = getAdminMutationTimestampMs(m, false);
+        return ts > 0 && (nowMs - ts >= MUTATION_AUTO_CLEAN_1H_MS);
+    });
+
+    if (expiredMuts.length === 0) return 0;
+
+    let deletedCount = 0;
+    for (const exp of expiredMuts) {
+        try {
+            await deleteDoc(doc(db, pathMutations, exp.dbId));
+            deletedCount++;
+        } catch (e) {}
+    }
+
+    if (deletedCount > 0) {
+        const expIds = new Set(expiredMuts.map(x => x.dbId));
+        recentMutationsList = recentMutationsList.filter(m => !expIds.has(m.dbId));
+        window.renderAdminQrisControlMonitor();
+        window.generateAdminReports();
+        window.renderAdminTopMultiMarquee();
+        if (showToastIfCleaned) {
+            window.showToast('Auto-Clean 1 Jam', `${deletedCount} log mutasi (> 1 jam) otomatis dibersihkan.`, 'info');
+        }
+    }
+    return deletedCount;
+}
+
 function startAdminGasWebhookPolling() {
-    // 100% Direct Firebase via onSnapshot(collection(db, pathMutations)) - tidak perlu lagi polling ke Google Apps Script
+    // 1. Jalankan pembersihan otomatis log mutasi > 1 jam setiap 60 detik & pencocokan otomatis
+    if (mutationOneHourAutoCleanInterval) clearInterval(mutationOneHourAutoCleanInterval);
+    setTimeout(() => {
+        autoCleanExpiredMutations1Hour(false);
+        crossCheckAllUnpaidOrdersAgainstMutations();
+    }, 3500);
+
+    mutationOneHourAutoCleanInterval = setInterval(() => {
+        autoCleanExpiredMutations1Hour(false);
+        crossCheckAllUnpaidOrdersAgainstMutations();
+    }, 60000);
+
+    // 2. Jalankan jam digital & sapaan dinamis pada Hero Selamat Datang Admin
+    if (adminWelcomeClockInterval) clearInterval(adminWelcomeClockInterval);
+    window.updateAdminWelcomeHeroUI(currentAdminUser);
+    adminWelcomeClockInterval = setInterval(() => {
+        window.updateAdminWelcomeClockTick();
+    }, 1000);
 }
 
 // ==========================================
@@ -2340,9 +2432,228 @@ window.bulkDeleteInactiveGuests = function() {
 // ==========================================
 // RINGKASAN DASHBOARD
 // ==========================================
+window.updateAdminWelcomeClockTick = function() {
+    const now = new Date();
+    const h = now.getHours();
+    let greet = 'Selamat Malam';
+    if (h >= 4 && h < 11) greet = 'Selamat Pagi';
+    else if (h >= 11 && h < 15) greet = 'Selamat Siang';
+    else if (h >= 15 && h < 18) greet = 'Selamat Sore';
+
+    const greetEl = document.getElementById('admin-greeting-time');
+    if (greetEl && greetEl.innerText !== greet) greetEl.innerText = greet;
+
+    const dateEl = document.getElementById('admin-live-date-label');
+    if (dateEl) {
+        dateEl.innerText = now.toLocaleDateString('id-ID', {
+            weekday: 'long', day: '2-digit', month: 'long', year: 'numeric'
+        });
+    }
+
+    const clockEl = document.getElementById('admin-live-clock-label');
+    if (clockEl) {
+        clockEl.innerText = now.toLocaleTimeString('id-ID', {
+            hour: '2-digit', minute: '2-digit', second: '2-digit'
+        }) + ' WIT/WIB';
+    }
+};
+
+window.updateAdminWelcomeHeroUI = function(userObj = currentAdminUser) {
+    window.updateAdminWelcomeClockTick();
+    const nameEl = document.getElementById('admin-welcome-name');
+    if (!nameEl) return;
+
+    let displayAdminName = 'Admin Vipercell';
+    if (userObj) {
+        if (userObj.displayName && userObj.displayName.trim()) {
+            displayAdminName = userObj.displayName.trim();
+        } else if (userObj.email) {
+            const em = userObj.email.toLowerCase();
+            if (em.startsWith('vipercell')) displayAdminName = 'Vipercell Admin';
+            else if (em.startsWith('miller')) displayAdminName = 'Miller (Admin Utama)';
+            else {
+                const rawUser = em.split('@')[0].replace(/[._0-9]+/g, ' ').trim();
+                displayAdminName = rawUser
+                    ? rawUser.replace(/\b\w/g, c => c.toUpperCase())
+                    : 'Admin Vipercell';
+            }
+        }
+    }
+    nameEl.innerText = displayAdminName;
+};
+
+window.jumpToFirebaseLogSection = function() {
+    window.switchAdminTabByName('tab-settings');
+    setTimeout(() => {
+        const sec = document.getElementById('admin-firebase-qris-log-section');
+        if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 150);
+};
+
+window.handleAdminTopMarqueeBadgeClick = function() {
+    const unreadChats = allLiveChats.filter(c => {
+        const msgs = c.messages || [];
+        return msgs.length > 0 && msgs[msgs.length - 1].sender === 'user';
+    });
+    if (unreadChats.length > 0) {
+        window.switchAdminTabByName('tab-livechat');
+        window.switchAdminCsSubTab('chat');
+        window.openAdminChatDetailDesk(unreadChats[0].id);
+        return;
+    }
+    window.switchAdminTabByName('tab-orders');
+};
+
+window.renderAdminTopMultiMarquee = function() {
+    const track = document.getElementById('admin-top-marquee-track');
+    const badgeEl = document.getElementById('admin-marquee-status-pill');
+    const badgeTxt = document.getElementById('admin-marquee-badge-text');
+    if (!track) return;
+
+    const now = Date.now();
+    const chips = [];
+    let urgentCount = 0;
+
+    // 1. Cek Pesan Chat Bantuan yang Belum Dibaca Admin
+    const unreadChats = (allLiveChats || []).filter(c => {
+        const msgs = c.messages || [];
+        return msgs.length > 0 && msgs[msgs.length - 1].sender === 'user';
+    });
+    unreadChats.slice(0, 4).forEach(c => {
+        urgentCount++;
+        const lastMsg = c.messages[c.messages.length - 1];
+        const sender = c.userInfo || `Pelanggan #${String(c.id).slice(-4)}`;
+        const snippet = String(lastMsg.text || '').slice(0, 52);
+        const safeId = escapeJsStr(c.id);
+        chips.push({
+            cls: 'chip-chat',
+            onclick: `window.switchAdminTabByName('tab-livechat'); window.switchAdminCsSubTab('chat'); window.openAdminChatDetailDesk('${safeId}')`,
+            html: `<i class="fa-solid fa-comment-dots"></i> <b>CHAT BELUM DIBACA (${window.escapeHtml(sender)}):</b> "${window.escapeHtml(snippet)}" &mdash; <u>Klik Balas</u>`
+        });
+    });
+
+    // 2. Cek Pesanan Lunas yang Perlu Diproses / Dikirim Admin
+    const pendingAdminOrders = (orders || []).filter(o =>
+        o.status === 'PENDING' || (o.status === 'SUCCESS' && !o.adminReply)
+    );
+    if (pendingAdminOrders.length > 0) {
+        urgentCount += pendingAdminOrders.length;
+        const firstOrd = pendingAdminOrders[0];
+        const safeDbId = escapeJsStr(firstOrd.dbId);
+        chips.push({
+            cls: 'chip-urgent',
+            onclick: `window.switchAdminTabByName('tab-orders'); window.promptProcessOrder('${safeDbId}')`,
+            html: `<i class="fa-solid fa-fire"></i> <b>${pendingAdminOrders.length} PESANAN PERLU DIKIRIM ADMIN:</b> Terbaru #${window.escapeHtml(firstOrd.id)} (Rp${Number(firstOrd.finalTotal || 0).toLocaleString('id-ID')}) &mdash; <u>Tinjau Sekarang</u>`
+        });
+    }
+
+    // 3. Cek Pesanan Menunggu Pembayaran (UNPAID)
+    const unpaidOrders = (orders || []).filter(o =>
+        o.status === 'UNPAID' || o.status === 'PENDING_PAYMENT'
+    );
+    if (unpaidOrders.length > 0) {
+        chips.push({
+            cls: 'chip-warn',
+            onclick: `window.switchAdminTabByName('tab-orders')`,
+            html: `<i class="fa-regular fa-clock"></i> <b>${unpaidOrders.length} TAGIHAN MENUNGGU PEMBAYARAN:</b> Dipantau otomatis oleh Direct Firebase Engine`
+        });
+    }
+
+    // 4. Cek Langganan Habis Durasi (Waktunya Kick)
+    const expiredSubOrders = (orders || []).filter(o => {
+        if (o.status !== 'SUCCESS' || o.subscriptionStatus === 'KICKED') return false;
+        const durDays = getOrderDurationDays(o);
+        const endAt = o.subscriptionEndAt || (durDays > 0 ? (new Date(o.date).getTime() + durDays * 86400000) : 0);
+        return endAt > 0 && now >= endAt;
+    });
+    if (expiredSubOrders.length > 0) {
+        urgentCount += expiredSubOrders.length;
+        chips.push({
+            cls: 'chip-urgent',
+            onclick: `window.switchAdminTabByName('tab-orders')`,
+            html: `<i class="fa-solid fa-user-slash"></i> <b>${expiredSubOrders.length} LANGGANAN HABIS DURASI:</b> Waktunya Kick Akun &mdash; <u>Klik Proses</u>`
+        });
+    }
+
+    // 5. Cek Saran Produk Baru yang Belum Dibaca
+    if (Array.isArray(allSuggestions) && allSuggestions.length > 0) {
+        urgentCount += allSuggestions.length;
+        const latestSugg = allSuggestions[0];
+        chips.push({
+            cls: 'chip-warn',
+            onclick: `window.switchAdminTabByName('tab-livechat'); window.switchAdminCsSubTab('saran')`,
+            html: `<i class="fa-solid fa-lightbulb"></i> <b>${allSuggestions.length} SARAN PRODUK BARU:</b> "${window.escapeHtml(latestSugg.productName || 'Usulan Pelanggan')}" &mdash; <u>Tinjau Saran</u>`
+        });
+    }
+
+    // 6. Cek Variasi Produk Otomatis yang Kehabisan Stok Gudang
+    const emptyAutoVariants = (products || []).filter(p => {
+        const proc = (p.processType || 'auto').toLowerCase();
+        if (proc !== 'auto') return false;
+        const slots = countReadyStockSlotsForVariant(p.brand || p.name, p.name);
+        return slots <= 0;
+    });
+    if (emptyAutoVariants.length > 0) {
+        chips.push({
+            cls: 'chip-warn',
+            onclick: `window.switchAdminTabByName('tab-stocks')`,
+            html: `<i class="fa-solid fa-box-open"></i> <b>INFO GUDANG STOK:</b> ${emptyAutoVariants.length} variasi otomatis sedang kosong &mdash; <u>Isi Stok</u>`
+        });
+    }
+
+    // 7. Cek Log Mutasi QRIS Firebase Terbaru (< 1 Jam)
+    if (Array.isArray(recentMutationsList) && recentMutationsList.length > 0) {
+        const latestMut = recentMutationsList[0];
+        const cands = extractAdminCandidateAmountsFromMutation(latestMut);
+        const amtVal = cands[0] || Number(latestMut.amount || 0);
+        const isMatched = String(latestMut.status || '').toUpperCase() === 'MATCHED';
+        chips.push({
+            cls: 'chip-ok',
+            onclick: `window.jumpToFirebaseLogSection()`,
+            html: `<i class="fa-solid fa-bolt"></i> <b>LOG FIREBASE TERBARU:</b> Rp${amtVal.toLocaleString('id-ID')} (${isMatched ? 'COCOK ' + window.escapeHtml(latestMut.matchedOrderId || '') : 'TERCATAT'}) &mdash; <u>Lihat Panel Log</u>`
+        });
+    }
+
+    // 8. Status Sistem Default
+    const storeOpenTxt = siteSettings.isStoreOpen !== false ? 'TOKO BUKA' : 'TOKO TUTUP';
+    chips.push({
+        cls: 'chip-ok',
+        onclick: `window.switchAdminTabByName('tab-overview')`,
+        html: `<i class="fa-solid fa-shield-check"></i> <b>STATUS SISTEM v27.9:</b> ${storeOpenTxt} &bull; Verifikasi QRIS Direct Firebase Otomatis &bull; Auto-Clean Log 1 Jam Aktif`
+    });
+
+    if (badgeEl && badgeTxt) {
+        if (urgentCount > 0) {
+            badgeEl.classList.add('has-urgent-alert');
+            badgeTxt.innerText = `${urgentCount} PERLU TINDAKAN`;
+        } else {
+            badgeEl.classList.remove('has-urgent-alert');
+            badgeTxt.innerText = `MONITOR LIVE`;
+        }
+    }
+
+    const sig = JSON.stringify(chips.map(c => c.html));
+    if (sig === lastAdminTopMarqueeSig && track.children.length > 1) return;
+    lastAdminTopMarqueeSig = sig;
+
+    const repeatCount = chips.length < 4 ? 3 : 2;
+    const durationSec = Math.max(32, chips.length * repeatCount * 7);
+    track.style.setProperty('--admin-marquee-duration', `${durationSec}s`);
+
+    const singlePass = chips.map(c => `
+        <span class="admin-marquee-chip ${c.cls}" onclick="${c.onclick}">
+            ${c.html}
+        </span>
+        <span class="admin-marquee-sep" aria-hidden="true">✦</span>
+    `).join('');
+
+    track.innerHTML = Array.from({ length: repeatCount }, () => singlePass).join('');
+};
+
 window.generateAdminReports = function() {
     const now = Date.now();
     const successOrders = orders.filter(o => o.status === 'SUCCESS');
+    const unpaidOrders = orders.filter(o => o.status === 'UNPAID' || o.status === 'PENDING_PAYMENT');
     const needActionOrders = orders.filter(o => {
         if (o.status === 'PENDING' || (o.status === 'SUCCESS' && !o.adminReply)) return true;
         if (o.status === 'SUCCESS' && o.subscriptionStatus !== 'KICKED') {
@@ -2356,6 +2667,7 @@ window.generateAdminReports = function() {
     const todayStr = new Date().toLocaleDateString('id-ID');
     let totalRevenue = 0;
     let todayRevenue = 0;
+    let todayCount = 0;
     let totalSales = successOrders.length;
     let productCountMap = {};
     
@@ -2364,6 +2676,7 @@ window.generateAdminReports = function() {
         totalRevenue += amount;
         if (new Date(o.date).toLocaleDateString('id-ID') === todayStr) {
             todayRevenue += amount;
+            todayCount++;
         }
         (o.items || []).forEach(item => {
             const keyName = `${item.brandName || ''} - ${item.exactItemName || item.name}`;
@@ -2376,13 +2689,95 @@ window.generateAdminReports = function() {
     
     const revEl = document.getElementById('report-revenue');
     const todayRevEl = document.getElementById('report-today-revenue');
+    const todayCntSub = document.getElementById('report-today-count-sub');
     const saleEl = document.getElementById('report-sales');
+    const unpaidSubEl = document.getElementById('report-unpaid-sub');
     const pendEl = document.getElementById('report-pending');
 
     if (revEl) revEl.innerText = `Rp${totalRevenue.toLocaleString('id-ID')}`;
     if (todayRevEl) todayRevEl.innerText = `Rp${todayRevenue.toLocaleString('id-ID')}`;
+    if (todayCntSub) todayCntSub.innerText = `${todayCount} transaksi sukses hari ini`;
     if (saleEl) saleEl.innerText = totalSales;
+    if (unpaidSubEl) unpaidSubEl.innerText = `${unpaidOrders.length} tagihan menunggu bayar`;
     if (pendEl) pendEl.innerText = needActionOrders.length;
+
+    // Update Hero Pintasan Cepat & Ringkasan 6 Kartu Ekosistem Web Vipercell v27.9
+    const unreadChatsCount = (allLiveChats || []).filter(c => {
+        const msgs = c.messages || [];
+        return msgs.length > 0 && msgs[msgs.length - 1].sender === 'user';
+    }).length;
+    const readyStocksCount = (stocksData || []).filter(s => s.status === 'Ready').length;
+    const usedStocksCount = (stocksData || []).filter(s => s.status !== 'Ready').length;
+    let sharingSlotsAvail = 0;
+    (stocksData || []).filter(s => s.status === 'Ready').forEach(s => {
+        if (s.isReusable) sharingSlotsAvail += 99;
+        else sharingSlotsAvail += Math.max(0, parseInt(s.maxQuota || 1, 10) - parseInt(s.usedQuota || 0, 10));
+    });
+
+    const hOrd = document.getElementById('hero-quick-orders-sub');
+    const hChat = document.getElementById('hero-quick-chat-sub');
+    const hStock = document.getElementById('hero-quick-stock-sub');
+    const hMut = document.getElementById('hero-quick-mut-sub');
+    if (hOrd) hOrd.innerText = `${needActionOrders.length} Perlu Diproses`;
+    if (hChat) hChat.innerText = `${unreadChatsCount} Belum Dibaca`;
+    if (hStock) hStock.innerText = `${readyStocksCount} Baris Ready`;
+    if (hMut) hMut.innerText = `${recentMutationsList.length} Log (< 1 Jam)`;
+
+    // Kartu 1: Katalog
+    const totalBrandsCount = groupedBrands.length;
+    const totalVariantsCount = products.length;
+    const soldOutVariantsCount = products.filter(p => Boolean(p.soldOut)).length;
+    const readyVariantsCount = Math.max(0, totalVariantsCount - soldOutVariantsCount);
+    const sumProdMain = document.getElementById('sum-prod-main');
+    const sumProdSub = document.getElementById('sum-prod-sub');
+    if (sumProdMain) sumProdMain.innerText = `${totalBrandsCount} Brand • ${totalVariantsCount} Variasi`;
+    if (sumProdSub) sumProdSub.innerText = `${readyVariantsCount} variasi siap jual • ${soldOutVariantsCount} habis`;
+
+    // Kartu 2: Gudang Stok
+    const sumStockMain = document.getElementById('sum-stock-main');
+    const sumStockSub = document.getElementById('sum-stock-sub');
+    if (sumStockMain) sumStockMain.innerText = `${readyStocksCount} Stok Aktif (Ready)`;
+    if (sumStockSub) sumStockSub.innerText = `${sharingSlotsAvail} slot tersedia • ${usedStocksCount} riwayat terpakai`;
+
+    // Kartu 3: CS Bantuan & Saran
+    const sumCsMain = document.getElementById('sum-cs-main');
+    const sumCsSub = document.getElementById('sum-cs-sub');
+    const sumCsBadge = document.getElementById('sum-cs-status-badge');
+    if (sumCsMain) sumCsMain.innerText = `${unreadChatsCount} Chat Belum Dibaca`;
+    if (sumCsSub) sumCsSub.innerText = `${allLiveChats.length} ruang chat • ${allSuggestions.length} saran produk`;
+    if (sumCsBadge) {
+        const totalAtt = unreadChatsCount + allSuggestions.length;
+        sumCsBadge.className = totalAtt > 0 ? 'status-badge status-failed' : 'status-badge status-success';
+        sumCsBadge.innerText = totalAtt > 0 ? `${totalAtt} PERLU RESPON` : 'TERJAWAB';
+    }
+
+    // Kartu 4: Pelanggan
+    const membersTotal = allUsersList.filter(u => !u.isAnonymous && !u.isGuest && u.role !== 'anonymous').length;
+    const guestsTotal = allUsersList.filter(u => u.isAnonymous || u.isGuest || u.role === 'anonymous').length;
+    const sumUserMain = document.getElementById('sum-user-main');
+    const sumUserSub = document.getElementById('sum-user-sub');
+    if (sumUserMain) sumUserMain.innerText = `${membersTotal} Member • ${guestsTotal} Tamu`;
+    if (sumUserSub) sumUserSub.innerText = `Pembersihan tamu > 6 jam: ${siteSettings.anonAutoDelete6h !== false ? 'Aktif' : 'Nonaktif'}`;
+
+    // Kartu 5: Mesin QRIS Firebase
+    const matchedMutsCount = recentMutationsList.filter(m => String(m.status || '').toUpperCase() === 'MATCHED').length;
+    const sumQrisMain = document.getElementById('sum-qris-main');
+    const sumQrisSub = document.getElementById('sum-qris-sub');
+    if (sumQrisMain) sumQrisMain.innerText = `${recentMutationsList.length} Log Aktif (< 1 Jam)`;
+    if (sumQrisSub) sumQrisSub.innerText = `${matchedMutsCount} cocok otomatis • Auto-clean 1 jam aktif`;
+
+    // Kartu 6: Promo, Berita & Ulasan
+    const activePromosCount = promos.filter(p => p.active !== false).length;
+    const activeNewsCount = (siteSettings.newsList || []).filter(n => !n.isHidden).length;
+    const avgRating = reviewsData.length > 0
+        ? (reviewsData.reduce((s, r) => s + Number(r.rating || 5), 0) / reviewsData.length).toFixed(1)
+        : '5.0';
+    const sumMktMain = document.getElementById('sum-marketing-main');
+    const sumMktSub = document.getElementById('sum-marketing-sub');
+    const sumRatBadge = document.getElementById('sum-rating-badge');
+    if (sumMktMain) sumMktMain.innerText = `${activePromosCount} Promo • ${activeNewsCount} Berita`;
+    if (sumMktSub) sumMktSub.innerText = `${reviewsData.length} ulasan pembeli terverifikasi`;
+    if (sumRatBadge) sumRatBadge.innerText = `⭐ ${avgRating}`;
     
     const sortedProducts = Object.entries(productCountMap).sort((a, b) => b[1].qty - a[1].qty).slice(0, 5);
     const topTbody = document.getElementById('report-top-products');
@@ -2421,6 +2816,10 @@ window.generateAdminReports = function() {
             });
             recentTbody.innerHTML = rHtml;
         }
+    }
+
+    if (typeof window.renderAdminTopMultiMarquee === 'function') {
+        window.renderAdminTopMultiMarquee();
     }
 };
 
@@ -5175,45 +5574,17 @@ window.updateFooterMarqueeControlPreview = function() {
 };
 
 window.renderAdminQrisControlMonitor = function() {
-    const unpaidContainer = document.getElementById('admin-unpaid-qris-control-list');
-    const unpaidBadge = document.getElementById('admin-unpaid-qris-count-badge');
     const mutContainer = document.getElementById('admin-recent-mutations-log');
     const mutTotalBadge = document.getElementById('admin-mutations-total-badge');
     const searchVal = (document.getElementById('admin-search-mutation-log')?.value || '').trim().toLowerCase();
 
-    if (unpaidContainer) {
-        const unpaidQris = orders.filter(o =>
-            (o.status === 'UNPAID' || o.status === 'PENDING_PAYMENT') &&
-            (o.paymentMethod || 'qris') === 'qris'
-        );
-        if (unpaidBadge) unpaidBadge.innerText = `${unpaidQris.length} Tagihan Aktif`;
-
-        if (unpaidQris.length === 0) {
-            unpaidContainer.innerHTML = `<div class="text-xs text-muted p-2">Tidak ada tagihan QRIS yang sedang menunggu pembayaran saat ini.</div>`;
-        } else {
-            unpaidContainer.innerHTML = unpaidQris.slice(0, 15).map(o => {
-                const itemTitle = (o.items && o.items[0]) ? o.items[0].name : (o.productName || 'Pesanan');
-                const amt = Number(o.finalTotal || o.uniqueTotal || 0);
-                return `
-                <div class="v278-monitor-item">
-                    <div style="min-width:0; flex:1;">
-                        <div class="flex-gap align-center">
-                            <strong class="code-mono text-primary text-xs">#${window.escapeHtml(o.id)}</strong>
-                            <strong class="text-success text-xs">Rp${amt.toLocaleString('id-ID')}</strong>
-                        </div>
-                        <div class="text-xs text-muted" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${window.escapeHtml(itemTitle)} &bull; ${window.escapeHtml(o.userEmail || '-')}</div>
-                    </div>
-                    <button type="button" class="btn btn-success btn-sm" style="padding:4px 10px; font-size:0.7rem;" onclick="window.simulateOrVerifyOrderPaymentNow('${escapeJsStr(o.dbId)}')">
-                        <i class="fa-solid fa-check-double"></i> Verifikasi Lunas
-                    </button>
-                </div>`;
-            }).join('');
-        }
-    }
-
     if (mutContainer) {
-        const allMuts = Array.isArray(recentMutationsList) ? recentMutationsList : [];
-        if (mutTotalBadge) mutTotalBadge.innerText = `${allMuts.length} Pesan Masuk`;
+        const nowMs = Date.now();
+        const allMuts = (Array.isArray(recentMutationsList) ? recentMutationsList : []).filter(m => {
+            const ts = getAdminMutationTimestampMs(m, false);
+            return ts === 0 || (nowMs - ts < MUTATION_AUTO_CLEAN_1H_MS);
+        });
+        if (mutTotalBadge) mutTotalBadge.innerText = `${allMuts.length} Log Masuk`;
 
         let filteredMuts = allMuts;
         if (searchVal) {
@@ -5227,14 +5598,14 @@ window.renderAdminQrisControlMonitor = function() {
         }
 
         if (filteredMuts.length === 0) {
-            mutContainer.innerHTML = `<div class="text-xs text-muted p-3 text-center">Belum ada log pesan notifikasi yang cocok di Firebase.</div>`;
+            mutContainer.innerHTML = `<div class="text-xs text-muted p-3 text-center">Belum ada log notifikasi yang masuk di Firebase dalam 1 jam terakhir.</div>`;
         } else {
-            mutContainer.innerHTML = filteredMuts.slice(0, 40).map((m, idx) => {
+            mutContainer.innerHTML = filteredMuts.slice(0, 50).map((m, idx) => {
                 const cands = extractAdminCandidateAmountsFromMutation(m);
                 const primaryAmt = cands[0] || Number(m.amount || 0);
                 const isMatched = String(m.status || '').toUpperCase() === 'MATCHED';
                 const statusBadge = isMatched
-                    ? `<span class="status-badge status-success"><i class="fa-solid fa-circle-check"></i> COCOK (${window.escapeHtml(m.matchedOrderId || 'LUNAS')})</span>`
+                    ? `<span class="status-badge status-success"><i class="fa-solid fa-circle-check"></i> OTOMATIS COCOK (${window.escapeHtml(m.matchedOrderId || 'LUNAS')})</span>`
                     : `<span class="status-badge status-pending"><i class="fa-solid fa-inbox"></i> TERCATAT DI FIREBASE</span>`;
 
                 const ts = getAdminMutationTimestampMs(m, false);
@@ -5242,14 +5613,15 @@ window.renderAdminQrisControlMonitor = function() {
                     ? new Date(ts).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' })
                     : (m.timeSent ? `Jam ${window.escapeHtml(m.timeSent)}` : 'Baru saja');
 
+                // Hitung sisa waktu sebelum dihapus otomatis oleh sistem 1 jam
+                const remain1hMs = ts > 0 ? Math.max(0, MUTATION_AUTO_CLEAN_1H_MS - (nowMs - ts)) : MUTATION_AUTO_CLEAN_1H_MS;
+                const remainMins = Math.max(1, Math.ceil(remain1hMs / 60000));
+
                 const cleanTitle = stripAdminMacroDroidPlaceholders(m.title || m.not_title || '');
                 const cleanBody = stripAdminMacroDroidPlaceholders(m.text || m.notification || m.not_text || m.bigText || m.big_text || '');
                 const cleanCombined = getAdminCombinedMutationText(m);
                 const appLabel = stripAdminMacroDroidPlaceholders(m.appName || '') || (m.source || 'MacroDroid Direct Firebase');
-
-                // Cek apakah masih ada placeholder MacroDroid yang belum terganti karena salah ketik variabel
                 const rawOriginal = [m.title, m.text, m.rawText].filter(Boolean).join(' ');
-                const hasUnexpandedNotText = /\[not_text\]|\{not_text\}/i.test(rawOriginal) && !cleanBody;
 
                 const allCandPills = cands.length > 0
                     ? cands.map(c => `<span class="v279-amount-pill">Rp${Number(c).toLocaleString('id-ID')}</span>`).join(' ')
@@ -5269,10 +5641,11 @@ window.renderAdminQrisControlMonitor = function() {
                         </div>
                         <div class="flex-gap align-center">
                             <span class="text-xs text-muted fw-bold"><i class="fa-regular fa-clock"></i> ${timeStr}</span>
+                            <span class="status-badge status-anon" style="font-size:0.58rem;" title="Dihapus otomatis setelah 1 jam">Auto-Hapus ${remainMins}m</span>
                             <button type="button" class="btn-icon-only" style="width:28px; height:28px; font-size:0.72rem;" title="Salin Isi Pesan" onclick="window.copyTextToClipboard('${safeCopyText}', 'Isi Notifikasi')">
                                 <i class="fa-regular fa-copy"></i>
                             </button>
-                            ${m.dbId ? `<button type="button" class="btn-icon-only text-danger" style="width:28px; height:28px; font-size:0.72rem;" title="Hapus Log Ini" onclick="window.deleteSinglePaymentMutation('${safeDocId}')"><i class="fa-solid fa-trash"></i></button>` : ''}
+                            ${m.dbId ? `<button type="button" class="btn-icon-only text-danger" style="width:28px; height:28px; font-size:0.72rem;" title="Hapus Permanen Log Ini" onclick="window.deleteSinglePaymentMutation('${safeDocId}')"><i class="fa-solid fa-trash"></i></button>` : ''}
                         </div>
                     </div>
 
@@ -5283,18 +5656,14 @@ window.renderAdminQrisControlMonitor = function() {
                             <span class="text-xs fw-bold text-muted d-block mb-1">ISI PESAN LENGKAP DI FIREBASE:</span>
                             <div class="code-mono text-xs" style="word-break:break-word; white-space:pre-wrap;">${window.escapeHtml(cleanCombined || rawOriginal || '(Pesan Kosong)')}</div>
                         </div>
-                        ${hasUnexpandedNotText ? `
-                        <div class="text-xs text-danger fw-bold mt-1">
-                            <i class="fa-solid fa-triangle-exclamation"></i> Terdeteksi tag <code>[not_text]</code> yang tidak dikenali MacroDroid. Gunakan <code>[notification]</code> pada JSON MacroDroid agar isi rincian uang tertarik!
-                        </div>` : ''}
                     </div>
 
                     <div class="v279-log-footer">
                         <div class="flex-gap align-center flex-wrap-gap">
-                            <span class="text-xs text-muted fw-bold">Kandidat Angka Terbaca:</span>
+                            <span class="text-xs text-muted fw-bold">Nominal Terbaca:</span>
                             ${allCandPills}
                         </div>
-                        <span class="code-mono text-xs text-muted">ID Dokumen: ${window.escapeHtml(m.dbId || '-')}</span>
+                        <span class="code-mono text-xs text-muted">ID: ${window.escapeHtml(m.dbId || '-')}</span>
                     </div>
                 </div>`;
             }).join('');
@@ -5311,15 +5680,32 @@ window.refreshAdminControlCenterUI = function(showToastMsg = false) {
 };
 
 window.refreshFirebaseMutationsLogNow = async function() {
+    const icon = document.getElementById('icon-refresh-firebase-log');
+    if (icon) icon.classList.add('fa-spin');
     try {
         const snap = await getDocs(collection(db, pathMutations));
+        const nowMs = Date.now();
         recentMutationsList = [];
-        snap.forEach(d => recentMutationsList.push({ dbId: d.id, ...d.data() }));
+        for (const d of snap.docs) {
+            const mData = { dbId: d.id, ...d.data() };
+            const ts = getAdminMutationTimestampMs(mData, false);
+            if (ts > 0 && (nowMs - ts >= MUTATION_AUTO_CLEAN_1H_MS)) {
+                await deleteDoc(doc(db, pathMutations, d.id)).catch(() => {});
+                continue;
+            }
+            recentMutationsList.push(mData);
+        }
         recentMutationsList.sort((a, b) => getAdminMutationTimestampMs(b, false) - getAdminMutationTimestampMs(a, false));
+        crossCheckAllUnpaidOrdersAgainstMutations();
         window.renderAdminQrisControlMonitor();
-        window.showToast('Log Disegarkan', `Memuat ${recentMutationsList.length} pesan notifikasi dari Firebase.`, 'success');
+        window.generateAdminReports();
+        window.showToast('Log Realtime Aktif', `Memuat ${recentMutationsList.length} log notifikasi aktif (< 1 jam) dari Firebase.`, 'success');
     } catch (e) {
         window.showToast('Gagal', 'Tidak dapat memuat ulang log dari Firebase.', 'error');
+    } finally {
+        setTimeout(() => {
+            if (icon) icon.classList.remove('fa-spin');
+        }, 300);
     }
 };
 
@@ -5329,7 +5715,8 @@ window.deleteSinglePaymentMutation = async function(docId) {
         await deleteDoc(doc(db, pathMutations, docId));
         recentMutationsList = recentMutationsList.filter(m => m.dbId !== docId);
         window.renderAdminQrisControlMonitor();
-        window.showToast('Dihapus', '1 item log notifikasi dihapus dari Firebase.', 'info');
+        window.generateAdminReports();
+        window.showToast('Dihapus Permanen', '1 item log notifikasi dihapus permanen dari Firebase.', 'info');
     } catch (e) {
         window.customAlert('Gagal', 'Tidak dapat menghapus item log.', 'error');
     }
@@ -5337,7 +5724,7 @@ window.deleteSinglePaymentMutation = async function(docId) {
 
 window.copyMacroDroidDirectFirebaseUrl = function() {
     const directUrl = `https://firestore.googleapis.com/v1/projects/vipercell-fc50e/databases/(default)/documents/payment_mutations?key=AIzaSyBQGZjl7uj5CRiLWCvPQKjiK4HvIYnXSJg`;
-    window.copyTextToClipboard(directUrl, 'URL Direct Firebase MacroDroid');
+    window.copyTextToClipboard(directUrl, 'Link Endpoint Firebase');
 };
 
 window.copyMacroDroidDirectFirebaseJson = function(bracketStyle = 'square') {
@@ -5371,144 +5758,30 @@ window.copyMacroDroidDirectFirebaseJson = function(bracketStyle = 'square') {
 
     window.copyTextToClipboard(
         jsonBody,
-        isCurly ? 'JSON MacroDroid {notification}' : 'JSON MacroDroid [notification]'
+        isCurly ? 'Kode JSON MacroDroid {notification}' : 'Kode JSON MacroDroid [notification]'
     );
-};
-
-window.simulateOrVerifyOrderPaymentNow = async function(orderDbId) {
-    const ord = orders.find(o => o.dbId === orderDbId);
-    if (!ord) return;
-
-    const amt = Math.round(Number(ord.finalTotal || ord.uniqueTotal || 0));
-    const nowMs = Date.now();
-    const mutId = `VERIFY-${nowMs}-${Math.floor(100 + Math.random() * 899)}`;
-
-    try {
-        await setDoc(doc(db, pathMutations, mutId), {
-            mutationId: mutId,
-            amount: amt,
-            candidateAmounts: [amt],
-            appName: 'Admin-Manual-Verify',
-            title: 'Verifikasi Pembayaran QRIS oleh Admin',
-            text: `Rp ${amt.toLocaleString('id-ID')} di ViperCell (#${ord.id})`,
-            rawText: `Verifikasi Pembayaran QRIS | Rp ${amt.toLocaleString('id-ID')} di ViperCell (#${ord.id})`,
-            receivedAt: nowMs,
-            receivedAtIso: new Date(nowMs).toISOString(),
-            matchedOrderId: ord.id,
-            status: 'MATCHED',
-            source: 'ADMIN_DIRECT_FIREBASE'
-        }).catch(() => {});
-
-        await setDoc(doc(db, pathSettings, 'mainConfig'), {
-            lastPaymentDetected: amt,
-            lastPaymentTimestamp: nowMs,
-            lastPaymentMutation: {
-                mutationId: mutId,
-                amount: amt,
-                candidateAmounts: [amt],
-                appName: 'Admin-Manual-Verify',
-                timestamp: nowMs,
-                matchedOrderIds: [ord.id]
-            }
-        }, { merge: true }).catch(() => {});
-
-        const delivered = await attemptAutoStockDelivery(ord, ord.dbId);
-        window.showToast(
-            'Pesanan Terverifikasi!',
-            delivered
-                ? `Tagihan #${ord.id} (Rp${amt.toLocaleString('id-ID')}) lunas & stok otomatis dikirim!`
-                : `Tagihan #${ord.id} (Rp${amt.toLocaleString('id-ID')}) lunas & berstatus PENDING Admin.`,
-            'success'
-        );
-    } catch (e) {
-        window.customAlert('Gagal', 'Tidak dapat memverifikasi pesanan.', 'error');
-    }
-};
-
-window.simulateIncomingQrisWebhookFromAdmin = async function() {
-    const inp = document.getElementById('sim-qris-notif-input');
-    const rawStr = inp ? inp.value.trim() : '';
-    if (!rawStr) {
-        window.customAlert('Teks Kosong', 'Masukkan contoh teks notifikasi (misal: Pembayaran QRIS statis diterima | Rp 345 di ViperCell.).', 'warning');
-        return;
-    }
-
-    const cands = extractAdminSmartCurrencyAmounts(rawStr, '');
-    if (cands.length === 0) {
-        window.customAlert('Nominal Tidak Ditemukan', 'Tidak ditemukan angka nominal Rupiah pada teks tersebut.', 'warning');
-        return;
-    }
-
-    const primaryAmt = cands[0];
-    const nowMs = Date.now();
-    const mutId = `SIM-${nowMs}-${Math.floor(100 + Math.random() * 899)}`;
-    const parts = rawStr.split('|').map(s => s.trim()).filter(Boolean);
-    const simTitle = parts.length > 1 ? parts[0] : 'Pembayaran QRIS statis diterima';
-    const simBody = parts.length > 1 ? parts.slice(1).join(' | ') : rawStr;
-
-    try {
-        await setDoc(doc(db, pathMutations, mutId), {
-            mutationId: mutId,
-            amount: primaryAmt,
-            candidateAmounts: cands,
-            appName: 'GoPay Merchant (Simulasi)',
-            title: simTitle,
-            text: simBody,
-            rawText: rawStr,
-            cleanText: `${simTitle} — ${simBody}`,
-            receivedAt: nowMs,
-            receivedAtIso: new Date(nowMs).toISOString(),
-            matchedOrderId: '',
-            status: 'UNMATCHED',
-            source: 'SIMULATOR_DIRECT_FIREBASE'
-        });
-
-        await setDoc(doc(db, pathSettings, 'mainConfig'), {
-            lastPaymentDetected: primaryAmt,
-            lastPaymentTimestamp: nowMs,
-            lastPaymentMutation: {
-                mutationId: mutId,
-                amount: primaryAmt,
-                candidateAmounts: cands,
-                appName: 'GoPay Merchant (Simulasi)',
-                timestamp: nowMs
-            }
-        }, { merge: true });
-
-        let matchedAny = false;
-        for (const amt of cands) {
-            const ok = await autoMatchIncomingPaymentAmount(amt, rawStr, mutId);
-            if (ok) matchedAny = true;
-        }
-
-        if (!matchedAny) {
-            window.showToast(
-                'Tercatat di Log Firebase!',
-                `Pesan "${simBody}" (Nominal Rp${primaryAmt.toLocaleString('id-ID')}) berhasil masuk ke Firebase.`,
-                'success'
-            );
-        }
-    } catch (e) {
-        window.customAlert('Error', 'Gagal mengirim simulasi ke Firebase.', 'error');
-    }
 };
 
 window.cleanOldPaymentMutations = function() {
     if (recentMutationsList.length === 0) {
-        window.showToast('Bersih', 'Log notifikasi Firebase sudah kosong.', 'info');
+        window.showToast('Sudah Bersih', 'Log notifikasi di Firebase sudah kosong.', 'info');
         return;
     }
     window.openConfirm(
-        'Bersihkan Log Notifikasi Firebase',
-        `Hapus seluruh <b>${recentMutationsList.length} riwayat pesan notifikasi</b> dari koleksi <code>payment_mutations</code> di Firebase?`,
+        'Hapus Log Permanen dari Firebase',
+        `Hapus permanen seluruh <b>${recentMutationsList.length} riwayat log notifikasi</b> dari koleksi <code>payment_mutations</code> di Firebase sekarang?`,
         async (confirmed) => {
             if (!confirmed) return;
-            for (const m of recentMutationsList) {
+            const toDelete = [...recentMutationsList];
+            recentMutationsList = [];
+            window.renderAdminQrisControlMonitor();
+            for (const m of toDelete) {
                 if (m.dbId) {
                     await deleteDoc(doc(db, pathMutations, m.dbId)).catch(() => {});
                 }
             }
-            window.showToast('Dibersihkan', 'Seluruh log notifikasi di Firebase berhasil dihapus.', 'success');
+            window.generateAdminReports();
+            window.showToast('Dihapus Permanen', 'Seluruh log notifikasi di Firebase telah dihapus permanen.', 'success');
         },
         'delete'
     );

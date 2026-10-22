@@ -266,19 +266,91 @@
                 </div>
             </header>
 
+            <!-- RUNNING TEXT MULTI-FUNGSI SEBELAH ATAS ADMIN v27.9 (NOTIFIKASI CHAT BELUM DIBACA, PESANAN MASUK, SARAN, STOK & MUTASI) -->
+            <div class="admin-top-marquee-bar" id="admin-top-marquee-bar">
+                <div class="admin-marquee-badge" id="admin-marquee-status-pill" onclick="window.handleAdminTopMarqueeBadgeClick()">
+                    <span class="admin-marquee-pulse-dot" id="admin-marquee-dot"></span>
+                    <i class="fa-solid fa-bell-concierge"></i>
+                    <span id="admin-marquee-badge-text">MONITOR LIVE</span>
+                </div>
+                <div class="admin-marquee-viewport">
+                    <div class="admin-marquee-track" id="admin-top-marquee-track">
+                        <span class="admin-marquee-chip chip-info" onclick="window.switchAdminTabByName('tab-overview')">
+                            <i class="fa-solid fa-bolt"></i> Sistem Verifikasi QRIS Direct Firebase Aktif &bull; Pembersihan Log Otomatis 1 Jam Aktif
+                        </span>
+                    </div>
+                </div>
+            </div>
+
             <div class="admin-content">
 
                 <!-- ==========================================
-                     TAB 1: RINGKASAN
+                     TAB 1: RINGKASAN & DASBOR UTAMA MATANG v27.9
                      ========================================== -->
                 <div id="tab-overview" class="admin-tab active">
+
+                    <!-- HERO SELAMAT DATANG NAMA ADMIN & PINTASAN CEPAT v27.9 -->
+                    <div class="admin-welcome-hero-card mb-3">
+                        <div class="admin-welcome-left">
+                            <div class="admin-welcome-eyebrow">
+                                <span class="neo-sticker sticker-yellow"><i class="fa-solid fa-bolt"></i> VIPERCELL COMMAND CENTER v27.9</span>
+                                <span class="status-badge status-success" id="hero-firebase-live-pill"><i class="fa-solid fa-fire"></i> DIRECT FIREBASE AUTO-SYNC</span>
+                            </div>
+                            <h1 class="admin-welcome-title">
+                                <span id="admin-greeting-time">Selamat Datang</span>, <span id="admin-welcome-name" class="text-primary">Admin Vipercell</span>! 👋
+                            </h1>
+                            <p class="admin-welcome-subtitle" id="admin-welcome-summary-line">
+                                Seluruh sistem verifikasi pembayaran QRIS, pengiriman Gudang Stok, dan pemantauan pesan pelanggan berjalan otomatis secara real-time.
+                            </p>
+                            <div class="admin-welcome-meta-strip">
+                                <span><i class="fa-regular fa-calendar-check text-primary"></i> <strong id="admin-live-date-label">Memuat tanggal...</strong></span>
+                                <span><i class="fa-regular fa-clock text-warning"></i> <strong id="admin-live-clock-label" class="code-mono">--:--:--</strong></span>
+                                <span><i class="fa-solid fa-broom text-success"></i> Auto-Clean Log Mutasi: <strong>Setiap 1 Jam</strong></span>
+                            </div>
+                        </div>
+
+                        <div class="admin-welcome-right">
+                            <div class="admin-quick-action-grid">
+                                <button type="button" class="admin-quick-tile tile-blue" onclick="window.switchAdminTabByName('tab-orders')">
+                                    <i class="fa-solid fa-boxes-packing"></i>
+                                    <div>
+                                        <strong>Tinjau Pesanan</strong>
+                                        <span id="hero-quick-orders-sub">0 Perlu Diproses</span>
+                                    </div>
+                                </button>
+                                <button type="button" class="admin-quick-tile tile-emerald" onclick="window.switchAdminTabByName('tab-livechat')">
+                                    <i class="fa-solid fa-comments"></i>
+                                    <div>
+                                        <strong>Pesan Bantuan</strong>
+                                        <span id="hero-quick-chat-sub">0 Belum Dibaca</span>
+                                    </div>
+                                </button>
+                                <button type="button" class="admin-quick-tile tile-amber" onclick="window.switchAdminTabByName('tab-stocks')">
+                                    <i class="fa-solid fa-vault"></i>
+                                    <div>
+                                        <strong>Gudang Stok</strong>
+                                        <span id="hero-quick-stock-sub">0 Stok Ready</span>
+                                    </div>
+                                </button>
+                                <button type="button" class="admin-quick-tile tile-purple" onclick="window.jumpToFirebaseLogSection()">
+                                    <i class="fa-solid fa-satellite-dish"></i>
+                                    <div>
+                                        <strong>Log Firebase</strong>
+                                        <span id="hero-quick-mut-sub">0 Mutasi Masuk</span>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 4 KARTU UTAMA PERFORMA FINANSIAL & TRANSAKSI -->
                     <div class="stats-grid">
                         <div class="stat-card">
                             <div class="stat-icon icon-green"><i class="fa-solid fa-sack-dollar"></i></div>
                             <div class="stat-info">
                                 <span>Total Pendapatan</span>
                                 <h3 id="report-revenue">Rp0</h3>
-                                <small>Seluruh transaksi selesai</small>
+                                <small id="report-revenue-sub">Seluruh transaksi selesai</small>
                             </div>
                         </div>
                         <div class="stat-card">
@@ -286,7 +358,7 @@
                             <div class="stat-info">
                                 <span>Omzet Hari Ini</span>
                                 <h3 id="report-today-revenue">Rp0</h3>
-                                <small>Penjualan hari ini</small>
+                                <small id="report-today-count-sub">0 transaksi hari ini</small>
                             </div>
                         </div>
                         <div class="stat-card">
@@ -294,15 +366,106 @@
                             <div class="stat-info">
                                 <span>Transaksi Selesai</span>
                                 <h3 id="report-sales">0</h3>
-                                <small>Total pesanan sukses</small>
+                                <small id="report-unpaid-sub">0 menunggu bayar</small>
                             </div>
                         </div>
                         <div class="stat-card pointer" onclick="window.switchAdminTabByName('tab-orders')">
                             <div class="stat-icon icon-orange"><i class="fa-solid fa-bell-concierge"></i></div>
                             <div class="stat-info">
-                                <span>Perlu Dikirim Admin</span>
+                                <span>Perlu Tindakan Admin</span>
                                 <h3 id="report-pending" class="text-danger">0</h3>
-                                <small>Pesanan pending &amp; durasi habis</small>
+                                <small id="report-pending-sub">Pending &amp; durasi habis</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- RINGKASAN EKOSISTEM WEB VIPERCELL YANG SANGAT MATANG (BENTO 6 PANEL) -->
+                    <div class="dashboard-panel mb-3">
+                        <div class="panel-header" style="margin-bottom: 1rem;">
+                            <div>
+                                <h3><i class="fa-solid fa-layer-group text-primary"></i> Ringkasan Ekosistem &amp; Kesehatan Web Vipercell (Realtime)</h3>
+                                <small class="text-muted">Pantauan menyeluruh kondisi katalog, gudang stok, interaksi pelanggan, hingga mesin verifikasi QRIS Firebase.</small>
+                            </div>
+                            <span class="status-badge status-success" id="overview-health-badge"><i class="fa-solid fa-shield-heart"></i> SISTEM OPTIMAL</span>
+                        </div>
+
+                        <div class="v279-web-summary-bento">
+                            <!-- 1. Katalog & Produk -->
+                            <div class="v279-summary-card pointer" onclick="window.switchAdminTabByName('tab-products')">
+                                <div class="v279-sum-top">
+                                    <span class="v279-sum-icon bg-blue"><i class="fa-solid fa-store"></i></span>
+                                    <span class="status-badge status-success" id="sum-prod-status-badge">AKTIF</span>
+                                </div>
+                                <div class="v279-sum-body">
+                                    <span class="v279-sum-label">KATALOG &amp; VARIASI PRODUK</span>
+                                    <h4 id="sum-prod-main">0 Brand &bull; 0 Variasi</h4>
+                                    <p id="sum-prod-sub">0 variasi siap jual, 0 variasi habis</p>
+                                </div>
+                            </div>
+
+                            <!-- 2. Gudang Stok Otomatis -->
+                            <div class="v279-summary-card pointer" onclick="window.switchAdminTabByName('tab-stocks')">
+                                <div class="v279-sum-top">
+                                    <span class="v279-sum-icon bg-emerald"><i class="fa-solid fa-vault"></i></span>
+                                    <span class="status-badge status-success" id="sum-stock-status-badge">24 JAM AUTO</span>
+                                </div>
+                                <div class="v279-sum-body">
+                                    <span class="v279-sum-label">GUDANG STOK OTOMATIS</span>
+                                    <h4 id="sum-stock-main">0 Stok Aktif</h4>
+                                    <p id="sum-stock-sub">0 slot sharing tersedia &bull; 0 stok terpakai</p>
+                                </div>
+                            </div>
+
+                            <!-- 3. CS Bantuan & Saran Produk -->
+                            <div class="v279-summary-card pointer" onclick="window.switchAdminTabByName('tab-livechat')">
+                                <div class="v279-sum-top">
+                                    <span class="v279-sum-icon bg-amber"><i class="fa-solid fa-headset"></i></span>
+                                    <span class="status-badge status-pending" id="sum-cs-status-badge">0 BARU</span>
+                                </div>
+                                <div class="v279-sum-body">
+                                    <span class="v279-sum-label">CS BANTUAN &amp; SARAN PRODUK</span>
+                                    <h4 id="sum-cs-main">0 Chat Belum Dibaca</h4>
+                                    <p id="sum-cs-sub">0 total ruang obrolan &bull; 0 saran produk</p>
+                                </div>
+                            </div>
+
+                            <!-- 4. Pelanggan (Member & Tamu) -->
+                            <div class="v279-summary-card pointer" onclick="window.switchAdminTabByName('tab-members')">
+                                <div class="v279-sum-top">
+                                    <span class="v279-sum-icon bg-purple"><i class="fa-solid fa-users"></i></span>
+                                    <span class="status-badge status-unpaid" id="sum-user-status-badge">KOMUNITAS</span>
+                                </div>
+                                <div class="v279-sum-body">
+                                    <span class="v279-sum-label">DATA PENGGUNA TOKO</span>
+                                    <h4 id="sum-user-main">0 Member &bull; 0 Tamu</h4>
+                                    <p id="sum-user-sub">0 pelanggan pernah bertransaksi sukses</p>
+                                </div>
+                            </div>
+
+                            <!-- 5. Mesin Verifikasi QRIS Direct Firebase -->
+                            <div class="v279-summary-card pointer" onclick="window.jumpToFirebaseLogSection()">
+                                <div class="v279-sum-top">
+                                    <span class="v279-sum-icon bg-green"><i class="fa-solid fa-bolt"></i></span>
+                                    <span class="status-badge status-success">AUTO 1 JAM</span>
+                                </div>
+                                <div class="v279-sum-body">
+                                    <span class="v279-sum-label">VERIFIKASI QRIS FIREBASE</span>
+                                    <h4 id="sum-qris-main">0 Log Aktif (&lt; 1 Jam)</h4>
+                                    <p id="sum-qris-sub">0 mutasi cocok otomatis &bull; Tanpa tombol segarkan</p>
+                                </div>
+                            </div>
+
+                            <!-- 6. Promo, Berita & Ulasan Toko -->
+                            <div class="v279-summary-card pointer" onclick="window.switchAdminTabByName('tab-reviews')">
+                                <div class="v279-sum-top">
+                                    <span class="v279-sum-icon bg-pink"><i class="fa-solid fa-star"></i></span>
+                                    <span class="status-badge status-vip" id="sum-rating-badge">⭐ 5.0</span>
+                                </div>
+                                <div class="v279-sum-body">
+                                    <span class="v279-sum-label">PROMO, BERITA &amp; ULASAN</span>
+                                    <h4 id="sum-marketing-main">0 Promo &bull; 0 Berita</h4>
+                                    <p id="sum-marketing-sub">0 ulasan pembeli terverifikasi</p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -311,6 +474,7 @@
                         <div class="dashboard-panel mb-0">
                             <div class="panel-header">
                                 <h3><i class="fa-solid fa-trophy text-warning"></i> 5 Produk Terlaris</h3>
+                                <button class="btn btn-outline btn-sm" onclick="window.switchAdminTabByName('tab-products')">Kelola Katalog</button>
                             </div>
                             <div class="table-responsive">
                                 <table class="modern-table">
@@ -1107,14 +1271,17 @@
                             </div>
                         </div>
 
-                        <!-- 5. PUSAT VALIDASI QRIS LANGSUNG KE FIREBASE (TANPA APPS SCRIPT) & MONITOR LOG REALTIME v27.9 -->
-                        <div class="dashboard-panel mt-3 mb-3 v278-qris-control-center" style="background: var(--surface-elevated); border-color: var(--primary);">
+                        <!-- 5. PUSAT VALIDASI QRIS OTOMATIS DIRECT FIREBASE & LOG REALTIME (AUTO-CLEAN 1 JAM) v27.9 -->
+                        <div class="dashboard-panel mt-3 mb-3 v278-qris-control-center" id="admin-firebase-qris-log-section" style="background: var(--surface-elevated); border-color: var(--primary);">
                             <div class="panel-header" style="margin-bottom: 0.9rem;">
                                 <div>
-                                    <h3><i class="fa-solid fa-fire text-warning"></i> Pusat Validasi QRIS Direct Firebase &amp; Monitor Log Pesan Masuk (Tanpa Apps Script)</h3>
-                                    <small class="text-muted">MacroDroid kini menembak langsung ke Database Firebase (koleksi <code>payment_mutations</code>) dalam 0.1 detik tanpa perantara Google Apps Script. Seluruh rincian uang &amp; isi pesan notifikasi yang masuk tampil secara utuh di bawah ini.</small>
+                                    <h3><i class="fa-solid fa-fire text-warning"></i> Pusat Validasi QRIS Otomatis Direct Firebase &amp; Panel Log Masuk (v27.9)</h3>
+                                    <small class="text-muted">Sistem verifikasi bekerja 100% otomatis &amp; real-time begitu notifikasi masuk ke Firebase tanpa perlu menekan tombol segarkan. Riwayat log yang berusia lebih dari 1 jam akan dibersihkan secara otomatis.</small>
                                 </div>
-                                <span class="status-badge status-success"><i class="fa-solid fa-bolt"></i> DIRECT FIREBASE AKTIF</span>
+                                <div class="flex-gap align-center flex-wrap-gap">
+                                    <span class="status-badge status-success"><i class="fa-solid fa-bolt"></i> AUTO-VERIFY REALTIME</span>
+                                    <span class="status-badge status-pending" id="auto-clean-1h-status-badge"><i class="fa-solid fa-clock-rotate-left"></i> AUTO-CLEAN 1 JAM AKTIF</span>
+                                </div>
                             </div>
 
                             <!-- Input tersembunyi untuk kompatibilitas mundur -->
@@ -1133,32 +1300,32 @@
                                 <textarea id="set-qris-data" class="form-control code-mono" rows="2" placeholder="00020101021126..."></textarea>
                             </div>
 
-                            <!-- Panduan & Salin 1-Klik URL + JSON Matang MacroDroid Direct Firebase -->
+                            <!-- Salin Link Firebase & Salin Format Kode JSON MacroDroid yang Sudah Terbukti Berfungsi -->
                             <div class="info-box mb-3" style="background: var(--surface); border-color: var(--primary);">
                                 <div class="flex-between align-center flex-wrap-gap mb-2">
                                     <div>
-                                        <strong class="text-primary text-sm"><i class="fa-solid fa-mobile-screen-button"></i> Konfigurasi HTTP Request MacroDroid &rarr; Direct Firebase (0.1 Detik)</strong>
-                                        <span class="text-xs text-muted d-block">Gunakan variabel resmi <code>[not_title]</code> (Judul) dan <code>[notification]</code> (Isi Rincian Uang seperti <i>"Rp 345 di ViperCell."</i>) agar nominal selalu tertarik 100% akurat.</span>
+                                        <strong class="text-primary text-sm"><i class="fa-solid fa-mobile-screen-button"></i> Koneksi Langsung MacroDroid &rarr; Firebase Firestore (Instan &amp; Otomatis)</strong>
+                                        <span class="text-xs text-muted d-block">Salin URL Firebase dan format JSON MacroDroid di bawah ini (menggunakan <code>[not_title]</code> dan <code>[notification]</code> yang sudah terbukti berfungsi).</span>
                                     </div>
                                     <span class="status-badge status-success">POST &bull; application/json</span>
                                 </div>
 
                                 <div class="grid-2col mb-2">
                                     <div class="form-group mb-0">
-                                        <label class="text-xs">1. URL Tujuan (HTTP POST ke Firebase Firestore)</label>
+                                        <label class="text-xs">1. Link Endpoint Firebase (HTTP POST URL)</label>
                                         <div class="flex-gap">
                                             <input type="text" id="macrodroid-direct-fb-url-display" class="form-control code-mono text-xs" readonly value="https://firestore.googleapis.com/v1/projects/vipercell-fc50e/databases/(default)/documents/payment_mutations?key=AIzaSyBQGZjl7uj5CRiLWCvPQKjiK4HvIYnXSJg">
                                             <button type="button" class="btn btn-primary btn-sm" onclick="window.copyMacroDroidDirectFirebaseUrl()" style="white-space:nowrap;">
-                                                <i class="fa-regular fa-copy"></i> Salin URL
+                                                <i class="fa-regular fa-copy"></i> Salin Link Firebase
                                             </button>
                                         </div>
                                     </div>
 
                                     <div class="form-group mb-0">
-                                        <label class="text-xs">2. Salin Format Body JSON MacroDroid (Pilih Kurung Siku atau Kurawal)</label>
+                                        <label class="text-xs">2. Salin Format Kode JSON untuk MacroDroid</label>
                                         <div class="flex-gap flex-wrap-gap">
                                             <button type="button" class="btn btn-success btn-sm flex-1" onclick="window.copyMacroDroidDirectFirebaseJson('square')">
-                                                <i class="fa-solid fa-code"></i> Salin JSON [notification] (Standar)
+                                                <i class="fa-solid fa-code"></i> Salin JSON [notification] (Utama)
                                             </button>
                                             <button type="button" class="btn btn-outline btn-sm flex-1" onclick="window.copyMacroDroidDirectFirebaseJson('curly')">
                                                 <i class="fa-solid fa-code"></i> Salin JSON {notification} (Alternatif)
@@ -1168,7 +1335,7 @@
                                 </div>
 
                                 <details class="v279-json-preview-details">
-                                    <summary class="text-xs fw-bold text-primary pointer"><i class="fa-solid fa-eye"></i> Lihat Kode JSON Lengkap untuk Ditaruh di MacroDroid (Content Body)</summary>
+                                    <summary class="text-xs fw-bold text-primary pointer"><i class="fa-solid fa-eye"></i> Lihat Format Kode JSON MacroDroid yang Digunakan Saat Ini</summary>
                                     <pre id="macrodroid-json-code-preview" class="code-mono v279-json-pre">{
   "fields": {
     "appName": { "stringValue": "[not_app_name]" },
@@ -1183,55 +1350,35 @@
                                 </details>
                             </div>
 
-                            <!-- Simulator & Monitor Tagihan UNPAID + Log Pesan Masuk Firebase Lengkap -->
+                            <!-- Panel Log Masuk Realtime & Pembersihan Otomatis 1 Jam (Tanpa Fitur Simulasi) -->
                             <div class="info-box mb-0" style="background: var(--surface);">
                                 <div class="flex-between align-center flex-wrap-gap mb-2">
                                     <div>
-                                        <strong class="text-dark text-sm"><i class="fa-solid fa-satellite-dish text-success"></i> Simulator &amp; Monitor Log Pesan Notifikasi Masuk di Firebase (Realtime)</strong>
-                                        <span class="text-xs text-muted d-block">Pantau seluruh pesan notifikasi yang ditembak MacroDroid ke Firebase beserta rincian uang yang terdeteksi secara langsung.</span>
+                                        <div class="flex-gap align-center flex-wrap-gap">
+                                            <strong class="text-dark text-sm"><i class="fa-solid fa-database text-success"></i> Panel Log Notifikasi Masuk Firebase (Realtime Stream)</strong>
+                                            <span id="admin-mutations-total-badge" class="status-badge status-success" style="font-size:0.62rem;">0 Log Masuk</span>
+                                        </div>
+                                        <span class="text-xs text-muted d-block">Menampilkan pesan notifikasi pembayaran secara langsung saat itu juga. Log berusia &gt; 1 jam otomatis dihapus permanen dari Firebase.</span>
                                     </div>
                                     <div class="flex-gap flex-wrap-gap">
-                                        <button type="button" class="btn btn-outline btn-sm" onclick="window.refreshFirebaseMutationsLogNow()">
-                                            <i class="fa-solid fa-rotate text-primary"></i> Segarkan Log
+                                        <button type="button" class="btn btn-outline btn-sm" id="btn-refresh-firebase-log" onclick="window.refreshFirebaseMutationsLogNow()">
+                                            <i class="fa-solid fa-rotate text-primary" id="icon-refresh-firebase-log"></i> Refresh Log
                                         </button>
-                                        <button type="button" class="btn btn-outline btn-sm" onclick="window.cleanOldPaymentMutations()">
-                                            <i class="fa-solid fa-broom text-danger"></i> Hapus Semua Log
+                                        <button type="button" class="btn btn-danger btn-sm" onclick="window.cleanOldPaymentMutations()">
+                                            <i class="fa-solid fa-trash-can"></i> Hapus Log Permanen
                                         </button>
                                     </div>
                                 </div>
 
-                                <!-- Baris Simulator Tembak Langsung ke Firebase -->
-                                <div class="flex-gap mb-3 flex-wrap-gap">
-                                    <input type="text" id="sim-qris-notif-input" class="form-control" style="flex:2; min-width:240px;" value="Pembayaran QRIS statis diterima | Rp 345 di ViperCell." placeholder="Contoh: Pembayaran QRIS statis diterima | Rp 345 di ViperCell.">
-                                    <button type="button" class="btn btn-warning btn-sm" onclick="window.simulateIncomingQrisWebhookFromAdmin()">
-                                        <i class="fa-solid fa-paper-plane"></i> Tes Tembak ke Firebase Sekarang
-                                    </button>
+                                <div class="flex-between align-center flex-wrap-gap mb-2">
+                                    <span class="text-xs text-muted fw-bold" id="admin-last-mutation-sync-info">
+                                        <i class="fa-solid fa-circle-check text-success"></i> Listener Realtime Aktif &bull; Pembersihan otomatis setiap 1 jam berjalan di latar belakang
+                                    </span>
+                                    <input type="text" id="admin-search-mutation-log" class="form-control" style="max-width: 260px; padding: 5px 10px; font-size: 0.76rem;" placeholder="Cari nominal atau isi pesan..." oninput="window.renderAdminQrisControlMonitor()">
                                 </div>
 
-                                <!-- Tagihan QRIS yang Sedang Menunggu Pembayaran -->
-                                <div class="mb-3">
-                                    <div class="flex-between align-center mb-1">
-                                        <span class="text-xs fw-bold text-muted"><i class="fa-regular fa-clock text-primary"></i> TAGIHAN QRIS MENUNGGU PEMBAYARAN (KLIK UNTUK VERIFIKASI LUNAS):</span>
-                                        <span id="admin-unpaid-qris-count-badge" class="status-badge status-unpaid" style="font-size:0.6rem;">0 Tagihan Aktif</span>
-                                    </div>
-                                    <div id="admin-unpaid-qris-control-list" class="v278-monitor-list" style="max-height: 190px;">
-                                        <div class="text-xs text-muted p-2">Tidak ada tagihan QRIS yang sedang menunggu pembayaran.</div>
-                                    </div>
-                                </div>
-
-                                <!-- Tabel & Kartu Lengkap Log Pesan Masuk di Firebase (payment_mutations) -->
-                                <div>
-                                    <div class="flex-between align-center flex-wrap-gap mb-2">
-                                        <div class="flex-gap align-center flex-wrap-gap">
-                                            <span class="text-xs fw-bold text-dark"><i class="fa-solid fa-database text-success"></i> LOG &amp; ISI PESAN NOTIFIKASI MASUK DI FIREBASE (<code>payment_mutations</code>):</span>
-                                            <span id="admin-mutations-total-badge" class="status-badge status-success" style="font-size:0.62rem;">0 Pesan Masuk</span>
-                                        </div>
-                                        <input type="text" id="admin-search-mutation-log" class="form-control" style="max-width: 260px; padding: 5px 10px; font-size: 0.76rem;" placeholder="Cari nominal atau isi pesan..." oninput="window.renderAdminQrisControlMonitor()">
-                                    </div>
-
-                                    <div id="admin-recent-mutations-log" class="v279-firebase-log-container">
-                                        <div class="text-xs text-muted p-3 text-center">Belum ada pesan notifikasi yang masuk di Firebase.</div>
-                                    </div>
+                                <div id="admin-recent-mutations-log" class="v279-firebase-log-container">
+                                    <div class="text-xs text-muted p-3 text-center">Belum ada log notifikasi yang masuk di Firebase dalam 1 jam terakhir.</div>
                                 </div>
                             </div>
                         </div>
@@ -1281,6 +1428,47 @@
                 </div>
 
             </div>
+
+            <!-- FOOTER RESMI WEB ADMIN VIPERCELL (BAGIAN PALING BAWAH) v27.9 -->
+            <footer class="admin-footer-neo">
+                <div class="admin-footer-inner">
+                    <div class="admin-footer-brand-col">
+                        <div class="flex-gap align-center mb-1">
+                            <span class="brand-icon" style="width:30px; height:30px; font-size:0.85rem;"><i class="fa-solid fa-bolt"></i></span>
+                            <strong class="brand-title" style="font-size:1.05rem;">VIPER<span>ADMIN</span> <small class="status-badge status-vip" style="font-size:0.58rem; margin-left:4px;">v27.9</small></strong>
+                        </div>
+                        <p class="text-xs text-muted m-0">
+                            Pusat Kendali Toko Produk Digital, Aplikasi Premium &amp; Top Up Game &bull; Direct Firebase Auto-Verification Engine.
+                        </p>
+                    </div>
+
+                    <div class="admin-footer-links-col">
+                        <button type="button" class="admin-footer-nav-chip" onclick="window.switchAdminTabByName('tab-overview')">
+                            <i class="fa-solid fa-chart-pie"></i> Ringkasan
+                        </button>
+                        <button type="button" class="admin-footer-nav-chip" onclick="window.switchAdminTabByName('tab-orders')">
+                            <i class="fa-solid fa-boxes-packing"></i> Pesanan
+                        </button>
+                        <button type="button" class="admin-footer-nav-chip" onclick="window.switchAdminTabByName('tab-stocks')">
+                            <i class="fa-solid fa-vault"></i> Gudang Stok
+                        </button>
+                        <button type="button" class="admin-footer-nav-chip" onclick="window.switchAdminTabByName('tab-livechat')">
+                            <i class="fa-solid fa-comments"></i> CS Bantuan
+                        </button>
+                        <button type="button" class="admin-footer-nav-chip" onclick="window.jumpToFirebaseLogSection()">
+                            <i class="fa-solid fa-fire text-warning"></i> Log Firebase
+                        </button>
+                    </div>
+
+                    <div class="admin-footer-status-col">
+                        <div class="admin-footer-status-pill">
+                            <span class="admin-marquee-pulse-dot" style="background:var(--success);"></span>
+                            <span>Firebase Realtime: <b>TERHUBUNG</b></span>
+                        </div>
+                        <span class="text-xs text-muted">&copy; 2026 <b>Vipercell Store</b> &bull; Auto-Clean Log 1 Jam</span>
+                    </div>
+                </div>
+            </footer>
         </main>
     </div>
 
