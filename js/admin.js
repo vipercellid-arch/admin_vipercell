@@ -51,6 +51,8 @@ let stocksData = [];
 let allLiveChats = [];
 let allUsersList = [];
 let allSuggestions = [];
+let recentMutationsList = [];
+const processedAdminMutationIds = new Set();
 let rawCollectionSuggestions = [];
 let rawChatFallbackSuggestions = [];
 let currentAdminCsSubTab = 'chat';
@@ -84,6 +86,9 @@ let siteSettings = {
     opOpenTime: '08:00',
     opCloseTime: '22:00',
     waterRippleEnabled: true,
+    footerMarqueeShowPrice: true,
+    footerMarqueeShowStatus: true,
+    footerMarqueeSpeed: 'normal',
     deletedUids: [],
     blockedUids: [],
     blockedDevices: []
@@ -774,7 +779,7 @@ window.switchAdminTab = function(tabId, menuEl) {
     }
     if (tabId === 'tab-settings') {
         window.renderMarqueeStudioSlots();
-        window.renderFooterMarqueeStudioSlots();
+        window.refreshAdminControlCenterUI();
         window.updateOpHoursAdminPreview();
     }
 };
@@ -1445,20 +1450,32 @@ function startAdminListeners() {
     });
 
     onSnapshot(collection(db, pathMutations), (snapshot) => {
+        recentMutationsList = [];
+        snapshot.forEach((docSnap) => {
+            recentMutationsList.push({ dbId: docSnap.id, ...docSnap.data() });
+        });
+        recentMutationsList.sort((a, b) => getAdminMutationTimestampMs(b, false) - getAdminMutationTimestampMs(a, false));
+
         snapshot.docChanges().forEach((change) => {
-            if (change.type === 'added') {
+            if (change.type === 'added' || change.type === 'modified') {
                 const mut = change.doc.data();
-                const mutTime = Number(mut.receivedAt || mut.createdAt || mut.timestamp || 0);
-                const mutAge = Date.now() - mutTime;
-                if (mutAge < 180000) {
-                    if (Array.isArray(mut.candidateAmounts) && mut.candidateAmounts.length > 0) {
-                        mut.candidateAmounts.forEach(amt => autoMatchIncomingPaymentAmount(Number(amt)));
-                    } else if (mut.amount) {
-                        autoMatchIncomingPaymentAmount(Number(mut.amount));
-                    }
+                const docId = change.doc.id;
+                if (processedAdminMutationIds.has(docId)) return;
+                const mutStatus = String(mut.status || '').toUpperCase();
+                if (mutStatus === 'MATCHED' && mut.matchedOrderId) return;
+
+                const mutTime = getAdminMutationTimestampMs(mut, change.type === 'added');
+                if (mutTime > 0 && Math.abs(Date.now() - mutTime) < 1200000) {
+                    const cands = extractAdminCandidateAmountsFromMutation(mut);
+                    const combinedRaw = [mut.rawText, mut.text, mut.title, mut.big_text].filter(Boolean).join(' | ');
+                    cands.forEach(amt => {
+                        autoMatchIncomingPaymentAmount(Number(amt), combinedRaw, docId);
+                    });
                 }
             }
         });
+
+        window.renderAdminQrisControlMonitor();
     }, () => {});
 
     onSnapshot(collection(db, pathProducts), (snapshot) => {
@@ -1466,6 +1483,7 @@ function startAdminListeners() {
         snapshot.forEach((docSnap) => { products.push({ dbId: docSnap.id, ...docSnap.data() }); });
         rebuildGroupedBrands();
         window.renderAdminCatalog();
+        if (typeof window.updateFooterMarqueeControlPreview === 'function') window.updateFooterMarqueeControlPreview();
         window.populateStockProductSelect();
         window.renderAdminStocks();
     });
@@ -1524,6 +1542,7 @@ function startAdminListeners() {
         window.generateAdminReports();
         window.renderAdminOrders();
         window.renderAdminMembers();
+        if (typeof window.renderAdminQrisControlMonitor === 'function') window.renderAdminQrisControlMonitor();
     });
 
     onSnapshot(collection(db, pathPromos), (snapshot) => {
@@ -1639,7 +1658,85 @@ function startAdminListeners() {
     });
 }
 
-async function autoMatchIncomingPaymentAmount(detectedAmount, rawNotifText = '') {
+function cleanAdminCurrencyNumber(str) {
+    if (str === null || str === undefined) return 0;
+    let s = String(str).trim();
+    s = s.replace(/[.,]\d{2}$/, '').replace(/,-$/, '');
+    const digits = s.replace(/[^0-9]/g, '');
+    if (!digits) return 0;
+    const n = parseInt(digits, 10);
+    return isNaN(n) ? 0 : n;
+}
+
+function extractAdminSmartCurrencyAmounts(rawText, directAmount) {
+    const results = [];
+    const addCand = (val) => {
+        const num = parseInt(val, 10);
+        if (!isNaN(num) && num >= 100 && num <= 50000000 && !results.includes(num)) {
+            results.push(num);
+        }
+    };
+    if (directAmount !== undefined && directAmount !== null && String(directAmount).trim() !== '') {
+        const c = cleanAdminCurrencyNumber(directAmount);
+        if (c > 0) addCand(c);
+    }
+    if (!rawText) return results;
+
+    let text = String(rawText)
+        .replace(/\{not_[a-z0-9_]+\}/gi, ' ')
+        .replace(/\[not_[a-z0-9_]+\]/gi, ' ')
+        .replace(/\b\d{1,4}[\/\-]\d{1,2}[\/\-]\d{1,4}\b/g, ' ')
+        .replace(/\b\d{1,2}:\d{2}(:\d{2})?\b/g, ' ')
+        .replace(/\b\d{1,2}\.\d{2}\s*(WIB|WITA|WIT|AM|PM)\b/gi, ' ');
+
+    const rpRegex = /(?:Rp\.?|IDR|sebesar|senilai|masuk|diterima|pembayaran|qris|total|nominal|\+)\s*[:\.]?\s*([0-9]{1,3}(?:[.,][0-9]{3})+(?:[.,][0-9]{1,2})?|[0-9]{3,8}(?:[.,][0-9]{1,2})?)/gi;
+    let m;
+    while ((m = rpRegex.exec(text)) !== null) {
+        const parsed = cleanAdminCurrencyNumber(m[1]);
+        if (parsed > 0) addCand(parsed);
+    }
+
+    const genRegex = /\b([0-9]{1,3}(?:[.,][0-9]{3})+(?:[.,][0-9]{1,2})?|[0-9]{3,8})\b/g;
+    while ((m = genRegex.exec(text)) !== null) {
+        const token = m[1];
+        const parsed = cleanAdminCurrencyNumber(token);
+        if (parsed > 0 && (parsed < 2020 || parsed > 2035 || token.includes('.') || token.includes(','))) {
+            addCand(parsed);
+        }
+    }
+    return results;
+}
+
+function extractAdminCandidateAmountsFromMutation(mut) {
+    if (!mut) return [];
+    const list = [];
+    const add = (n) => {
+        const v = Math.round(Number(n) || 0);
+        if (v >= 100 && !list.includes(v)) list.push(v);
+    };
+    if (Array.isArray(mut.candidateAmounts)) mut.candidateAmounts.forEach(add);
+    if (mut.amount !== undefined && mut.amount !== null) add(cleanAdminCurrencyNumber(mut.amount));
+    const combined = [mut.rawText, mut.text, mut.title, mut.big_text, mut.message, mut.body].filter(Boolean).join(' | ');
+    if (combined) {
+        extractAdminSmartCurrencyAmounts(combined, mut.amount).forEach(add);
+    }
+    return list;
+}
+
+function getAdminMutationTimestampMs(mut, fallbackNow = false) {
+    if (!mut) return fallbackNow ? Date.now() : 0;
+    const rawTs = mut.receivedAt || mut.createdAt || mut.timestamp || mut.receivedAtIso || 0;
+    if (typeof rawTs === 'number' && rawTs > 1000000000000) return rawTs;
+    if (typeof rawTs === 'string' && rawTs.trim()) {
+        const asNum = Number(rawTs);
+        if (!isNaN(asNum) && asNum > 1000000000000) return asNum;
+        const parsedDate = new Date(rawTs).getTime();
+        if (!isNaN(parsedDate) && parsedDate > 1000000000000) return parsedDate;
+    }
+    return fallbackNow ? Date.now() : 0;
+}
+
+async function autoMatchIncomingPaymentAmount(detectedAmount, rawNotifText = '', sourceMutationDocId = '') {
     const numAmt = Math.round(Number(detectedAmount) || 0);
     const unpaidMatch = orders.find(o => {
         if (o.status !== 'UNPAID' && o.status !== 'PENDING_PAYMENT') return false;
@@ -1657,13 +1754,20 @@ async function autoMatchIncomingPaymentAmount(detectedAmount, rawNotifText = '')
     });
     if (unpaidMatch) {
         try {
+            if (sourceMutationDocId) {
+                processedAdminMutationIds.add(sourceMutationDocId);
+                updateDoc(doc(db, pathMutations, sourceMutationDocId), {
+                    status: 'MATCHED',
+                    matchedOrderId: unpaidMatch.id
+                }).catch(() => {});
+            }
             playNotificationSound('order');
             const delivered = await attemptAutoStockDelivery(unpaidMatch, unpaidMatch.dbId);
             window.showToast(
-                'Pembayaran Diterima',
+                'Pembayaran QRIS Terverifikasi!',
                 delivered
-                    ? `Nominal Rp${(unpaidMatch.finalTotal || numAmt).toLocaleString('id-ID')} melunasi #${unpaidMatch.id} & stok terkirim.`
-                    : `Nominal Rp${(unpaidMatch.finalTotal || numAmt).toLocaleString('id-ID')} diterima. #${unpaidMatch.id} berstatus PENDING (Diproses Admin).`,
+                    ? `Nominal Rp${(unpaidMatch.finalTotal || numAmt).toLocaleString('id-ID')} melunasi #${unpaidMatch.id} & stok otomatis dikirim!`
+                    : `Nominal Rp${(unpaidMatch.finalTotal || numAmt).toLocaleString('id-ID')} diterima. #${unpaidMatch.id} kini berstatus PENDING (Siap Diproses Admin).`,
                 'success'
             );
             return true;
@@ -5006,233 +5110,307 @@ window.renderMarqueeStudioSlots = function() {
 };
 
 // ==========================================
-// STUDIO RUNNING TEXT BAWAH (GAYA KELOLA SAMA PERSIS DENGAN RUNNING TEXT ATAS #2)
+// PANEL KONTROL RUNNING TEXT BAWAH OTOMATIS & PUSAT VALIDASI QRIS v27.8
 // ==========================================
-function ensureFooterMarqueeListInitialized() {
-    if (!Array.isArray(siteSettings.footerMarqueeList) || siteSettings.footerMarqueeList.length === 0) {
-        const raw = String(
-            siteSettings.footerMarquee ||
-            'TERIMA KASIH TELAH BERBELANJA DI VIPERCELL — LAYANAN APLIKASI PREMIUM, TOP UP GAME & PRODUK DIGITAL || TRANSAKSI OTOMATIS & BERGARANSI — HUBUNGI CS BANTUAN JIKA BUTUH PANDUAN'
-        ).trim();
-        const parts = raw.includes('||') ? raw.split('||') : raw.split(/\r?\n/);
-        siteSettings.footerMarqueeList = parts.map(s => s.trim()).filter(Boolean).slice(0, 20).map(txt => ({
-            text: txt,
-            type: 'info',
-            promoCode: '',
-            targetBrand: '',
-            newsIndex: 0
-        }));
-    } else {
-        siteSettings.footerMarqueeList = siteSettings.footerMarqueeList.map(item => {
-            if (typeof item === 'string') {
-                return { text: item.trim(), type: 'info', promoCode: '', targetBrand: '', newsIndex: 0 };
-            }
-            return {
-                text: String(item?.text || '').trim(),
-                type: item?.type || 'info',
-                promoCode: item?.promoCode || '',
-                targetBrand: item?.targetBrand || '',
-                newsIndex: typeof item?.newsIndex === 'number' ? item.newsIndex : 0
-            };
-        }).filter(it => it.text);
-    }
-    return siteSettings.footerMarqueeList;
-}
+window.updateFooterMarqueeControlPreview = function() {
+    const showPrice = document.getElementById('set-footer-show-price')
+        ? document.getElementById('set-footer-show-price').checked
+        : (siteSettings.footerMarqueeShowPrice !== false);
+    const showStatus = document.getElementById('set-footer-show-status')
+        ? document.getElementById('set-footer-show-status').checked
+        : (siteSettings.footerMarqueeShowStatus !== false);
 
-function populateFooterMarqueeSelectors() {
-    const brandSel = document.getElementById('fmq-slot-brand');
-    if (brandSel) {
-        let bHtml = '<option value="">-- Otomatis Sesuai Promo / Katalog --</option>';
-        groupedBrands.forEach(b => {
-            bHtml += `<option value="${window.escapeHtml(b.brandName)}">${window.escapeHtml(b.brandName)}</option>`;
-        });
-        brandSel.innerHTML = bHtml;
-    }
+    const activeBrands = groupedBrands.filter(b => !b.isGangguan);
+    let readyCount = 0;
+    let soldOutCount = 0;
 
-    const newsSel = document.getElementById('fmq-slot-news');
-    if (newsSel) {
-        const newsArr = siteSettings.newsList || [];
-        if (newsArr.length === 0) {
-            newsSel.innerHTML = '<option value="0">Tab Berita</option>';
-        } else {
-            newsSel.innerHTML = newsArr.map((n, idx) => `<option value="${idx}">#${idx + 1}: ${window.escapeHtml(n.title || 'Berita')}</option>`).join('');
-        }
-    }
-}
+    const previewStrip = document.getElementById('admin-footer-marquee-live-preview');
+    let pillsHtml = '';
 
-window.toggleFooterMarqueeSlotActionFields = function() {
-    const type = document.getElementById('fmq-slot-type')?.value || 'info';
-    const promoField = document.getElementById('fmq-field-promo');
-    const brandField = document.getElementById('fmq-field-brand');
-    const newsField = document.getElementById('fmq-field-news');
+    activeBrands.forEach(b => {
+        const prices = (b.items || []).map(i => Number(i.priceNum || 0)).filter(p => p > 0);
+        const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
+        const totalSlots = b.items.reduce((acc, it) => acc + countReadyStockSlotsForVariant(b.brandName, it.name), 0);
+        const allManualSold = b.items.length > 0 && b.items.every(it => Boolean(it.soldOut) && totalSlots <= 0);
 
-    if (promoField) promoField.style.display = (type === 'promo') ? 'block' : 'none';
-    if (brandField) brandField.style.display = (type === 'promo' || type === 'product') ? 'block' : 'none';
-    if (newsField) newsField.style.display = (type === 'news') ? 'block' : 'none';
-};
+        if (allManualSold) soldOutCount++;
+        else readyCount++;
 
-window.openFooterMarqueeSlotForm = function(editIdx = -1) {
-    const list = ensureFooterMarqueeListInitialized();
-    if (editIdx === -1 && list.length >= 20) {
-        window.customAlert('Maksimal 20 Teks', 'Running Text Bawah mendukung maksimal 20 teks berjalan.', 'warning');
-        return;
-    }
+        const priceLabel = (showPrice && minPrice > 0 && !allManualSold) ? ` — Mulai Rp${minPrice.toLocaleString('id-ID')}` : '';
+        const statusText = (allManualSold && showStatus) ? ' (Stok Habis)' : priceLabel;
 
-    populateFooterMarqueeSelectors();
-    const editor = document.getElementById('footer-marquee-slot-editor');
-    const titleEl = document.getElementById('footer-marquee-editor-title');
-    document.getElementById('edit-footer-marquee-idx').value = String(editIdx);
-
-    if (editIdx >= 0 && editIdx < list.length) {
-        const item = list[editIdx];
-        if (titleEl) titleEl.innerHTML = `<i class="fa-solid fa-pen text-warning"></i> Edit Pesan Running Bawah #${editIdx + 1}`;
-        document.getElementById('fmq-slot-text').value = item.text || '';
-        document.getElementById('fmq-slot-type').value = item.type || 'info';
-        document.getElementById('fmq-slot-promo').value = item.promoCode || '';
-        document.getElementById('fmq-slot-brand').value = item.targetBrand || '';
-        document.getElementById('fmq-slot-news').value = String(typeof item.newsIndex === 'number' ? item.newsIndex : 0);
-    } else {
-        if (titleEl) titleEl.innerHTML = `<i class="fa-solid fa-plus text-primary"></i> Tambah Pesan Running Bawah (#${list.length + 1})`;
-        document.getElementById('fmq-slot-text').value = '';
-        document.getElementById('fmq-slot-type').value = 'info';
-        document.getElementById('fmq-slot-promo').value = '';
-        document.getElementById('fmq-slot-brand').value = '';
-        document.getElementById('fmq-slot-news').value = '0';
-    }
-
-    window.toggleFooterMarqueeSlotActionFields();
-    if (editor) editor.style.display = 'block';
-    document.getElementById('fmq-slot-text')?.focus();
-};
-
-window.closeFooterMarqueeSlotForm = function() {
-    const editor = document.getElementById('footer-marquee-slot-editor');
-    if (editor) editor.style.display = 'none';
-};
-
-window.saveFooterMarqueeSlotItem = async function() {
-    const list = [...ensureFooterMarqueeListInitialized()];
-    const editIdx = parseInt(document.getElementById('edit-footer-marquee-idx').value || '-1', 10);
-    const text = document.getElementById('fmq-slot-text').value.trim();
-    const type = document.getElementById('fmq-slot-type').value;
-    const promoCode = (document.getElementById('fmq-slot-promo').value || '').trim().toUpperCase();
-    let targetBrand = document.getElementById('fmq-slot-brand').value;
-    const newsIndex = parseInt(document.getElementById('fmq-slot-news').value || '0', 10);
-
-    if (!text) {
-        window.customAlert('Teks Kosong', 'Masukkan isi pesan running text bawah terlebih dahulu.', 'warning');
-        return;
-    }
-
-    if (type === 'promo' && promoCode && !targetBrand) {
-        const matchedPromo = promos.find(p => p.code && p.code.toUpperCase() === promoCode);
-        if (matchedPromo && matchedPromo.targetBrand && matchedPromo.targetBrand !== 'all') {
-            targetBrand = matchedPromo.targetBrand;
-        }
-    }
-
-    const slotObj = {
-        text,
-        type,
-        promoCode: type === 'promo' ? promoCode : '',
-        targetBrand: (type === 'promo' || type === 'product') ? targetBrand : '',
-        newsIndex: type === 'news' ? newsIndex : -1
-    };
-
-    if (editIdx >= 0 && editIdx < list.length) {
-        list[editIdx] = slotObj;
-    } else {
-        if (list.length >= 20) {
-            window.customAlert('Batas 20 Teks', 'Maksimal 20 teks running text bawah.', 'warning');
-            return;
-        }
-        list.push(slotObj);
-    }
-
-    siteSettings.footerMarqueeList = list;
-    siteSettings.footerMarquee = list.map(i => i.text).join(' || ');
-    const fallbackInp = document.getElementById('set-footer-marquee');
-    if (fallbackInp) fallbackInp.value = siteSettings.footerMarquee;
-
-    await setDoc(doc(db, pathSettings, 'mainConfig'), {
-        footerMarqueeList: list,
-        footerMarquee: siteSettings.footerMarquee
-    }, { merge: true }).catch(() => {});
-
-    window.closeFooterMarqueeSlotForm();
-    window.renderFooterMarqueeStudioSlots();
-    window.showToast('Tersimpan', `Daftar running text bawah (${list.length}/20) berhasil diperbarui.`, 'success');
-};
-
-window.deleteFooterMarqueeSlotItem = async function(idx) {
-    const list = [...ensureFooterMarqueeListInitialized()];
-    list.splice(idx, 1);
-    siteSettings.footerMarqueeList = list;
-    siteSettings.footerMarquee = list.map(i => i.text).join(' || ');
-    const fallbackInp = document.getElementById('set-footer-marquee');
-    if (fallbackInp) fallbackInp.value = siteSettings.footerMarquee;
-
-    await setDoc(doc(db, pathSettings, 'mainConfig'), {
-        footerMarqueeList: list,
-        footerMarquee: siteSettings.footerMarquee
-    }, { merge: true }).catch(() => {});
-
-    window.renderFooterMarqueeStudioSlots();
-    window.showToast('Dihapus', 'Pesan running text bawah telah dihapus.', 'info');
-};
-
-window.renderFooterMarqueeStudioSlots = function() {
-    const container = document.getElementById('footer-marquee-slots-container');
-    const countBadge = document.getElementById('footer-marquee-slot-count-badge');
-    const btnAdd = document.getElementById('btn-add-footer-marquee-slot');
-    if (!container) return;
-
-    const list = ensureFooterMarqueeListInitialized();
-    if (countBadge) countBadge.innerText = `${list.length}/20`;
-    if (btnAdd) btnAdd.disabled = list.length >= 20;
-
-    if (list.length === 0) {
-        container.innerHTML = `<div class="info-box text-center text-muted grid-span-full">Belum ada pesan running text bawah.</div>`;
-        return;
-    }
-
-    let html = '';
-    list.forEach((slot, idx) => {
-        let actionBadge = `<span class="status-badge status-anon">INFO</span>`;
-        let targetDetail = 'Membuka Katalog';
-
-        if (slot.type === 'promo' || slot.promoCode) {
-            actionBadge = `<span class="status-badge status-vip">PROMO: ${window.escapeHtml(slot.promoCode || '-')}</span>`;
-            targetDetail = `Kode <b>${window.escapeHtml(slot.promoCode)}</b> &bull; Produk: <b>${window.escapeHtml(slot.targetBrand || 'Semua')}</b>`;
-        } else if (slot.type === 'product' && slot.targetBrand) {
-            actionBadge = `<span class="status-badge status-success">PRODUK: ${window.escapeHtml(slot.targetBrand)}</span>`;
-            targetDetail = `Membuka produk <b>${window.escapeHtml(slot.targetBrand)}</b>`;
-        } else if (slot.type === 'news') {
-            actionBadge = `<span class="status-badge status-pending">BERITA #${(slot.newsIndex >= 0 ? slot.newsIndex + 1 : 1)}</span>`;
-            targetDetail = `Membaca Berita #${(slot.newsIndex >= 0 ? slot.newsIndex + 1 : 1)}`;
+        let badgeHtml = '';
+        if (showStatus) {
+            if (allManualSold) badgeHtml = `<span class="v278-preview-badge badge-sold">HABIS</span>`;
+            else if (b.type === 'game') badgeHtml = `<span class="v278-preview-badge badge-game">GAME</span>`;
+            else if (b.type === 'tools') badgeHtml = `<span class="v278-preview-badge">TOOLS</span>`;
+            else badgeHtml = `<span class="v278-preview-badge">KATALOG</span>`;
         }
 
-        html += `
-        <div class="marquee-slot-card">
-            <div>
-                <div class="marquee-slot-head mb-2">
-                    <span class="marquee-slot-num">TEKS BAWAH #${idx + 1}</span>
-                    ${actionBadge}
-                </div>
-                <div class="fw-bold text-dark text-sm mb-1">"${window.escapeHtml(slot.text)}"</div>
-                <div class="text-xs text-muted">${targetDetail}</div>
-            </div>
-            <div class="flex-gap mt-2">
-                <button type="button" class="btn btn-outline btn-sm flex-1" onclick="window.openFooterMarqueeSlotForm(${idx})">
-                    <i class="fa-solid fa-pen"></i> Edit
-                </button>
-                <button type="button" class="btn btn-danger btn-sm" onclick="window.deleteFooterMarqueeSlotItem(${idx})">
-                    <i class="fa-solid fa-trash"></i>
-                </button>
-            </div>
-        </div>`;
+        pillsHtml += `
+            <span class="v278-preview-pill">
+                ${badgeHtml}
+                <span>${window.escapeHtml(b.brandName + statusText)}</span>
+            </span>
+            <span style="color:#facc15; font-size:0.8rem;">✦</span>
+        `;
     });
-    container.innerHTML = html;
+
+    const elActive = document.getElementById('ctrl-footer-active-count');
+    const elReady = document.getElementById('ctrl-footer-ready-count');
+    const elSold = document.getElementById('ctrl-footer-soldout-count');
+
+    if (elActive) elActive.innerText = `${activeBrands.length} Produk`;
+    if (elReady) elReady.innerText = `${readyCount} Produk`;
+    if (elSold) elSold.innerText = `${soldOutCount} Produk`;
+
+    if (previewStrip) {
+        previewStrip.innerHTML = pillsHtml || `<span class="text-xs" style="color:#94a3b8;">Belum ada produk aktif di katalog.</span>`;
+    }
+};
+
+window.renderAdminQrisControlMonitor = function() {
+    const unpaidContainer = document.getElementById('admin-unpaid-qris-control-list');
+    const mutContainer = document.getElementById('admin-recent-mutations-log');
+
+    if (unpaidContainer) {
+        const unpaidQris = orders.filter(o =>
+            (o.status === 'UNPAID' || o.status === 'PENDING_PAYMENT') &&
+            (o.paymentMethod || 'qris') === 'qris'
+        );
+        if (unpaidQris.length === 0) {
+            unpaidContainer.innerHTML = `<div class="text-xs text-muted p-2">Tidak ada tagihan QRIS yang sedang menunggu pembayaran.</div>`;
+        } else {
+            unpaidContainer.innerHTML = unpaidQris.slice(0, 12).map(o => {
+                const itemTitle = (o.items && o.items[0]) ? o.items[0].name : (o.productName || 'Pesanan');
+                const amt = Number(o.finalTotal || o.uniqueTotal || 0);
+                return `
+                <div class="v278-monitor-item">
+                    <div style="min-width:0; flex:1;">
+                        <div class="flex-gap align-center">
+                            <strong class="code-mono text-primary text-xs">#${window.escapeHtml(o.id)}</strong>
+                            <strong class="text-success text-xs">Rp${amt.toLocaleString('id-ID')}</strong>
+                        </div>
+                        <div class="text-xs text-muted" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${window.escapeHtml(itemTitle)} &bull; ${window.escapeHtml(o.userEmail || '-')}</div>
+                    </div>
+                    <button type="button" class="btn btn-success btn-sm" style="padding:4px 10px; font-size:0.7rem;" onclick="window.simulateOrVerifyOrderPaymentNow('${escapeJsStr(o.dbId)}')">
+                        <i class="fa-solid fa-check-double"></i> Verifikasi Lunas
+                    </button>
+                </div>`;
+            }).join('');
+        }
+    }
+
+    if (mutContainer) {
+        if (!Array.isArray(recentMutationsList) || recentMutationsList.length === 0) {
+            mutContainer.innerHTML = `<div class="text-xs text-muted p-2">Belum ada sinyal mutasi masuk.</div>`;
+        } else {
+            mutContainer.innerHTML = recentMutationsList.slice(0, 10).map(m => {
+                const cands = extractAdminCandidateAmountsFromMutation(m);
+                const primaryAmt = cands[0] || Number(m.amount || 0);
+                const isMatched = String(m.status || '').toUpperCase() === 'MATCHED';
+                const badge = isMatched
+                    ? `<span class="status-badge status-success" style="font-size:0.55rem;">COCOK (${window.escapeHtml(m.matchedOrderId || 'OK')})</span>`
+                    : `<span class="status-badge status-pending" style="font-size:0.55rem;">TERCATAT</span>`;
+                const ts = getAdminMutationTimestampMs(m, false);
+                const timeStr = ts > 0 ? new Date(ts).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '-';
+                const rawPreview = String(m.rawText || m.text || m.title || '').substring(0, 75);
+
+                return `
+                <div class="v278-monitor-item">
+                    <div style="min-width:0; flex:1;">
+                        <div class="flex-between align-center">
+                            <strong class="text-dark text-xs">${primaryAmt > 0 ? 'Rp' + primaryAmt.toLocaleString('id-ID') : 'Notifikasi'}</strong>
+                            ${badge}
+                        </div>
+                        <div class="text-xs text-muted" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${window.escapeHtml(rawPreview)}">${window.escapeHtml(rawPreview || m.appName || '-')}</div>
+                        <span class="text-xs text-muted" style="font-size:0.62rem;">${timeStr} &bull; ${window.escapeHtml(m.source || m.appName || 'Webhook')}</span>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+    }
+};
+
+window.refreshAdminControlCenterUI = function(showToastMsg = false) {
+    window.updateFooterMarqueeControlPreview();
+    window.renderAdminQrisControlMonitor();
+    if (showToastMsg) {
+        window.showToast('Disegarkan', 'Panel Kontrol Running Text & Monitor QRIS diperbarui.', 'info');
+    }
+};
+
+window.copyMacroDroidDirectFirebaseUrl = function() {
+    const directUrl = `https://firestore.googleapis.com/v1/projects/vipercell-fc50e/databases/(default)/documents/payment_mutations?key=AIzaSyBQGZjl7uj5CRiLWCvPQKjiK4HvIYnXSJg`;
+    window.copyTextToClipboard(directUrl, 'URL Direct Firebase MacroDroid');
+};
+
+window.copyMacroDroidDirectFirebaseJson = function() {
+    const jsonBody = JSON.stringify({
+        fields: {
+            rawText: { stringValue: "{not_title} [not_title] | {not_text} [not_text] | {not_big_text} [not_big_text]" },
+            appName: { stringValue: "{not_app_name} [not_app_name]" },
+            source: { stringValue: "MACRODROID_DIRECT_FIREBASE" }
+        }
+    }, null, 2);
+    window.copyTextToClipboard(jsonBody, 'Body JSON Direct Firebase');
+};
+
+window.copyMacroDroidGasUrl = function() {
+    const url = (document.getElementById('set-email-webhook')?.value || siteSettings.emailWebhookUrl || '').trim();
+    if (!url) {
+        window.customAlert('URL Belum Diisi', 'Masukkan URL Google Apps Script terlebih dahulu pada kolom URL di atas.', 'warning');
+        return;
+    }
+    window.copyTextToClipboard(url, 'URL Google Apps Script');
+};
+
+window.copyMacroDroidGasJson = function() {
+    const secret = (document.getElementById('set-webhook-secret')?.value || siteSettings.webhookSecret || 'VIPERCELL_SECRET_2026').trim();
+    const jsonBody = JSON.stringify({
+        secret: secret,
+        app: "{not_app_name} [not_app_name]",
+        title: "{not_title} [not_title]",
+        text: "{not_text} [not_text]",
+        big_text: "{not_big_text} [not_big_text]"
+    }, null, 2);
+    window.copyTextToClipboard(jsonBody, 'Body JSON Apps Script');
+};
+
+window.simulateOrVerifyOrderPaymentNow = async function(orderDbId) {
+    const ord = orders.find(o => o.dbId === orderDbId);
+    if (!ord) return;
+
+    const amt = Math.round(Number(ord.finalTotal || ord.uniqueTotal || 0));
+    const nowMs = Date.now();
+    const mutId = `SIM-${nowMs}-${Math.floor(100 + Math.random() * 899)}`;
+
+    try {
+        await setDoc(doc(db, pathMutations, mutId), {
+            mutationId: mutId,
+            amount: amt,
+            candidateAmounts: [amt],
+            appName: 'Admin-Instant-Verify',
+            title: 'Verifikasi Pembayaran QRIS',
+            text: `Pembayaran QRIS Rp ${amt.toLocaleString('id-ID')} untuk #${ord.id}`,
+            rawText: `Pembayaran QRIS Rp ${amt.toLocaleString('id-ID')} (#${ord.id})`,
+            receivedAt: nowMs,
+            receivedAtIso: new Date(nowMs).toISOString(),
+            matchedOrderId: ord.id,
+            status: 'MATCHED',
+            source: 'ADMIN_CONTROL_PANEL'
+        }).catch(() => {});
+
+        await setDoc(doc(db, pathSettings, 'mainConfig'), {
+            lastPaymentDetected: amt,
+            lastPaymentTimestamp: nowMs,
+            lastPaymentMutation: {
+                mutationId: mutId,
+                amount: amt,
+                candidateAmounts: [amt],
+                appName: 'Admin-Instant-Verify',
+                timestamp: nowMs,
+                matchedOrderIds: [ord.id]
+            }
+        }, { merge: true }).catch(() => {});
+
+        const delivered = await attemptAutoStockDelivery(ord, ord.dbId);
+        window.showToast(
+            'Pesanan Terverifikasi!',
+            delivered
+                ? `Tagihan #${ord.id} (Rp${amt.toLocaleString('id-ID')}) lunas & stok otomatis dikirim!`
+                : `Tagihan #${ord.id} (Rp${amt.toLocaleString('id-ID')}) lunas & berstatus PENDING Admin.`,
+            'success'
+        );
+    } catch (e) {
+        window.customAlert('Gagal', 'Tidak dapat memverifikasi pesanan.', 'error');
+    }
+};
+
+window.simulateIncomingQrisWebhookFromAdmin = async function() {
+    const inp = document.getElementById('sim-qris-notif-input');
+    const rawStr = inp ? inp.value.trim() : '';
+    if (!rawStr) {
+        window.customAlert('Teks Kosong', 'Masukkan contoh teks notifikasi atau angka nominal (misal: Pembayaran QRIS Rp 15.123 diterima).', 'warning');
+        return;
+    }
+
+    const cands = extractAdminSmartCurrencyAmounts(rawStr, '');
+    if (cands.length === 0) {
+        window.customAlert('Nominal Tidak Ditemukan', 'Tidak ditemukan angka nominal Rupiah yang valid (minimal Rp100) pada teks tersebut.', 'warning');
+        return;
+    }
+
+    const primaryAmt = cands[0];
+    const nowMs = Date.now();
+    const mutId = `TEST-${nowMs}-${Math.floor(100 + Math.random() * 899)}`;
+
+    try {
+        await setDoc(doc(db, pathMutations, mutId), {
+            mutationId: mutId,
+            amount: primaryAmt,
+            candidateAmounts: cands,
+            appName: 'Simulator-Panel-Admin',
+            title: 'Simulasi QRIS Masuk',
+            text: rawStr,
+            rawText: rawStr,
+            receivedAt: nowMs,
+            receivedAtIso: new Date(nowMs).toISOString(),
+            matchedOrderId: '',
+            status: 'UNMATCHED',
+            source: 'ADMIN_SIMULATOR'
+        });
+
+        await setDoc(doc(db, pathSettings, 'mainConfig'), {
+            lastPaymentDetected: primaryAmt,
+            lastPaymentTimestamp: nowMs,
+            lastPaymentMutation: {
+                mutationId: mutId,
+                amount: primaryAmt,
+                candidateAmounts: cands,
+                appName: 'Simulator-Panel-Admin',
+                timestamp: nowMs
+            }
+        }, { merge: true });
+
+        let matchedAny = false;
+        for (const amt of cands) {
+            const ok = await autoMatchIncomingPaymentAmount(amt, rawStr, mutId);
+            if (ok) matchedAny = true;
+        }
+
+        if (inp) inp.value = '';
+        if (!matchedAny) {
+            window.showToast(
+                'Sinyal Mutasi Dikirim',
+                `Nominal Rp${primaryAmt.toLocaleString('id-ID')} berhasil dicatat di Firebase (tidak ada order UNPAID dengan nominal tersebut saat ini).`,
+                'info'
+            );
+        }
+    } catch (e) {
+        window.customAlert('Error', 'Gagal mengirim sinyal simulasi ke Firebase.', 'error');
+    }
+};
+
+window.cleanOldPaymentMutations = function() {
+    if (recentMutationsList.length === 0) {
+        window.showToast('Bersih', 'Log sinyal mutasi sudah kosong.', 'info');
+        return;
+    }
+    window.openConfirm(
+        'Bersihkan Log Mutasi QRIS',
+        `Hapus <b>${recentMutationsList.length} riwayat sinyal mutasi</b> dari koleksi payment_mutations?`,
+        async (confirmed) => {
+            if (!confirmed) return;
+            for (const m of recentMutationsList) {
+                if (m.dbId) {
+                    await deleteDoc(doc(db, pathMutations, m.dbId)).catch(() => {});
+                }
+            }
+            window.showToast('Dibersihkan', 'Log mutasi pembayaran berhasil dibersihkan.', 'success');
+        },
+        'delete'
+    );
 };
 
 // ==========================================
@@ -5249,7 +5427,6 @@ window.populateSettingsForm = function() {
     const waterToggle = document.getElementById('set-water-ripple');
     if (waterToggle) waterToggle.checked = siteSettings.waterRippleEnabled !== false;
 
-    // Jam Operasional Toko (#4 & #5)
     const opHoursToggle = document.getElementById('set-op-hours-enabled');
     const opOpenInp = document.getElementById('set-op-open-time');
     const opCloseInp = document.getElementById('set-op-close-time');
@@ -5259,13 +5436,16 @@ window.populateSettingsForm = function() {
     if (opCloseInp) opCloseInp.value = siteSettings.opCloseTime || '22:00';
     window.updateOpHoursAdminPreview();
 
+    const showPriceEl = document.getElementById('set-footer-show-price');
+    const showStatusEl = document.getElementById('set-footer-show-status');
+    const speedEl = document.getElementById('set-footer-speed');
+    if (showPriceEl) showPriceEl.checked = siteSettings.footerMarqueeShowPrice !== false;
+    if (showStatusEl) showStatusEl.checked = siteSettings.footerMarqueeShowStatus !== false;
+    if (speedEl) speedEl.value = siteSettings.footerMarqueeSpeed || 'normal';
+
     document.getElementById('set-logo-text').value = siteSettings.logoText || 'VIPER';
     document.getElementById('set-logo-accent').value = siteSettings.logoAccent || 'CELL';
     document.getElementById('set-marquee').value = siteSettings.marquee || '';
-    const footerMarqueeEl = document.getElementById('set-footer-marquee');
-    if (footerMarqueeEl) {
-        footerMarqueeEl.value = siteSettings.footerMarquee || 'TERIMA KASIH TELAH BERBELANJA DI VIPERCELL — LAYANAN APLIKASI PREMIUM, TOP UP GAME & PRODUK DIGITAL || TRANSAKSI OTOMATIS & BERGARANSI — HUBUNGI CS BANTUAN JIKA BUTUH PANDUAN';
-    }
     document.getElementById('set-wa').value = siteSettings.adminWa || '';
     document.getElementById('set-wa-channel').value = siteSettings.waChannelLink || '';
     document.getElementById('set-ig').value = siteSettings.igLink || '';
@@ -5306,7 +5486,7 @@ window.populateSettingsForm = function() {
     }
 
     window.renderMarqueeStudioSlots();
-    window.renderFooterMarqueeStudioSlots();
+    window.refreshAdminControlCenterUI();
     window.renderAdminBanners();
 };
 
@@ -5484,10 +5664,9 @@ window.saveSiteSettings = async function() {
         logoAccent: document.getElementById('set-logo-accent').value.trim() || 'CELL',
         marquee: combinedMarqueeText,
         marqueeList: marqueeListClean,
-        footerMarquee: ensureFooterMarqueeListInitialized().length > 0
-            ? ensureFooterMarqueeListInitialized().map(i => i.text).join(' || ')
-            : ((document.getElementById('set-footer-marquee')?.value || '').trim() || 'TERIMA KASIH TELAH BERBELANJA DI VIPERCELL — LAYANAN APLIKASI PREMIUM, TOP UP GAME & PRODUK DIGITAL'),
-        footerMarqueeList: ensureFooterMarqueeListInitialized().slice(0, 20),
+        footerMarqueeShowPrice: document.getElementById('set-footer-show-price') ? document.getElementById('set-footer-show-price').checked : true,
+        footerMarqueeShowStatus: document.getElementById('set-footer-show-status') ? document.getElementById('set-footer-show-status').checked : true,
+        footerMarqueeSpeed: document.getElementById('set-footer-speed')?.value || 'normal',
         adminWa: document.getElementById('set-wa').value.trim(),
         waChannelLink: document.getElementById('set-wa-channel').value.trim(),
         igLink: document.getElementById('set-ig').value.trim(),

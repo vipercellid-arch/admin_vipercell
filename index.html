@@ -1010,71 +1010,71 @@
                                 <input type="text" id="set-marquee" class="form-control" placeholder="Selamat datang di Vipercell.">
                             </div>
 
-                            <!-- Studio Teks Running Bawah (Gaya Tambah & Kelola Sama Persis dengan Teks Running Atas #2) -->
-                            <div class="dashboard-panel mt-4 mb-0" style="background: var(--surface); border-color: var(--border);">
-                                <div class="panel-header">
+                            <!-- PANEL KONTROL BARU v27.8: RUNNING TEXT KATALOG BAWAH OTOMATIS -->
+                            <div class="dashboard-panel mt-4 mb-0 v278-control-panel" style="background: var(--surface); border-color: var(--primary);">
+                                <div class="panel-header" style="margin-bottom: 0.9rem;">
                                     <div>
-                                        <h3><i class="fa-solid fa-wand-magic-sparkles text-primary"></i> Teks Info Berjalan Bawah (Pemisah Isi &amp; Footer 15–20 Slot)</h3>
-                                        <small class="text-muted">Tampil smooth dengan efek berkilau berkala di bagian bawah seluruh tab. Gaya kelola sama dengan teks running atas.</small>
+                                        <h3><i class="fa-solid fa-sliders text-primary"></i> Panel Kontrol Running Text Bawah Otomatis (Sinkron Katalog v27.8)</h3>
+                                        <small class="text-muted">Teks berjalan di bagian bawah toko kini 100% otomatis menampilkan item katalog aktif (Viu, Prime Video, Netflix, dll.) secara real-time tanpa input manual.</small>
                                     </div>
-                                    <button type="button" id="btn-add-footer-marquee-slot" class="btn btn-primary btn-sm" onclick="window.openFooterMarqueeSlotForm(-1)">
-                                        <i class="fa-solid fa-plus"></i> Tambah Teks Bawah (<span id="footer-marquee-slot-count-badge">0/20</span>)
+                                    <button type="button" class="btn btn-outline btn-sm" onclick="window.refreshAdminControlCenterUI(true)">
+                                        <i class="fa-solid fa-arrows-rotate text-primary"></i> Segarkan Pratinjau
                                     </button>
                                 </div>
 
-                                <div id="footer-marquee-slot-editor" class="info-box mb-3" style="display: none; background: var(--surface-elevated); border: var(--brutal-border-thin);">
-                                    <input type="hidden" id="edit-footer-marquee-idx" value="-1">
-                                    <div class="flex-between align-center mb-2">
-                                        <strong id="footer-marquee-editor-title" class="text-primary"><i class="fa-solid fa-pen-to-square"></i> Tambah Teks Running Bawah</strong>
-                                        <button type="button" class="btn btn-outline btn-sm" onclick="window.closeFooterMarqueeSlotForm()"><i class="fa-solid fa-xmark"></i> Tutup</button>
+                                <div class="v278-mini-stats-row mb-3">
+                                    <div class="v278-mini-stat-box">
+                                        <span class="v278-stat-lbl">PRODUK AKTIF TAMPIL</span>
+                                        <strong id="ctrl-footer-active-count" class="text-primary">0 Produk</strong>
                                     </div>
-
-                                    <div class="form-group">
-                                        <label for="fmq-slot-text">Isi Teks Berjalan Bawah <span class="text-danger">*</span></label>
-                                        <input type="text" id="fmq-slot-text" class="form-control" placeholder="Contoh: Terima kasih telah berbelanja di Vipercell — Layanan Aplikasi Premium & Top Up Game!">
+                                    <div class="v278-mini-stat-box">
+                                        <span class="v278-stat-lbl">STOK READY</span>
+                                        <strong id="ctrl-footer-ready-count" class="text-success">0 Produk</strong>
                                     </div>
-
-                                    <div class="grid-2col">
-                                        <div class="form-group">
-                                            <label for="fmq-slot-type">Tindakan Saat Diklik</label>
-                                            <select id="fmq-slot-type" class="form-control" onchange="window.toggleFooterMarqueeSlotActionFields()">
-                                                <option value="info">Informasi Umum</option>
-                                                <option value="product">Buka Produk Tertentu</option>
-                                                <option value="promo">Pakai Kode Promo Member</option>
-                                                <option value="news">Buka Artikel Berita</option>
-                                            </select>
-                                        </div>
-
-                                        <div class="form-group" id="fmq-field-promo" style="display: none;">
-                                            <label for="fmq-slot-promo">Kode Promo</label>
-                                            <input type="text" id="fmq-slot-promo" class="form-control code-mono" placeholder="Contoh: DISKON5K" style="text-transform: uppercase;">
-                                        </div>
-
-                                        <div class="form-group" id="fmq-field-brand" style="display: none;">
-                                            <label for="fmq-slot-brand">Pilih Produk Tujuan</label>
-                                            <select id="fmq-slot-brand" class="form-control">
-                                                <option value="">-- Otomatis Sesuai Promo / Katalog --</option>
-                                            </select>
-                                        </div>
-
-                                        <div class="form-group" id="fmq-field-news" style="display: none;">
-                                            <label for="fmq-slot-news">Pilih Artikel Berita</label>
-                                            <select id="fmq-slot-news" class="form-control">
-                                                <option value="0">Berita Terbaru (#1)</option>
-                                            </select>
-                                        </div>
+                                    <div class="v278-mini-stat-box">
+                                        <span class="v278-stat-lbl">LABEL HABIS</span>
+                                        <strong id="ctrl-footer-soldout-count" class="text-danger">0 Produk</strong>
                                     </div>
-
-                                    <button type="button" class="btn btn-success w-full" onclick="window.saveFooterMarqueeSlotItem()">
-                                        <i class="fa-solid fa-check"></i> Simpan Teks Running Bawah
-                                    </button>
                                 </div>
 
-                                <div id="footer-marquee-slots-container" class="marquee-studio-grid"></div>
+                                <div class="grid-2col mb-3">
+                                    <div class="info-box flex-between align-center mb-0">
+                                        <div>
+                                            <strong class="text-xs d-block">Tampilkan Harga Mulai (Rp)</strong>
+                                            <span class="text-xs text-muted">Contoh: "Viu — Mulai Rp10.000"</span>
+                                        </div>
+                                        <label class="switch">
+                                            <input type="checkbox" id="set-footer-show-price" checked onchange="window.updateFooterMarqueeControlPreview()">
+                                            <span class="slider"></span>
+                                        </label>
+                                    </div>
 
-                                <div class="form-group mt-3 mb-0">
-                                    <label for="set-footer-marquee">Teks Berjalan Bawah (Cadangan / Gabungan)</label>
-                                    <input type="text" id="set-footer-marquee" class="form-control" placeholder="TERIMA KASIH TELAH BERBELANJA DI VIPERCELL — LAYANAN APLIKASI PREMIUM, TOP UP GAME & PRODUK DIGITAL">
+                                    <div class="info-box flex-between align-center mb-0">
+                                        <div>
+                                            <strong class="text-xs d-block">Tampilkan Badge Kategori &amp; Status Habis</strong>
+                                            <span class="text-xs text-muted">Menampilkan badge KATALOG / GAME / HABIS</span>
+                                        </div>
+                                        <label class="switch">
+                                            <input type="checkbox" id="set-footer-show-status" checked onchange="window.updateFooterMarqueeControlPreview()">
+                                            <span class="slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="form-group mb-3">
+                                    <label for="set-footer-speed">Kecepatan Gerak Running Text Bawah</label>
+                                    <select id="set-footer-speed" class="form-control" onchange="window.updateFooterMarqueeControlPreview()">
+                                        <option value="normal">Normal &amp; Smooth (Direkomendasikan — 60fps)</option>
+                                        <option value="fast">Cepat &amp; Dinamis</option>
+                                        <option value="slow">Santai &amp; Mudah Dibaca</option>
+                                    </select>
+                                </div>
+
+                                <div class="v278-live-preview-wrap">
+                                    <span class="text-xs fw-bold text-muted d-block mb-1"><i class="fa-solid fa-eye text-primary"></i> PRATINJAU ITEM RUNNING TEXT BAWAH SAAT INI:</span>
+                                    <div id="admin-footer-marquee-live-preview" class="v278-dark-preview-strip">
+                                        <span class="text-xs text-muted">Memuat item katalog...</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1107,11 +1107,18 @@
                             </div>
                         </div>
 
-                        <!-- 5. Konfigurasi QRIS & Server Validasi Pembayaran (MacroDroid) -->
-                        <div class="info-box bg-primary-light border-primary mt-3 mb-3">
-                            <h4 class="text-primary mb-2"><i class="fa-solid fa-qrcode"></i> Pengaturan QRIS &amp; Validasi Pembayaran Otomatis</h4>
+                        <!-- 5. PANEL KONTROL & PUSAT VALIDASI PEMBAYARAN QRIS OTOMATIS v27.8 -->
+                        <div class="dashboard-panel mt-3 mb-3 v278-qris-control-center" style="background: var(--surface-elevated); border-color: var(--primary);">
+                            <div class="panel-header" style="margin-bottom: 0.9rem;">
+                                <div>
+                                    <h3><i class="fa-solid fa-bolt text-warning"></i> Panel Kontrol &amp; Pusat Validasi Pembayaran QRIS Otomatis (Multi-Jalur v27.8)</h3>
+                                    <small class="text-muted">Mendukung Jalur Direct Firebase REST (0.1 detik tanpa Apps Script), Jalur Google Apps Script Webhook, serta Simulator &amp; Verifikasi Instan 1-Klik.</small>
+                                </div>
+                                <span class="status-badge status-success"><i class="fa-solid fa-shield-check"></i> TRIPLE-ENGINE AKTIF</span>
+                            </div>
+
                             <div class="form-group">
-                                <label>String Data QRIS Statis</label>
+                                <label>String Data QRIS Statis Toko</label>
                                 <div class="flex-gap mb-2 flex-wrap-gap">
                                     <label class="btn btn-outline btn-sm m-0 pointer">
                                         <i class="fa-solid fa-qrcode"></i> Scan Gambar QRIS
@@ -1121,9 +1128,10 @@
                                 </div>
                                 <textarea id="set-qris-data" class="form-control code-mono" rows="2" placeholder="00020101021126..."></textarea>
                             </div>
-                            <div class="grid-2col">
+
+                            <div class="grid-2col mb-3">
                                 <div class="form-group mb-0">
-                                    <label>URL Google Apps Script (Khusus Validasi Pembayaran MacroDroid)</label>
+                                    <label>URL Google Apps Script (Jalur Server Webhook)</label>
                                     <input type="text" id="set-email-webhook" class="form-control" placeholder="https://script.google.com/macros/s/.../exec">
                                 </div>
                                 <div class="form-group mb-0">
@@ -1131,8 +1139,78 @@
                                     <div class="flex-gap">
                                         <input type="text" id="set-webhook-secret" class="form-control code-mono" placeholder="VIPERCELL_SECRET_2026">
                                         <button type="button" class="btn btn-warning btn-sm" onclick="window.testEmailWebhookConnection()" title="Tes Koneksi Server Validasi">
-                                            <i class="fa-solid fa-vial"></i> Tes Koneksi
+                                            <i class="fa-solid fa-vial"></i> Tes Server
                                         </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 2 Opsi Konfigurasi MacroDroid Siap Salin 1-Klik -->
+                            <div class="grid-2col mb-3">
+                                <div class="info-box mb-0" style="background: var(--surface); border-color: var(--success);">
+                                    <div class="flex-between align-center mb-1">
+                                        <strong class="text-success text-xs"><i class="fa-solid fa-fire"></i> JALUR 1: DIRECT FIREBASE (TANPA APPS SCRIPT)</strong>
+                                        <span class="status-badge status-success" style="font-size:0.58rem;">TERCEPAT 0.1 DETIK</span>
+                                    </div>
+                                    <p class="text-xs text-muted mb-2">MacroDroid mengirim notifikasi langsung ke Database Firebase tanpa perantara Apps Script (bebas masalah redirect/izin).</p>
+                                    <div class="flex-gap flex-wrap-gap">
+                                        <button type="button" class="btn btn-success btn-sm flex-1" onclick="window.copyMacroDroidDirectFirebaseUrl()">
+                                            <i class="fa-regular fa-copy"></i> Salin URL Firebase
+                                        </button>
+                                        <button type="button" class="btn btn-outline btn-sm flex-1" onclick="window.copyMacroDroidDirectFirebaseJson()">
+                                            <i class="fa-solid fa-code"></i> Salin Body JSON
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="info-box mb-0" style="background: var(--surface); border-color: var(--primary);">
+                                    <div class="flex-between align-center mb-1">
+                                        <strong class="text-primary text-xs"><i class="fa-solid fa-server"></i> JALUR 2: APPS SCRIPT WEBHOOK v27.8</strong>
+                                        <span class="status-badge status-pending" style="font-size:0.58rem;">DUAL SYNTAX {} &amp; []</span>
+                                    </div>
+                                    <p class="text-xs text-muted mb-2">Format JSON sudah mendukung variabel MacroDroid kurung kurawal <code>{not_text}</code> maupun siku <code>[not_text]</code> sekaligus.</p>
+                                    <div class="flex-gap flex-wrap-gap">
+                                        <button type="button" class="btn btn-primary btn-sm flex-1" onclick="window.copyMacroDroidGasUrl()">
+                                            <i class="fa-regular fa-copy"></i> Salin URL Script
+                                        </button>
+                                        <button type="button" class="btn btn-outline btn-sm flex-1" onclick="window.copyMacroDroidGasJson()">
+                                            <i class="fa-solid fa-code"></i> Salin Body JSON
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Simulator & Verifikasi Instan Pesanan UNPAID -->
+                            <div class="info-box mb-0" style="background: var(--surface);">
+                                <div class="flex-between align-center flex-wrap-gap mb-2">
+                                    <div>
+                                        <strong class="text-dark text-sm"><i class="fa-solid fa-bolt-lightning text-warning"></i> Simulator &amp; Monitor Verifikasi Pembayaran Realtime</strong>
+                                        <span class="text-xs text-muted d-block">Uji coba verifikasi nominal otomatis atau lunasi tagihan QRIS yang sedang menunggu pembayaran dalam 1 klik.</span>
+                                    </div>
+                                    <button type="button" class="btn btn-outline btn-sm" onclick="window.cleanOldPaymentMutations()">
+                                        <i class="fa-solid fa-broom text-danger"></i> Bersihkan Log Mutasi
+                                    </button>
+                                </div>
+
+                                <div class="flex-gap mb-3 flex-wrap-gap">
+                                    <input type="text" id="sim-qris-notif-input" class="form-control" style="flex:2; min-width:220px;" placeholder="Contoh: Pembayaran QRIS Rp 15.123 berhasil diterima (GoPay Merchant)">
+                                    <button type="button" class="btn btn-warning btn-sm" onclick="window.simulateIncomingQrisWebhookFromAdmin()">
+                                        <i class="fa-solid fa-paper-plane"></i> Simulasikan Notifikasi Masuk
+                                    </button>
+                                </div>
+
+                                <div class="grid-2col">
+                                    <div>
+                                        <span class="text-xs fw-bold text-muted d-block mb-1">TAGIHAN QRIS MENUNGGU BAYAR (KLIK UNTUK VERIFIKASI):</span>
+                                        <div id="admin-unpaid-qris-control-list" class="v278-monitor-list">
+                                            <div class="text-xs text-muted p-2">Tidak ada tagihan QRIS yang sedang menunggu pembayaran.</div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <span class="text-xs fw-bold text-muted d-block mb-1">LOG SINYAL MUTASI QRIS TERBARU:</span>
+                                        <div id="admin-recent-mutations-log" class="v278-monitor-list">
+                                            <div class="text-xs text-muted p-2">Belum ada sinyal mutasi pembayaran.</div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
