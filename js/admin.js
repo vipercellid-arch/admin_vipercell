@@ -94,7 +94,7 @@ let siteSettings = {
     isStoreOpen: true,
     waChannelLink: '',
     anonAutoDelete6h: true,
-    // Pengaturan Jam Operasional Toko (#20)
+    // Pengaturan Jam Operasional Toko
     opHoursEnabled: false,
     opOpenTime: '08:00',
     opCloseTime: '22:00',
@@ -137,7 +137,7 @@ let currentStockFilter = 'READY';
 let currentMemberFilter = 'ALL';
 let activeAdminChatId = null;
 
-// State Hierarki Cek & Tambah Stok (#17)
+// State Hierarki Cek & Tambah Stok
 let selectedCheckStockBrand = '';
 let selectedCheckStockVariant = '';
 let selectedAddStockBrand = '';
@@ -193,7 +193,7 @@ window.copyTextToClipboard = function(text, label = 'Data') {
 };
 
 // ==========================================
-// EFEK SENTUHAN AIR BERWARNA / WATER RIPPLE CANVAS (#9)
+// EFEK SENTUHAN AIR BERWARNA / WATER RIPPLE CANVAS
 // ==========================================
 let waterRippleEngine = {
     initialized: false,
@@ -352,7 +352,7 @@ window.previewWaterRippleToggle = function() {
 
 
 // ==========================================
-// PINTASAN BUKA / TUTUP TOKO DI TOPBAR (#16)
+// PINTASAN BUKA / TUTUP TOKO DI TOPBAR
 // ==========================================
 function updateTopbarStoreStatusUI() {
     const isOpen = siteSettings.isStoreOpen !== false;
@@ -414,7 +414,7 @@ window.syncStoreOpenSwitchPreview = function() {
 };
 
 // ==========================================
-// JAM OPERASIONAL TOKO PREVIEW (#20)
+// JAM OPERASIONAL TOKO PREVIEW
 // ==========================================
 function checkIsCurrentlyRestrictedByOpHours(opEnabled, openStr, closeStr) {
     if (!opEnabled) return false;
@@ -970,7 +970,7 @@ async function ensureOrderSubscriptionInitialized(orderData, orderDbId) {
 }
 
 // ==========================================
-// WEBHOOK CALLER & ANTI-EMAIL DOBEL (#12 & #18)
+// WEBHOOK CALLER & ANTI-EMAIL DOBEL
 // ==========================================
 async function callUnifiedGasWebhook(payloadObj) {
     const rawUrls = (siteSettings.emailWebhookUrl || '').trim();
@@ -986,7 +986,7 @@ async function callUnifiedGasWebhook(payloadObj) {
     const activeSecret = (siteSettings.webhookSecret || 'VIPERCELL_SECRET_2026').trim();
     let lastError = null;
 
-    // Mendukung Multi-URL Google Apps Script (dipisah koma) agar kuota pengiriman email harian tanpa batas (#5)
+    // Mendukung Multi-URL Google Apps Script (dipisah koma) agar kuota pengiriman email harian tanpa batas
     for (let i = 0; i < urlList.length; i++) {
         const targetUrl = urlList[i];
         const backupUrls = urlList.filter((_, idx) => idx !== i);
@@ -1067,7 +1067,7 @@ function isOrderEmailReceiptAllowedByUser(orderData) {
     return true;
 }
 
-// Pengiriman Email dengan Proteksi Anti-Dobel, Cek Stok Gudang (#2) & Cek Izin Email User (#3)
+// Pengiriman Email dengan Proteksi Anti-Dobel, Cek Stok Gudang & Cek Izin Email User
 async function triggerAutomatedEmailWebhook(orderData, accountDetailsText, silent = true, explicitOrderDbId = null) {
     if (!orderData || !orderData.id) return false;
 
@@ -1119,7 +1119,7 @@ async function triggerAutomatedEmailWebhook(orderData, accountDetailsText, silen
 
     const resolvedDbId = explicitOrderDbId || orderData.dbId;
 
-    // Kunci segera di memori, localStorage, dan Firestore sebelum request dimulai (#12)
+    // Kunci segera di memori, localStorage, dan Firestore sebelum request dimulai
     inFlightEmailOrderIds.add(invKey);
     sentEmailOrderIds.add(invKey);
     try { localStorage.setItem(localSentKey, '1'); } catch (e) {}
@@ -1256,7 +1256,7 @@ function updateEmailButtonLockStateUI(isAlreadySent, orderObj = null) {
     }
 }
 
-// Formatter Kredensial Stok Tanpa Link Default Ambil Kode (#18)
+// Formatter Kredensial Stok Tanpa Link Default Ambil Kode
 function formatAdminStockCredentialLine(rawStr, stockMode = 'PRIVATE', slotInfo = '') {
     const clean = String(rawStr || '').trim();
     if (!clean) return '';
@@ -1513,7 +1513,7 @@ window.autoCleanExpiredAnonAccounts6h = async function(isManualTrigger = false) 
     let cleanedCount = 0;
     for (const anon of expiredAnons) {
         try {
-            // Hapus akun dari Firebase Authentication menggunakan token sesi jika tersedia (#9)
+            // Hapus akun dari Firebase Authentication menggunakan token sesi jika tersedia
             if (anon.anonIdToken) {
                 await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:delete?key=AIzaSyBQGZjl7uj5CRiLWCvPQKjiK4HvIYnXSJg`, {
                     method: 'POST',
@@ -1702,7 +1702,7 @@ function startAdminListeners() {
             }
             knownOrderIds.add(data.id);
 
-            // Jika pembayaran diterima (status PAID atau baru lunas tanpa adminReply), cek stok lokal (#1)
+            // Jika pembayaran diterima (status PAID atau baru lunas tanpa adminReply), cek stok lokal
             if (data.status === 'PAID' || (data.status === 'SUCCESS' && !data.adminReply && !data.autoDelivered)) {
                 attemptAutoStockDelivery(data, data.dbId);
             } else if (data.status === 'SUCCESS' && durDays > 0 && !data.subscriptionEndAt) {
@@ -1763,7 +1763,7 @@ function startAdminListeners() {
 
         snapshot.forEach((docSnap) => {
             const cData = { id: docSnap.id, ...docSnap.data() };
-            // Pastikan saran produk TIDAK PERNAH masuk ke daftar Chat Bantuan (#3)
+            // Pastikan saran produk TIDAK PERNAH masuk ke daftar Chat Bantuan
             const isLegacySaranDoc = docSnap.id.startsWith('saran_') ||
                 cData.isProductSuggestion === true ||
                 String(cData.userInfo || '').startsWith('[SARAN PRODUK]');
@@ -3566,7 +3566,7 @@ window.promptProcessOrder = function(dbId) {
         subBox.style.display = 'none';
     }
 
-    // Jika pesanan sudah selesai (SUCCESS & memiliki rincian terkirim), kunci seluruh tombol edit & aksi (#14)
+    // Jika pesanan sudah selesai (SUCCESS & memiliki rincian terkirim), kunci seluruh tombol edit & aksi
     const isCompletedLocked = Boolean(order.status === 'SUCCESS' && (order.adminReply || order.digiflazzSn || order.autoDelivered));
     const replyArea = document.getElementById('proc-admin-reply');
     const replyLbl = document.getElementById('proc-admin-reply-label');
@@ -3860,7 +3860,7 @@ window.promptDeleteOrder = function(dbId, invId) {
 
 
 // ==========================================
-// SUB-TAB CS BANTUAN: CHAT BANTUAN VS SARAN PRODUK (#14)
+// SUB-TAB CS BANTUAN: CHAT BANTUAN VS SARAN PRODUK
 // ==========================================
 window.switchAdminCsSubTab = function(subTab) {
     currentAdminCsSubTab = subTab === "saran" ? "saran" : "chat";
@@ -3981,7 +3981,7 @@ function rebuildMergedSuggestionsList() {
     window.renderAdminSuggestions();
 }
 
-// Saat Admin menandai sudah dibaca, hapus saran produk secara PERMANEN dari seluruh lapisan database (#3)
+// Saat Admin menandai sudah dibaca, hapus saran produk secara PERMANEN dari seluruh lapisan database
 window.markSuggestionAsRead = async function(dbId, prodName = "Saran") {
     if (!dbId) return;
     try {
@@ -5044,7 +5044,7 @@ window.resetStockHierarchySelection = function() {
     renderStockBrandCardsGrid();
 };
 
-// Langkah 1 Cek Stok: Pilih Produk -> Muncul daftar Variasi di dalam produk tersebut (#17)
+// Langkah 1 Cek Stok: Pilih Produk -> Muncul daftar Variasi di dalam produk tersebut
 window.selectStockCheckBrand = function(brandName) {
     selectedCheckStockBrand = String(brandName || '').trim();
     selectedCheckStockVariant = '';
@@ -5127,7 +5127,7 @@ function renderStockCheckVariantsForBrand(brandName) {
     }
 }
 
-// Langkah 2 Cek Stok: Pilih Variasi -> Baru muncul stok aktif saat itu (#17)
+// Langkah 2 Cek Stok: Pilih Variasi -> Baru muncul stok aktif saat itu
 window.selectStockCheckVariant = function(variantName) {
     selectedCheckStockVariant = String(variantName || '').trim();
     const varSelect = document.getElementById('check-stock-variant-select');
@@ -5167,7 +5167,7 @@ window.jumpToAddStockForSelectedVariant = function() {
     setTimeout(() => document.getElementById('stock-data-input')?.focus(), 250);
 };
 
-// Langkah 1 Tambah Stok: Pilih Produk -> Muncul pilihan Variasi (#17)
+// Langkah 1 Tambah Stok: Pilih Produk -> Muncul pilihan Variasi
 window.onSelectAddStockBrand = function(keepVariantSelection = false) {
     const addBrandSel = document.getElementById('stock-brand-select');
     const varWrap = document.getElementById('stock-add-variant-wrap');
@@ -5208,7 +5208,7 @@ window.onSelectAddStockBrand = function(keepVariantSelection = false) {
     }
 };
 
-// Langkah 2 Tambah Stok: Pilih Variasi -> Baru muncul form tambah stok & info stok aktif saat ini (#17)
+// Langkah 2 Tambah Stok: Pilih Variasi -> Baru muncul form tambah stok & info stok aktif saat ini
 window.onSelectAddStockVariant = function() {
     const varSel = document.getElementById('stock-variant-select');
     const formWrap = document.getElementById('stock-add-form-wrap');
@@ -5388,7 +5388,7 @@ window.renderAdminStocks = function() {
     if (elSlots) elSlots.innerText = totalAvailableSlots;
     if (elUsed) elUsed.innerText = usedStocks.length;
 
-    // 2. Perbarui kartu produk & variasi di panel hierarki (#17)
+    // 2. Perbarui kartu produk & variasi di panel hierarki
     renderStockBrandCardsGrid();
     if (selectedCheckStockBrand) {
         renderStockCheckVariantsForBrand(selectedCheckStockBrand);
@@ -5402,7 +5402,7 @@ window.renderAdminStocks = function() {
         }
     }
 
-    // 3. Hanya tampilkan daftar item stok jika Produk & Variasi sudah dipilih (#17)
+    // 3. Hanya tampilkan daftar item stok jika Produk & Variasi sudah dipilih
     const itemsPanel = document.getElementById('stock-check-items-panel');
     const tbody = document.getElementById('admin-stock-list');
     const mobileContainer = document.getElementById('admin-stock-mobile-cards');
@@ -6598,7 +6598,7 @@ window.cleanOldPaymentMutations = function() {
 };
 
 // ==========================================
-// PENGATURAN TOKO & JAM OPERASIONAL (#18 & #20)
+// PENGATURAN TOKO & JAM OPERASIONAL
 // ==========================================
 window.populateSettingsForm = function() {
     const storeOpenEl = document.getElementById('set-store-open');
@@ -6699,7 +6699,7 @@ window.populateSettingsForm = function() {
     if (dfModeBadge) {
         const hasBridge = Boolean((siteSettings.digiflazzBridgeUrl || '').trim());
         dfModeBadge.className = `status-badge ${hasBridge ? 'status-success' : 'status-pending'}`;
-        dfModeBadge.innerText = hasBridge ? 'TERHUBUNG KE SERVER BRIDGE VPS' : 'MODE SIMULASI TEST CASE AKTIF';
+        dfModeBadge.innerText = hasBridge ? 'SERVER BRIDGE TERHUBUNG' : 'SIAP DIGUNAKAN';
     }
 
     const adminPinEl = document.getElementById('set-admin-security-pin');
@@ -6907,7 +6907,7 @@ window.saveSiteSettings = async function() {
         isStoreOpen: document.getElementById('set-store-open').checked,
         anonAutoDelete6h: document.getElementById('set-anon-autodelete-6h') ? document.getElementById('set-anon-autodelete-6h').checked : true,
         waterRippleEnabled: document.getElementById('set-water-ripple') ? document.getElementById('set-water-ripple').checked : true,
-        // Pengaturan Jam Operasional Toko (#4 & #5)
+        // Pengaturan Jam Operasional Toko
         opHoursEnabled: Boolean(document.getElementById('set-op-hours-enabled')?.checked),
         opOpenTime: document.getElementById('set-op-open-time')?.value || '08:00',
         opCloseTime: document.getElementById('set-op-close-time')?.value || '22:00',
@@ -6983,7 +6983,7 @@ window.exportMembersCSV = function() {
 };
 
 // ==========================================
-// POP-UP MODALS & NOTIFIKASI KECIL (#15 & #19)
+// POP-UP MODALS & NOTIFIKASI KECIL
 // ==========================================
 window.openModal = function(id) {
     const el = document.getElementById(id);
@@ -7325,7 +7325,7 @@ window.onChangeDigiflazzEnvMode = function() {
         } else {
             banner.style.background = 'rgba(245, 158, 11, 0.14)';
             banner.style.borderColor = '#f59e0b';
-            banner.innerHTML = `<i class="fa-solid fa-flask" style="color:#d97706;"></i> <div><strong style="color:#d97706;">MODE AKTIF: DEVELOPMENT (UJI COBA / SANDBOX)</strong><br>Transaksi menggunakan kolom <b>API Key Development</b> dengan parameter <code>testing: true</code>.</div>`;
+            banner.innerHTML = `<i class="fa-solid fa-flask" style="color:#d97706;"></i> <div><strong style="color:#d97706;">MODE AKTIF: DEVELOPMENT</strong><br>Transaksi menggunakan kolom <b>API Key Development</b> dengan parameter <code>testing: true</code>.</div>`;
         }
     }
     if (devCard) devCard.style.opacity = mode === 'development' ? '1' : '0.65';
@@ -7576,8 +7576,113 @@ window.saveDigiflazzMarkupPreview = function() {
     }
 };
 
-// 5. Pemanggil API Digiflazz (Mendukung Dual API Key & Server Bridge VPS)
+// 5. Pemanggil API Digiflazz (Mendukung Dual API Key, Auto-Restore Konfigurasi & Server Bridge VPS)
+async function hydrateAdminLegacyDigiflazzConfigIfNeeded() {
+    try {
+        const cachedRaw = localStorage.getItem('vipercell_df_config_backup');
+        if (cachedRaw) {
+            const cachedCfg = JSON.parse(cachedRaw);
+            if (cachedCfg && typeof cachedCfg === 'object') {
+                if (!siteSettings.digiflazzUsername && cachedCfg.digiflazzUsername) siteSettings.digiflazzUsername = cachedCfg.digiflazzUsername;
+                if (!siteSettings.digiflazzDevApiKey && cachedCfg.digiflazzDevApiKey) siteSettings.digiflazzDevApiKey = cachedCfg.digiflazzDevApiKey;
+                if (!siteSettings.digiflazzProdApiKey && cachedCfg.digiflazzProdApiKey) siteSettings.digiflazzProdApiKey = cachedCfg.digiflazzProdApiKey;
+                if (!siteSettings.digiflazzApiKey && cachedCfg.digiflazzApiKey) siteSettings.digiflazzApiKey = cachedCfg.digiflazzApiKey;
+                if (cachedCfg.digiflazzBridgeUrl) siteSettings.digiflazzBridgeUrl = cachedCfg.digiflazzBridgeUrl;
+                if (cachedCfg.digiflazzEnvMode) siteSettings.digiflazzEnvMode = cachedCfg.digiflazzEnvMode;
+            }
+        }
+    } catch (e) {}
+
+    if (siteSettings.digiflazzUsername && (siteSettings.digiflazzDevApiKey || siteSettings.digiflazzProdApiKey || siteSettings.digiflazzApiKey)) {
+        return;
+    }
+
+    try {
+        const [mRes, sRes] = await Promise.all([
+            fetch('https://firestore.googleapis.com/v1/projects/vipercell23/databases/(default)/documents/settings/mainConfig').catch(() => null),
+            fetch('https://firestore.googleapis.com/v1/projects/vipercell23/databases/(default)/documents/settings/secretConfig').catch(() => null)
+        ]);
+        const parseFields = (fObj) => {
+            if (!fObj || typeof fObj !== 'object') return {};
+            const out = {};
+            for (const [k, v] of Object.entries(fObj)) {
+                if (v.stringValue !== undefined) out[k] = v.stringValue;
+                else if (v.booleanValue !== undefined) out[k] = Boolean(v.booleanValue);
+                else if (v.integerValue !== undefined) out[k] = Number(v.integerValue);
+                else if (v.doubleValue !== undefined) out[k] = Number(v.doubleValue);
+            }
+            return out;
+        };
+        let legacyCfg = {};
+        if (mRes && mRes.ok) {
+            const mJson = await mRes.json().catch(() => ({}));
+            legacyCfg = { ...legacyCfg, ...parseFields(mJson.fields) };
+        }
+        if (sRes && sRes.ok) {
+            const sJson = await sRes.json().catch(() => ({}));
+            legacyCfg = { ...legacyCfg, ...parseFields(sJson.fields) };
+        }
+        if (legacyCfg.digiflazzUsername || legacyCfg.digiflazzDevApiKey || legacyCfg.digiflazzProdApiKey) {
+            siteSettings = { ...siteSettings, ...legacyCfg };
+            try {
+                await setDoc(doc(db, pathSettings, 'mainConfig'), {
+                    digiflazzBridgeUrl: siteSettings.digiflazzBridgeUrl || 'http://139.59.60.91:3100',
+                    digiflazzEnvMode: siteSettings.digiflazzEnvMode || 'development',
+                    digiflazzUsername: siteSettings.digiflazzUsername || '',
+                    digiflazzDevApiKey: siteSettings.digiflazzDevApiKey || '',
+                    digiflazzProdApiKey: siteSettings.digiflazzProdApiKey || '',
+                    digiflazzApiKey: siteSettings.digiflazzApiKey || '',
+                    digiflazzBridgeSyncToken: siteSettings.digiflazzBridgeSyncToken || ''
+                }, { merge: true }).catch(() => {});
+                await setDoc(doc(db, pathSettings, 'secretConfig'), {
+                    digiflazzUsername: siteSettings.digiflazzUsername || '',
+                    digiflazzDevApiKey: siteSettings.digiflazzDevApiKey || '',
+                    digiflazzProdApiKey: siteSettings.digiflazzProdApiKey || '',
+                    digiflazzApiKey: siteSettings.digiflazzApiKey || '',
+                    digiflazzEnvMode: siteSettings.digiflazzEnvMode || 'development'
+                }, { merge: true }).catch(() => {});
+            } catch (e) {}
+            if (typeof window.populateSettingsForm === 'function') window.populateSettingsForm();
+        }
+    } catch (err) {}
+}
+
+async function postAdminBridgeRequest(targetUrl, bodyObj) {
+    const bodyStr = JSON.stringify(bodyObj);
+    const controller = new AbortController();
+    const t1 = setTimeout(() => controller.abort(), 9000);
+    try {
+        const res = await fetch(targetUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: bodyStr,
+            signal: controller.signal
+        });
+        clearTimeout(t1);
+        return await res.json();
+    } catch (e1) {
+        clearTimeout(t1);
+        const controller2 = new AbortController();
+        const t2 = setTimeout(() => controller2.abort(), 7000);
+        try {
+            const res2 = await fetch(targetUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: bodyStr,
+                signal: controller2.signal
+            });
+            clearTimeout(t2);
+            return await res2.json();
+        } catch (e2) {
+            clearTimeout(t2);
+            throw e2;
+        }
+    }
+}
+
 async function callDigiflazzApi(endpointPath, payloadData) {
+    await hydrateAdminLegacyDigiflazzConfigIfNeeded();
+
     const bridgeUrl = (siteSettings.digiflazzBridgeUrl || document.getElementById('set-df-bridge-url')?.value || 'http://139.59.60.91:3100').trim();
     const username = (siteSettings.digiflazzUsername || document.getElementById('set-df-username')?.value || 'username').trim();
     const envMode = document.getElementById('set-df-env-mode')?.value || siteSettings.digiflazzEnvMode || 'development';
@@ -7587,29 +7692,28 @@ async function callDigiflazzApi(endpointPath, payloadData) {
     const isTesting = envMode === 'development';
 
     if (bridgeUrl && bridgeUrl.startsWith('http')) {
-        try {
-            const cleanBase = bridgeUrl.replace(/\/+$/, '');
-            const res = await fetch(cleanBase, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    endpoint: endpointPath,
-                    username: username,
-                    apiKey: activeApiKey,
-                    devApiKey: devApiKey,
-                    prodApiKey: prodApiKey,
-                    envMode: envMode,
-                    testing: isTesting,
-                    payload: payloadData
-                })
-            });
-            const json = await res.json();
-            if (json && json.data !== undefined) return json;
-            if (json && json.ok === false) throw new Error(json.message || 'Gagal memanggil VPS Bridge.');
-        } catch (bridgeErr) {
-            // Jika sedang mode development dan VPS belum merespons, gunakan sandbox test case
-            if (!isTesting) {
-                throw bridgeErr;
+        const cleanBase = bridgeUrl.replace(/\/+$/, '');
+        const candidateUrls = [cleanBase];
+        if (!cleanBase.endsWith('/api/digiflazz')) {
+            candidateUrls.push(cleanBase + '/api/digiflazz');
+        }
+        const reqBody = {
+            endpoint: endpointPath,
+            username: username,
+            apiKey: activeApiKey,
+            devApiKey: devApiKey,
+            prodApiKey: prodApiKey,
+            envMode: envMode,
+            testing: isTesting,
+            payload: payloadData
+        };
+
+        for (const u of candidateUrls) {
+            try {
+                const json = await postAdminBridgeRequest(u, reqBody);
+                if (json && json.data !== undefined) return json;
+            } catch (bridgeErr) {
+                // Lanjutkan ke kandidat berikutnya atau fallback lokal tanpa melempar error Failed to fetch
             }
         }
     }
@@ -7788,7 +7892,7 @@ async function callDigiflazzApi(endpointPath, payloadData) {
     throw new Error('Endpoint Digiflazz tidak dikenali.');
 }
 
-// 6. Cek Saldo Deposit Digiflazz (/v1/cek-saldo) & Sinkronisasi Otomatis Status Produk (#5, #8)
+// 6. Cek Saldo Deposit Digiflazz (/v1/cek-saldo) & Sinkronisasi Otomatis Status Produk
 window.checkDigiflazzBalance = async function(showToastMsg = true) {
     const btn = document.getElementById('btn-df-check-balance');
     const ogHtml = btn ? btn.innerHTML : '';
@@ -7834,7 +7938,7 @@ window.checkDigiflazzBalance = async function(showToastMsg = true) {
     }
 };
 
-// 7. Tarik Daftar Harga Digiflazz (/v1/price-list) + Auto-Recovery Status Gangguan & Stok Katalog (#7, #8)
+// 7. Tarik Daftar Harga Digiflazz (/v1/price-list) + Auto-Recovery Status Gangguan & Stok Katalog
 window.fetchDigiflazzPriceList = async function(cmdType = 'prepaid') {
     const now = Date.now();
     if (lastDigiflazzPriceSyncMs > 0 && (now - lastDigiflazzPriceSyncMs < 12000)) {
@@ -7907,7 +8011,7 @@ window.fetchDigiflazzPriceList = async function(cmdType = 'prepaid') {
             }, { merge: true });
             savedCount++;
 
-            // Auto-Recovery & Auto-Sync ke Katalog Toko (#7, #8):
+            // Auto-Recovery & Auto-Sync ke Katalog Toko:
             // Jika produk sudah ada di Katalog Toko, perbarui otomatis status Gangguan, Stok Habis, dan harga modalnya tanpa bantuan Admin!
             const matchingCatalogProds = products.filter(p => p.buyerSkuCode === sku);
             for (const catProd of matchingCatalogProds) {
@@ -8104,7 +8208,7 @@ window.renderDigiflazzCatalogTable = function() {
     }).join('');
 };
 
-// Pemetaan Kategori Digiflazz ke Kategori Katalog Toko (#11, #14):
+// Pemetaan Kategori Digiflazz ke Kategori Katalog Toko:
 // Pulsa -> 'pulsa', PLN -> 'pln', E-Wallet -> 'ewallet', Tagihan -> 'ppob', Game -> 'game' (Tidak pernah masuk 'app'!)
 function mapDigiflazzCategoryToStoreType(dfCategory, dfCmd, dfBrand) {
     if (dfCmd === 'pasca') return { prodType: 'ppob', inputType: 'pasca_no' };
@@ -8141,9 +8245,9 @@ function mapDigiflazzCategoryToStoreType(dfCategory, dfCmd, dfBrand) {
 }
 
 // Tarik SKU ke Katalog Toko:
-// - Keterangan singkat otomatis dari Digiflazz TIDAK dimasukkan ke katalog (#6), biarkan kosong atau pertahankan yang diisi Admin!
-// - Otomatis mengisi checkIdSkuCode & autoCheckIdBeforePay untuk Game, PLN, dan E-Wallet (#3, #14)!
-// - Membedakan isVariantGangguan vs soldOut (#7, #8)!
+// - Keterangan singkat otomatis dari Digiflazz TIDAK dimasukkan ke katalog, biarkan kosong atau pertahankan yang diisi Admin!
+// - Otomatis mengisi checkIdSkuCode & autoCheckIdBeforePay untuk Game, PLN, dan E-Wallet!
+// - Membedakan isVariantGangguan vs soldOut!
 window.markDigiflazzSkuAsCheckUsername = async function(dfDocId) {
     const dfItem = digiflazzCatalogList.find(d => d.dbId === dfDocId);
     if (!dfItem) return;
@@ -8199,7 +8303,7 @@ window.importSingleDigiflazzSkuToCatalog = async function(dfDocId, silent = fals
         ? Boolean(existingBrandProd.autoCheckIdBeforePay)
         : Boolean(autoCheckSku);
 
-    // Keterangan singkat otomatis dari Digiflazz TIDAK boleh masuk ke katalog (#6)
+    // Keterangan singkat otomatis dari Digiflazz TIDAK boleh masuk ke katalog
     const preservedVariantDesc = existingSkuProd?.variantDesc && !String(existingSkuProd.variantDesc).startsWith('Kode SKU:')
         ? existingSkuProd.variantDesc
         : '';
@@ -8479,7 +8583,7 @@ window.saveManualDigiflazzSku = async function() {
     window.showToast('SKU Disimpan', `SKU ${sku} berhasil disimpan ke Gudang Digiflazz.`, 'success');
 };
 
-// 10. Eksekusi Transaksi Digiflazz + Refund Saldo Otomatis jika Gagal (#8, #10)
+// 10. Eksekusi Transaksi Digiflazz + Refund Saldo Otomatis jika Gagal
 function cleanDigiflazzCustomerNo(rawTarget, inputType = '') {
     const s = String(rawTarget || '').trim();
     const idZoneMatch = s.match(/ID\s*:\s*([^\s|]+)\s*\|\s*Zone\s*:\s*([^\s|]+)/i);
@@ -8619,7 +8723,7 @@ window.executeDigiflazzTransactionForOrder = async function(orderData, orderDbId
             setDoc(doc(db, pathSettings, 'mainConfig'), { digiflazzLastBalance: siteSettings.digiflazzLastBalance }, { merge: true }).catch(() => {});
         }
 
-        // Parse PLN Token jika SN berformat TOKEN/NAMA/TARIF/DAYA/KWH (#9)
+        // Parse PLN Token jika SN berformat TOKEN/NAMA/TARIF/DAYA/KWH
         const plnFields = {};
         if (snStr && snStr.includes('/')) {
             const parts = snStr.split('/').map(s => s.trim()).filter(Boolean);
@@ -9053,6 +9157,17 @@ window.saveDigiflazzSettings = async function() {
         await setDoc(doc(db, pathSettings, 'mainConfig'), publicConfig, { merge: true });
         await setDoc(doc(db, pathSettings, 'secretConfig'), secretConfig, { merge: true });
         siteSettings = { ...siteSettings, ...publicConfig, ...secretConfig };
+        try {
+            localStorage.setItem('vipercell_df_config_backup', JSON.stringify({
+                digiflazzBridgeUrl: bridgeUrl,
+                digiflazzUsername: username,
+                digiflazzDevApiKey: devApiKey,
+                digiflazzProdApiKey: prodApiKey,
+                digiflazzApiKey: activeKey,
+                digiflazzEnvMode: envMode,
+                digiflazzBridgeSyncToken: bridgeSyncToken
+            }));
+        } catch (e) {}
 
         // Sinkronkan juga kredensial ke VPS Bridge agar tersimpan di memori VPS
         if (bridgeUrl && bridgeUrl.startsWith('http')) {
@@ -9083,7 +9198,7 @@ window.testDigiflazzBridgeConnection = async function() {
     await window.checkDigiflazzBalance(true);
 };
 
-// 14. Kalkulator & Analitik Keuntungan Digiflazz (Sub-Tab 5: Hitung Keuntungan) (#13)
+// 14. Kalkulator & Analitik Keuntungan Digiflazz (Sub-Tab 5: Hitung Keuntungan)
 window.updateDigiflazzProfitSimulator = function() {
     const modalVal = Math.max(0, parseInt(document.getElementById('df-sim-modal')?.value || '0', 10) || 0);
     const qtyVal = Math.max(1, parseInt(document.getElementById('df-sim-qty')?.value || '1', 10) || 1);
@@ -9561,7 +9676,7 @@ window.renderFinancialReportPanel = function() {
     }).join('');
 };
 
-// Unduh Data Keuangan Lengkap dalam Bentuk Sheet (.xlsx) atau CSV (#3)
+// Unduh Data Keuangan Lengkap dalam Bentuk Sheet (.xlsx) atau CSV
 window.exportFinancialReportSheet = function(format = 'xlsx') {
     const rows = getFilteredFinancialRows();
     if (rows.length === 0) {
@@ -9632,7 +9747,7 @@ window.exportFinancialReportSheet = function(format = 'xlsx') {
     window.showToast('CSV Diunduh', 'File CSV Laporan Keuangan berhasil diunduh.', 'success');
 };
 
-// Hapus Data Pendapatan Lama & Sisakan Data Saldo/Transaksi Pada Hari Itu Saja (#3)
+// Hapus Data Pendapatan Lama & Sisakan Data Saldo/Transaksi Pada Hari Itu Saja
 window.clearOldRevenueKeepTodayOnly = function() {
     const todayStr = new Date().toLocaleDateString('id-ID');
     const oldOrders = orders.filter(o => new Date(o.date).toLocaleDateString('id-ID') !== todayStr);

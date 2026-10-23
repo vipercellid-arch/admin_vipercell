@@ -41,7 +41,7 @@
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
 
 
-    <!-- Deteksi Awal Tema & Sesi Admin agar Tidak Bocor ke Layar Login (#7) -->
+    <!-- Deteksi Awal Tema & Sesi Admin agar Tidak Bocor ke Layar Login -->
     <script>
         (function() {
             try {
@@ -69,13 +69,13 @@
 </head>
 <body class="no-scroll preloader-locked admin-auth-locked">
 
-    <!-- Kanvas Efek Latar Sentuhan Air Berwarna (#9) -->
+    <!-- Kanvas Efek Latar Sentuhan Air Berwarna -->
     <canvas id="water-ripple-canvas" aria-hidden="true"></canvas>
 
     <!-- Efek Transisi Tema -->
     <div id="theme-transition-curtain"></div>
 
-    <!-- Layar Loading Awal Solid Anti-Bocor (#7) -->
+    <!-- Layar Loading Awal Solid Anti-Bocor -->
     <div id="app-preloader-overlay" class="preloader-overlay">
         <div class="preloader-simple-box">
             <span class="preloader-brand-pill"><i class="fa-solid fa-shield-halved"></i> VIPERCELL ADMIN</span>
@@ -96,11 +96,11 @@
         <button id="btn-close-pwa" type="button"></button>
     </div>
 
-    <!-- WADAH NOTIFIKASI TOAST AKUN (#13) -->
+    <!-- WADAH NOTIFIKASI TOAST AKUN -->
     <div id="toast-container" class="toast-container"></div>
 
     <!-- ==========================================
-         1. LAYAR LOGIN ADMIN AKUN RAME & MATANG (#7 & #12)
+         1. LAYAR LOGIN ADMIN
          ========================================== -->
     <div id="admin-login-screen" class="admin-login-wrapper">
         <div class="admin-auth-stage">
@@ -281,7 +281,7 @@
             <div class="admin-content">
 
                 <!-- ==========================================
-                     TAB 1: RINGKASAN & DASBOR UTAMA MATANG 
+                     TAB 1: RINGKASAN & DASBOR UTAMA 
                      ========================================== -->
                 <div id="tab-overview" class="admin-tab active">
 
@@ -598,7 +598,7 @@
                 </div>
 
                 <!-- ==========================================
-                     TAB 2: PESANAN MASUK (#1 & #3)
+                     TAB 2: PESANAN MASUK
                      ========================================== -->
                 <div id="tab-orders" class="admin-tab">
                     <div class="dashboard-panel">
@@ -656,7 +656,7 @@
                      TAB 3: CS BANTUAN (2 SUB-TAB TERPISAH: CHAT BANTUAN VS SARAN PRODUK #14)
                      ========================================== -->
                 <div id="tab-livechat" class="admin-tab">
-                    <!-- Sub-Tab Switcher CS Bantuan (#14) -->
+                    <!-- Sub-Tab Switcher CS Bantuan -->
                     <div class="cs-subtabs-bar">
                         <button type="button" id="admin-subtab-btn-chat" class="cs-subtab-btn active" onclick="window.switchAdminCsSubTab('chat')">
                             <i class="fa-solid fa-comments"></i>
@@ -782,7 +782,7 @@
                         </div>
                     </div>
 
-                    <!-- Sub-Tab Navigasi di dalam Tab Data Pengguna (#2) -->
+                    <!-- Sub-Tab Navigasi di dalam Tab Data Pengguna -->
                     <div class="admin-members-subtabs-bar" style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 1.25rem;">
                         <button type="button" id="admin-members-subtab-btn-users" class="btn btn-primary" onclick="window.switchAdminMembersSubTab('users')">
                             <i class="fa-solid fa-users-gear"></i> <span>Daftar Akun Pengguna</span>
@@ -831,7 +831,7 @@
                         </div>
                     </div>
 
-                    <!-- SUB-PANEL 2: DAFTAR PESANAN MASUK LANGGANAN MEMBER PLUS (#2) -->
+                    <!-- SUB-PANEL 2: DAFTAR PESANAN MASUK LANGGANAN MEMBER PLUS -->
                     <div id="admin-members-panel-mp-orders" class="dashboard-panel" style="display: none; border-color: #d97706;">
                         <div class="panel-header">
                             <div>
@@ -889,7 +889,7 @@
                 </div>
 
                 <!-- ==========================================
-                     TAB 6: GUDANG STOK MINIMALIS & MATANG (#6)
+                     TAB 6: GUDANG STOK
                      (Pilih Produk -> Pilih Variasi -> Cek / Tambah Stok)
                      ========================================== -->
                 <div id="tab-stocks" class="admin-tab">
@@ -929,7 +929,7 @@
                         </div>
                     </div>
 
-                    <!-- PANEL 1: CEK & KELOLA STOK MINIMALIS (PILIH PRODUK -> PILIH VARIAN) (#6) -->
+                    <!-- PANEL 1: CEK & KELOLA STOK MINIMALIS (PILIH PRODUK -> PILIH VARIAN) -->
                     <div class="dashboard-panel stock-minimal-panel">
                         <div class="panel-header">
                             <div>
@@ -967,7 +967,7 @@
                             </div>
                         </div>
 
-                        <!-- Kotak-kotak produk & varian dihilangkan sesuai permintaan  (#6): murni menggunakan Opsi Pilih (Select Dropdown) di atas -->
+                        <!-- Kotak-kotak produk & varian dihilangkan sesuai permintaan: murni menggunakan Opsi Pilih (Select Dropdown) di atas -->
                         <div id="stock-brand-cards-grid" style="display:none !important;" aria-hidden="true"></div>
                         <div id="stock-check-variants-panel" style="display:none !important;" aria-hidden="true">
                             <span id="stock-selected-brand-title"></span>
@@ -1020,7 +1020,7 @@
                         </div>
                     </div>
 
-                    <!-- PANEL 2: TAMBAH STOK BARU MINIMALIS (PILIH PRODUK -> PILIH VARIAN -> INPUT STOK) (#6) -->
+                    <!-- PANEL 2: TAMBAH STOK BARU MINIMALIS (PILIH PRODUK -> PILIH VARIAN -> INPUT STOK) -->
                     <div class="dashboard-panel stock-minimal-panel" id="panel-add-stock-hierarchical">
                         <div class="panel-header">
                             <div>
@@ -1797,7 +1797,7 @@
                 </div>
 
                 <!-- ==========================================
-                     TAB 10: PENGATURAN TOKO (#2, #4, #5, #9)
+                     TAB 10: PENGATURAN TOKO
                      ========================================== -->
                 <div id="tab-settings" class="admin-tab">
                     <div class="dashboard-panel">
@@ -1805,7 +1805,7 @@
                             <h3><i class="fa-solid fa-sliders text-primary"></i> Pengaturan Toko</h3>
                         </div>
 
-                        <!-- 1. Status Buka/Tutup Toko, Efek Air Berwarna (#9) & Pembersihan Otomatis Tamu 6 Jam -->
+                        <!-- 1. Status Buka/Tutup Toko, Efek Air Berwarna & Pembersihan Otomatis Tamu 6 Jam -->
                         <div class="stats-grid mb-4" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));">
                             <div class="info-box flex-between align-center">
                                 <div>
@@ -1986,7 +1986,7 @@
                                     <div class="form-group" id="mq-field-news" style="display: none;">
                                         <label for="mq-slot-news">Pilih Artikel Berita</label>
                                         <select id="mq-slot-news" class="form-control">
-                                            <option value="0">Berita Terbaru (#1)</option>
+                                            <option value="0">Berita Terbaru</option>
                                         </select>
                                     </div>
                                 </div>
@@ -2194,7 +2194,7 @@
     </div>
 
     <!-- ==========================================================================
-         MODE POP-UP MODALS & NOTIFIKASI AKUN (#1, #13)
+         MODE POP-UP MODALS & NOTIFIKASI AKUN
          ========================================================================== -->
 
     <!-- 1. POP-UP SCANNER BARCODE TUNAI -->
@@ -2225,7 +2225,7 @@
         </div>
     </div>
 
-    <!-- 2. POP-UP PROSES & RINCIAN PESANAN (#1) -->
+    <!-- 2. POP-UP PROSES & RINCIAN PESANAN -->
     <div class="modal-overlay" id="modal-process-order">
         <div class="modal-content" style="max-width: 620px;">
             <div class="modal-header">

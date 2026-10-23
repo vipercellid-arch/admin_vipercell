@@ -125,9 +125,15 @@ async function hydrateConfigFromFirestoreIfNeeded(forceRefresh = false) {
     }
     lastFirestoreHydrateMs = Date.now();
     try {
-        const docUrl = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/settings/mainConfig?key=${FIREBASE_API_KEY}`;
-        const res = await httpsJsonRequest(docUrl, "GET", {}, null);
-        const f = res.data && res.data.fields ? res.data.fields : null;
+        let f = null;
+        for (const pid of [FIREBASE_PROJECT_ID, "vipercell-fc50e", "vipercell23"]) {
+            const docUrl = `https://firestore.googleapis.com/v1/projects/${pid}/databases/(default)/documents/settings/mainConfig?key=${FIREBASE_API_KEY}`;
+            const res = await httpsJsonRequest(docUrl, "GET", {}, null).catch(() => null);
+            if (res && res.data && res.data.fields && (res.data.fields.digiflazzUsername || res.data.fields.digiflazzBridgeSyncToken)) {
+                f = res.data.fields;
+                break;
+            }
+        }
         if (!f) return;
         const readStr = (key) => (f[key] && f[key].stringValue ? String(f[key].stringValue).trim() : "");
 
@@ -291,7 +297,8 @@ async function updateOrderFromDigiflazzWebhook(payloadData) {
 const server = http.createServer((req, res) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Hub-Signature, X-Digiflazz-Event");
+    res.setHeader("Access-Control-Allow-Headers", "*");
+    res.setHeader("Access-Control-Allow-Private-Network", "true");
 
     if (req.method === "OPTIONS") {
         res.writeHead(204);
