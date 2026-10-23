@@ -38,6 +38,8 @@
     <!-- jsQR & Html5Qrcode untuk Pemindai QRIS & Barcode Kasir -->
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js" defer></script>
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
+
 
     <!-- Deteksi Awal Tema & Sesi Admin agar Tidak Bocor ke Layar Login (#7) -->
     <script>
@@ -94,11 +96,11 @@
         <button id="btn-close-pwa" type="button"></button>
     </div>
 
-    <!-- WADAH NOTIFIKASI TOAST NEO-BRUTALISM (#13) -->
+    <!-- WADAH NOTIFIKASI TOAST AKUN (#13) -->
     <div id="toast-container" class="toast-container"></div>
 
     <!-- ==========================================
-         1. LAYAR LOGIN ADMIN NEO-BRUTALISM RAME & MATANG (#7 & #12)
+         1. LAYAR LOGIN ADMIN AKUN RAME & MATANG (#7 & #12)
          ========================================== -->
     <div id="admin-login-screen" class="admin-login-wrapper">
         <div class="admin-auth-stage">
@@ -221,6 +223,14 @@
                     <i class="fa-solid fa-star"></i> <span>Ulasan</span>
                 </a>
                 
+                <div class="menu-category">INTEGRASI &amp; PEMBAYARAN</div>
+                <a class="menu-item" id="nav-tab-digiflazz" onclick="window.switchAdminTab('tab-digiflazz', this)">
+                    <i class="fa-solid fa-microchip"></i> <span>Pusat Digiflazz</span>
+                </a>
+                <a class="menu-item" id="nav-tab-qris" onclick="window.switchAdminTab('tab-qris', this)">
+                    <i class="fa-solid fa-qrcode"></i> <span>Mutasi QRIS</span>
+                </a>
+
                 <div class="menu-category">PENGATURAN</div>
                 <a class="menu-item" id="nav-tab-settings" onclick="window.switchAdminTab('tab-settings', this)">
                     <i class="fa-solid fa-sliders"></i> <span>Pengaturan Toko</span>
@@ -266,46 +276,32 @@
                 </div>
             </header>
 
-            <!-- RUNNING TEXT MULTI-FUNGSI SEBELAH ATAS ADMIN v27.9 (NOTIFIKASI CHAT BELUM DIBACA, PESANAN MASUK, SARAN, STOK & MUTASI) -->
-            <div class="admin-top-marquee-bar" id="admin-top-marquee-bar">
-                <div class="admin-marquee-badge" id="admin-marquee-status-pill" onclick="window.handleAdminTopMarqueeBadgeClick()">
-                    <span class="admin-marquee-pulse-dot" id="admin-marquee-dot"></span>
-                    <i class="fa-solid fa-bell-concierge"></i>
-                    <span id="admin-marquee-badge-text">MONITOR LIVE</span>
-                </div>
-                <div class="admin-marquee-viewport">
-                    <div class="admin-marquee-track" id="admin-top-marquee-track">
-                        <span class="admin-marquee-chip chip-info" onclick="window.switchAdminTabByName('tab-overview')">
-                            <i class="fa-solid fa-bolt"></i> Sistem Verifikasi QRIS Direct Firebase Aktif &bull; Pembersihan Log Otomatis 1 Jam Aktif
-                        </span>
-                    </div>
-                </div>
-            </div>
+            <!-- Running text admin dihapus sesuai permintaan -->
 
             <div class="admin-content">
 
                 <!-- ==========================================
-                     TAB 1: RINGKASAN & DASBOR UTAMA MATANG v27.9
+                     TAB 1: RINGKASAN & DASBOR UTAMA MATANG 
                      ========================================== -->
                 <div id="tab-overview" class="admin-tab active">
 
-                    <!-- HERO SELAMAT DATANG NAMA ADMIN & PINTASAN CEPAT v27.9 -->
+                    <!-- HERO SELAMAT DATANG ADMIN & PINTASAN CEPAT -->
                     <div class="admin-welcome-hero-card mb-3">
                         <div class="admin-welcome-left">
                             <div class="admin-welcome-eyebrow">
-                                <span class="neo-sticker sticker-yellow"><i class="fa-solid fa-bolt"></i> VIPERCELL COMMAND CENTER v27.9</span>
-                                <span class="status-badge status-success" id="hero-firebase-live-pill"><i class="fa-solid fa-fire"></i> DIRECT FIREBASE AUTO-SYNC</span>
+                                <span class="neo-sticker sticker-yellow"><i class="fa-solid fa-bolt"></i> PANEL PENGELOLA</span>
+                                <span class="status-badge status-success" id="hero-firebase-live-pill"><i class="fa-solid fa-circle-check"></i> TOKO AKTIF</span>
                             </div>
                             <h1 class="admin-welcome-title">
                                 <span id="admin-greeting-time">Selamat Datang</span>, <span id="admin-welcome-name" class="text-primary">Admin Vipercell</span>! 👋
                             </h1>
                             <p class="admin-welcome-subtitle" id="admin-welcome-summary-line">
-                                Seluruh sistem verifikasi pembayaran QRIS, pengiriman Gudang Stok, dan pemantauan pesan pelanggan berjalan otomatis secara real-time.
+                                Pantau transaksi harian, kelola produk lokal maupun Digiflazz, serta layani pelanggan dari satu dasbor.
                             </p>
                             <div class="admin-welcome-meta-strip">
                                 <span><i class="fa-regular fa-calendar-check text-primary"></i> <strong id="admin-live-date-label">Memuat tanggal...</strong></span>
                                 <span><i class="fa-regular fa-clock text-warning"></i> <strong id="admin-live-clock-label" class="code-mono">--:--:--</strong></span>
-                                <span><i class="fa-solid fa-broom text-success"></i> Auto-Clean Log Mutasi: <strong>Setiap 1 Jam</strong></span>
+                                <span><i class="fa-solid fa-wallet text-success"></i> Saldo Digiflazz: <strong id="hero-df-balance-label">Rp0</strong></span>
                             </div>
                         </div>
 
@@ -318,24 +314,24 @@
                                         <span id="hero-quick-orders-sub">0 Perlu Diproses</span>
                                     </div>
                                 </button>
-                                <button type="button" class="admin-quick-tile tile-emerald" onclick="window.switchAdminTabByName('tab-livechat')">
-                                    <i class="fa-solid fa-comments"></i>
+                                <button type="button" class="admin-quick-tile tile-emerald" onclick="window.switchAdminTabByName('tab-digiflazz')">
+                                    <i class="fa-solid fa-microchip"></i>
                                     <div>
-                                        <strong>Pesan Bantuan</strong>
-                                        <span id="hero-quick-chat-sub">0 Belum Dibaca</span>
+                                        <strong>Pusat Digiflazz</strong>
+                                        <span id="hero-quick-df-sub">Kelola Produk &amp; API</span>
                                     </div>
                                 </button>
                                 <button type="button" class="admin-quick-tile tile-amber" onclick="window.switchAdminTabByName('tab-stocks')">
                                     <i class="fa-solid fa-vault"></i>
                                     <div>
-                                        <strong>Gudang Stok</strong>
+                                        <strong>Gudang Stok Lokal</strong>
                                         <span id="hero-quick-stock-sub">0 Stok Ready</span>
                                     </div>
                                 </button>
-                                <button type="button" class="admin-quick-tile tile-purple" onclick="window.jumpToFirebaseLogSection()">
-                                    <i class="fa-solid fa-satellite-dish"></i>
+                                <button type="button" class="admin-quick-tile tile-purple" onclick="window.switchAdminTabByName('tab-qris')">
+                                    <i class="fa-solid fa-qrcode"></i>
                                     <div>
-                                        <strong>Log Firebase</strong>
+                                        <strong>Mutasi QRIS</strong>
                                         <span id="hero-quick-mut-sub">0 Mutasi Masuk</span>
                                     </div>
                                 </button>
@@ -345,20 +341,20 @@
 
                     <!-- 4 KARTU UTAMA PERFORMA FINANSIAL & TRANSAKSI -->
                     <div class="stats-grid">
-                        <div class="stat-card">
+                        <div class="stat-card pointer" onclick="window.openFinancialReportPanel('ALL')" title="Klik untuk lihat rincian pemasukan & pengeluaran lengkap">
                             <div class="stat-icon icon-green"><i class="fa-solid fa-sack-dollar"></i></div>
                             <div class="stat-info">
-                                <span>Total Pendapatan</span>
+                                <span>Ringkasan Pendapatan <i class="fa-solid fa-up-right-from-square text-xs text-primary"></i></span>
                                 <h3 id="report-revenue">Rp0</h3>
-                                <small id="report-revenue-sub">Seluruh transaksi selesai</small>
+                                <small id="report-revenue-sub">Klik untuk rincian pemasukan &amp; pengeluaran</small>
                             </div>
                         </div>
-                        <div class="stat-card">
+                        <div class="stat-card pointer" onclick="window.openFinancialReportPanel('TODAY')" title="Klik untuk lihat rincian pendapatan hari ini">
                             <div class="stat-icon icon-blue"><i class="fa-solid fa-calendar-day"></i></div>
                             <div class="stat-info">
-                                <span>Omzet Hari Ini</span>
+                                <span>Pendapatan Hari Ini <i class="fa-solid fa-up-right-from-square text-xs text-primary"></i></span>
                                 <h3 id="report-today-revenue">Rp0</h3>
-                                <small id="report-today-count-sub">0 transaksi hari ini</small>
+                                <small id="report-today-count-sub">0 transaksi hari ini (Klik detail)</small>
                             </div>
                         </div>
                         <div class="stat-card">
@@ -379,14 +375,108 @@
                         </div>
                     </div>
 
-                    <!-- RINGKASAN EKOSISTEM WEB VIPERCELL YANG SANGAT MATANG (BENTO 6 PANEL) -->
+                    
+                    <!-- PANEL RINCIAN PEMASUKAN & PENGELUARAN LENGKAP (PRODUK VIPERCELL VS DIGIFLAZZ) -->
+                    <div id="overview-financial-panel" class="dashboard-panel mb-3" style="display: none; border: 2.5px solid var(--primary); background: var(--surface);">
+                        <div class="panel-header" style="margin-bottom: 1rem;">
+                            <div>
+                                <h3><i class="fa-solid fa-file-invoice-dollar text-success"></i> Laporan Pemasukan, Pengeluaran &amp; Laba Bersih</h3>
+                                <small class="text-muted">Memisahkan pendapatan Produk Lokal Vipercell, Produk Digiflazz, dan Langganan Member Plus secara akurat.</small>
+                            </div>
+                            <div class="flex-gap flex-wrap-gap">
+                                <button type="button" class="btn btn-success btn-sm" onclick="window.exportFinancialReportSheet('xlsx')">
+                                    <i class="fa-solid fa-file-excel"></i> Unduh Sheet (.xlsx)
+                                </button>
+                                <button type="button" class="btn btn-outline btn-sm" onclick="window.exportFinancialReportSheet('csv')">
+                                    <i class="fa-solid fa-file-csv text-primary"></i> Unduh CSV
+                                </button>
+                                <button type="button" class="btn btn-danger btn-sm" onclick="window.clearOldRevenueKeepTodayOnly()">
+                                    <i class="fa-solid fa-broom"></i> Hapus Data Lama (Sisakan Hari Ini)
+                                </button>
+                                <button type="button" class="btn btn-outline btn-sm" onclick="window.closeFinancialReportPanel()">
+                                    <i class="fa-solid fa-xmark"></i> Tutup Panel
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Filter Kategori Sumber & Periode -->
+                        <div class="flex-between flex-wrap-gap mb-3 align-center">
+                            <div class="order-filter-pills">
+                                <button type="button" class="filter-pill active" id="fin-pill-source-all" onclick="window.setFinancialSourceFilter('ALL', this)">Semua Produk</button>
+                                <button type="button" class="filter-pill" id="fin-pill-source-vipercell" onclick="window.setFinancialSourceFilter('VIPERCELL', this)"><i class="fa-solid fa-vault text-primary"></i> Produk Lokal Vipercell</button>
+                                <button type="button" class="filter-pill" id="fin-pill-source-digiflazz" onclick="window.setFinancialSourceFilter('DIGIFLAZZ', this)"><i class="fa-solid fa-microchip text-warning"></i> Produk Digiflazz</button>
+                                <button type="button" class="filter-pill" id="fin-pill-source-memberplus" onclick="window.setFinancialSourceFilter('MEMBER_PLUS', this)"><i class="fa-solid fa-crown text-success"></i> Member Plus &amp; Saldo</button>
+                            </div>
+                            <div class="order-filter-pills">
+                                <button type="button" class="filter-pill active" id="fin-pill-period-all" onclick="window.setFinancialPeriodFilter('ALL', this)">Semua Waktu</button>
+                                <button type="button" class="filter-pill" id="fin-pill-period-today" onclick="window.setFinancialPeriodFilter('TODAY', this)">Hari Ini Saja</button>
+                                <button type="button" class="filter-pill" id="fin-pill-period-month" onclick="window.setFinancialPeriodFilter('MONTH', this)">Bulan Ini</button>
+                            </div>
+                        </div>
+
+                        <!-- Kartu Ringkasan Pemasukan vs Pengeluaran -->
+                        <div class="stats-grid mb-3">
+                            <div class="stat-card">
+                                <div class="stat-icon icon-green"><i class="fa-solid fa-arrow-trend-up"></i></div>
+                                <div class="stat-info">
+                                    <span>Total Pemasukan (Omzet)</span>
+                                    <h3 id="fin-stat-income" class="text-success">Rp0</h3>
+                                    <small id="fin-stat-income-sub">0 transaksi selesai</small>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon icon-orange"><i class="fa-solid fa-arrow-trend-down"></i></div>
+                                <div class="stat-info">
+                                    <span>Total Pengeluaran (Modal)</span>
+                                    <h3 id="fin-stat-expense" class="text-danger">Rp0</h3>
+                                    <small id="fin-stat-expense-sub">Modal Digiflazz &amp; operasional</small>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon icon-blue"><i class="fa-solid fa-coins"></i></div>
+                                <div class="stat-info">
+                                    <span>Laba Bersih</span>
+                                    <h3 id="fin-stat-netprofit" class="text-primary">Rp0</h3>
+                                    <small id="fin-stat-margin-sub">Selisih pemasukan &amp; modal</small>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon icon-purple"><i class="fa-solid fa-scale-balanced"></i></div>
+                                <div class="stat-info">
+                                    <span>Perbandingan Sumber</span>
+                                    <h3 id="fin-stat-split" style="font-size: 1rem;">Lokal Rp0 | DF Rp0</h3>
+                                    <small id="fin-stat-today-saldo-sub">Saldo Hari Ini: Rp0</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="modern-table">
+                                <thead>
+                                    <tr>
+                                        <th>Waktu &amp; Invoice</th>
+                                        <th>Sumber Produk</th>
+                                        <th>Nama Produk &amp; Tujuan</th>
+                                        <th>Metode Bayar</th>
+                                        <th>Pemasukan (Jual)</th>
+                                        <th>Pengeluaran (Modal)</th>
+                                        <th>Laba Bersih</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="fin-report-tbody">
+                                    <tr><td colspan="7" class="text-center text-muted" style="padding: 1.5rem;">Memuat rincian keuangan...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- RINGKASAN OPERASIONAL TOKO -->
                     <div class="dashboard-panel mb-3">
                         <div class="panel-header" style="margin-bottom: 1rem;">
                             <div>
-                                <h3><i class="fa-solid fa-layer-group text-primary"></i> Ringkasan Ekosistem &amp; Kesehatan Web Vipercell (Realtime)</h3>
-                                <small class="text-muted">Pantauan menyeluruh kondisi katalog, gudang stok, interaksi pelanggan, hingga mesin verifikasi QRIS Firebase.</small>
+                                <h3><i class="fa-solid fa-layer-group text-primary"></i> Ringkasan Operasional Toko</h3>
                             </div>
-                            <span class="status-badge status-success" id="overview-health-badge"><i class="fa-solid fa-shield-heart"></i> SISTEM OPTIMAL</span>
+                            <span class="status-badge status-success" id="overview-health-badge"><i class="fa-solid fa-circle-check"></i> AKTIF</span>
                         </div>
 
                         <div class="v279-web-summary-bento">
@@ -403,68 +493,68 @@
                                 </div>
                             </div>
 
-                            <!-- 2. Gudang Stok Otomatis -->
+                            <!-- 2. Gudang Stok Lokal -->
                             <div class="v279-summary-card pointer" onclick="window.switchAdminTabByName('tab-stocks')">
                                 <div class="v279-sum-top">
                                     <span class="v279-sum-icon bg-emerald"><i class="fa-solid fa-vault"></i></span>
-                                    <span class="status-badge status-success" id="sum-stock-status-badge">24 JAM AUTO</span>
+                                    <span class="status-badge status-success" id="sum-stock-status-badge">STOK LOKAL</span>
                                 </div>
                                 <div class="v279-sum-body">
-                                    <span class="v279-sum-label">GUDANG STOK OTOMATIS</span>
+                                    <span class="v279-sum-label">GUDANG STOK LOKAL</span>
                                     <h4 id="sum-stock-main">0 Stok Aktif</h4>
                                     <p id="sum-stock-sub">0 slot sharing tersedia &bull; 0 stok terpakai</p>
                                 </div>
                             </div>
 
-                            <!-- 3. CS Bantuan & Saran Produk -->
-                            <div class="v279-summary-card pointer" onclick="window.switchAdminTabByName('tab-livechat')">
+                            <!-- 3. Pusat Digiflazz -->
+                            <div class="v279-summary-card pointer" onclick="window.switchAdminTabByName('tab-digiflazz')">
                                 <div class="v279-sum-top">
-                                    <span class="v279-sum-icon bg-amber"><i class="fa-solid fa-headset"></i></span>
-                                    <span class="status-badge status-pending" id="sum-cs-status-badge">0 BARU</span>
+                                    <span class="v279-sum-icon bg-amber"><i class="fa-solid fa-microchip"></i></span>
+                                    <span class="status-badge status-pending" id="sum-df-status-badge">DIGIFLAZZ</span>
                                 </div>
                                 <div class="v279-sum-body">
-                                    <span class="v279-sum-label">CS BANTUAN &amp; SARAN PRODUK</span>
-                                    <h4 id="sum-cs-main">0 Chat Belum Dibaca</h4>
-                                    <p id="sum-cs-sub">0 total ruang obrolan &bull; 0 saran produk</p>
+                                    <span class="v279-sum-label">PRODUK &amp; TRANSAKSI DIGIFLAZZ</span>
+                                    <h4 id="sum-df-main">0 SKU Tersimpan</h4>
+                                    <p id="sum-df-sub">0 variasi aktif di katalog toko</p>
                                 </div>
                             </div>
 
-                            <!-- 4. Pelanggan (Member & Tamu) -->
+                            <!-- 4. Pelanggan & Saldo -->
                             <div class="v279-summary-card pointer" onclick="window.switchAdminTabByName('tab-members')">
                                 <div class="v279-sum-top">
                                     <span class="v279-sum-icon bg-purple"><i class="fa-solid fa-users"></i></span>
-                                    <span class="status-badge status-unpaid" id="sum-user-status-badge">KOMUNITAS</span>
+                                    <span class="status-badge status-unpaid" id="sum-user-status-badge">PELANGGAN</span>
                                 </div>
                                 <div class="v279-sum-body">
-                                    <span class="v279-sum-label">DATA PENGGUNA TOKO</span>
+                                    <span class="v279-sum-label">DATA PENGGUNA &amp; SALDO</span>
                                     <h4 id="sum-user-main">0 Member &bull; 0 Tamu</h4>
-                                    <p id="sum-user-sub">0 pelanggan pernah bertransaksi sukses</p>
+                                    <p id="sum-user-sub">Total saldo pengguna: Rp0</p>
                                 </div>
                             </div>
 
-                            <!-- 5. Mesin Verifikasi QRIS Direct Firebase -->
-                            <div class="v279-summary-card pointer" onclick="window.jumpToFirebaseLogSection()">
+                            <!-- 5. Mutasi Pembayaran QRIS -->
+                            <div class="v279-summary-card pointer" onclick="window.switchAdminTabByName('tab-qris')">
                                 <div class="v279-sum-top">
-                                    <span class="v279-sum-icon bg-green"><i class="fa-solid fa-bolt"></i></span>
-                                    <span class="status-badge status-success">AUTO 1 JAM</span>
+                                    <span class="v279-sum-icon bg-green"><i class="fa-solid fa-qrcode"></i></span>
+                                    <span class="status-badge status-success">QRIS</span>
                                 </div>
                                 <div class="v279-sum-body">
-                                    <span class="v279-sum-label">VERIFIKASI QRIS FIREBASE</span>
-                                    <h4 id="sum-qris-main">0 Log Aktif (&lt; 1 Jam)</h4>
-                                    <p id="sum-qris-sub">0 mutasi cocok otomatis &bull; Tanpa tombol segarkan</p>
+                                    <span class="v279-sum-label">MUTASI PEMBAYARAN QRIS</span>
+                                    <h4 id="sum-qris-main">0 Mutasi Masuk</h4>
+                                    <p id="sum-qris-sub">0 pembayaran terverifikasi</p>
                                 </div>
                             </div>
 
-                            <!-- 6. Promo, Berita & Ulasan Toko -->
-                            <div class="v279-summary-card pointer" onclick="window.switchAdminTabByName('tab-reviews')">
+                            <!-- 6. CS Bantuan, Promo & Ulasan -->
+                            <div class="v279-summary-card pointer" onclick="window.switchAdminTabByName('tab-livechat')">
                                 <div class="v279-sum-top">
-                                    <span class="v279-sum-icon bg-pink"><i class="fa-solid fa-star"></i></span>
-                                    <span class="status-badge status-vip" id="sum-rating-badge">⭐ 5.0</span>
+                                    <span class="v279-sum-icon bg-pink"><i class="fa-solid fa-headset"></i></span>
+                                    <span class="status-badge status-vip" id="sum-cs-status-badge">0 PESAN</span>
                                 </div>
                                 <div class="v279-sum-body">
-                                    <span class="v279-sum-label">PROMO, BERITA &amp; ULASAN</span>
-                                    <h4 id="sum-marketing-main">0 Promo &bull; 0 Berita</h4>
-                                    <p id="sum-marketing-sub">0 ulasan pembeli terverifikasi</p>
+                                    <span class="v279-sum-label">CS BANTUAN &amp; ULASAN</span>
+                                    <h4 id="sum-cs-main">0 Chat Belum Dibaca</h4>
+                                    <p id="sum-cs-sub">0 ruang chat &bull; 0 saran produk</p>
                                 </div>
                             </div>
                         </div>
@@ -657,13 +747,21 @@
                      TAB 4: DATA PENGGUNA (TANPA NO HP #3)
                      ========================================== -->
                 <div id="tab-members" class="admin-tab">
-                    <div class="stats-grid" style="margin-bottom: 1.5rem;">
+                    <div class="stats-grid" style="margin-bottom: 1.25rem;">
                         <div class="stat-card">
                             <div class="stat-icon icon-blue"><i class="fa-solid fa-user-check"></i></div>
                             <div class="stat-info">
                                 <span>Total Member</span>
                                 <h3 id="member-stat-total">0</h3>
                                 <small>Akun member terdaftar</small>
+                            </div>
+                        </div>
+                        <div class="stat-card" style="border-color: #d97706; background: linear-gradient(135deg, rgba(254,243,199,0.55), rgba(253,230,138,0.25));">
+                            <div class="stat-icon" style="background: linear-gradient(135deg, #facc15, #ea580c); color: #fff;"><i class="fa-solid fa-crown"></i></div>
+                            <div class="stat-info">
+                                <span style="color: #b45309; font-weight: 800;">Member Plus Aktif</span>
+                                <h3 id="member-stat-mplus" style="color: #b45309;">0</h3>
+                                <small id="member-stat-mplus-sub">Langganan VIP aktif</small>
                             </div>
                         </div>
                         <div class="stat-card">
@@ -675,15 +773,7 @@
                             </div>
                         </div>
                         <div class="stat-card">
-                            <div class="stat-icon icon-green"><i class="fa-solid fa-envelope-circle-check"></i></div>
-                            <div class="stat-info">
-                                <span>Email Tersimpan</span>
-                                <h3 id="member-stat-phone">0</h3>
-                                <small>Akun dengan email aktif</small>
-                            </div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-icon icon-purple"><i class="fa-solid fa-crown"></i></div>
+                            <div class="stat-icon icon-purple"><i class="fa-solid fa-bag-shopping"></i></div>
                             <div class="stat-info">
                                 <span>Pernah Belanja</span>
                                 <h3 id="member-stat-buyers">0</h3>
@@ -692,11 +782,23 @@
                         </div>
                     </div>
 
-                    <div class="dashboard-panel">
+                    <!-- Sub-Tab Navigasi di dalam Tab Data Pengguna (#2) -->
+                    <div class="admin-members-subtabs-bar" style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 1.25rem;">
+                        <button type="button" id="admin-members-subtab-btn-users" class="btn btn-primary" onclick="window.switchAdminMembersSubTab('users')">
+                            <i class="fa-solid fa-users-gear"></i> <span>Daftar Akun Pengguna</span>
+                        </button>
+                        <button type="button" id="admin-members-subtab-btn-mp-orders" class="btn btn-outline" style="border-color: #d97706; color: #b45309; font-weight: 800;" onclick="window.switchAdminMembersSubTab('mp_orders')">
+                            <i class="fa-solid fa-crown" style="color: #f59e0b;"></i> <span>Pesanan Langganan Member Plus</span>
+                            <span id="admin-mp-orders-pending-badge" class="badge-counter" style="display: none; background: #dc2626; color: #fff; padding: 2px 8px; border-radius: 999px; font-size: 0.72rem; margin-left: 6px;">0</span>
+                        </button>
+                    </div>
+
+                    <!-- SUB-PANEL 1: DAFTAR AKUN PENGGUNA (MEMBER PLUS EMAS, MEMBER BIASA & TAMU) -->
+                    <div id="admin-members-panel-users" class="dashboard-panel">
                         <div class="panel-header">
                             <div>
-                                <h3><i class="fa-solid fa-users-gear text-primary"></i> Daftar Pengguna</h3>
-                                <small class="text-muted">Kelola akun member dan tamu.</small>
+                                <h3><i class="fa-solid fa-users-gear text-primary"></i> Daftar Pengguna &amp; Status Member Plus</h3>
+                                <small class="text-muted">Kelola akun member, aktivasi/perpanjangan Member Plus dengan PIN Admin, dan pembersihan tamu.</small>
                             </div>
                             <div class="flex-gap flex-wrap-gap">
                                 <button class="btn btn-warning btn-sm" onclick="window.autoCleanExpiredAnonAccounts6h(true)">
@@ -717,7 +819,8 @@
                         <div class="flex-between flex-wrap-gap mb-3 align-center">
                             <div class="order-filter-pills">
                                 <button class="filter-pill active" onclick="window.setAdminMemberFilter('ALL', this)">Semua</button>
-                                <button class="filter-pill" onclick="window.setAdminMemberFilter('MEMBER', this)"><i class="fa-solid fa-circle-check text-success"></i> Member</button>
+                                <button class="filter-pill" onclick="window.setAdminMemberFilter('MEMBER_PLUS', this)"><i class="fa-solid fa-crown" style="color:#f59e0b;"></i> Member Plus</button>
+                                <button class="filter-pill" onclick="window.setAdminMemberFilter('MEMBER', this)"><i class="fa-solid fa-circle-check text-success"></i> Member Biasa</button>
                                 <button class="filter-pill" onclick="window.setAdminMemberFilter('ANONYMOUS', this)"><i class="fa-solid fa-user text-warning"></i> Tamu</button>
                             </div>
                             <input type="text" id="admin-search-member" class="form-control" style="max-width: 340px;" placeholder="Cari nama, email, atau UID..." oninput="window.renderAdminMembers()">
@@ -725,6 +828,34 @@
 
                         <div id="admin-members-grid" class="grid-auto">
                             <div class="text-center text-muted grid-span-full p-3">Memuat daftar pengguna...</div>
+                        </div>
+                    </div>
+
+                    <!-- SUB-PANEL 2: DAFTAR PESANAN MASUK LANGGANAN MEMBER PLUS (#2) -->
+                    <div id="admin-members-panel-mp-orders" class="dashboard-panel" style="display: none; border-color: #d97706;">
+                        <div class="panel-header">
+                            <div>
+                                <h3><i class="fa-solid fa-crown" style="color: #f59e0b;"></i> Daftar Pesanan Masuk Langganan Member Plus</h3>
+                                <small class="text-muted">Pesanan via Saldo Akun langsung aktif otomatis. Untuk pembayaran Tunai, tekan tombol <b>Aktifkan Langganan</b> dan masukkan PIN Admin.</small>
+                            </div>
+                            <div class="flex-gap flex-wrap-gap">
+                                <button type="button" class="btn btn-outline btn-sm" onclick="window.renderAdminMemberPlusOrders()">
+                                    <i class="fa-solid fa-rotate"></i> Segarkan Daftar
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="flex-between flex-wrap-gap mb-3 align-center">
+                            <div class="order-filter-pills" id="admin-mp-orders-filter-bar">
+                                <button type="button" class="filter-pill active" onclick="window.setAdminMpOrderFilter('ALL', this)">Semua Pesanan</button>
+                                <button type="button" class="filter-pill" onclick="window.setAdminMpOrderFilter('PENDING', this)"><i class="fa-solid fa-clock text-warning"></i> Menunggu Aktivasi Tunai</button>
+                                <button type="button" class="filter-pill" onclick="window.setAdminMpOrderFilter('ACTIVE', this)"><i class="fa-solid fa-crown" style="color:#f59e0b;"></i> Sudah Aktif / Selesai</button>
+                            </div>
+                            <input type="text" id="admin-search-mp-orders" class="form-control" style="max-width: 340px;" placeholder="Cari ID #MPLUS, nama, atau email..." oninput="window.renderAdminMemberPlusOrders()">
+                        </div>
+
+                        <div id="admin-mp-orders-grid" class="grid-auto">
+                            <div class="text-center text-muted grid-span-full p-3">Memuat daftar pesanan langganan Member Plus...</div>
                         </div>
                     </div>
                 </div>
@@ -836,7 +967,7 @@
                             </div>
                         </div>
 
-                        <!-- Kotak-kotak produk & varian dihilangkan sesuai permintaan v27.3 (#6): murni menggunakan Opsi Pilih (Select Dropdown) di atas -->
+                        <!-- Kotak-kotak produk & varian dihilangkan sesuai permintaan  (#6): murni menggunakan Opsi Pilih (Select Dropdown) di atas -->
                         <div id="stock-brand-cards-grid" style="display:none !important;" aria-hidden="true"></div>
                         <div id="stock-check-variants-panel" style="display:none !important;" aria-hidden="true">
                             <span id="stock-selected-brand-title"></span>
@@ -1030,6 +1161,642 @@
                 </div>
 
                 <!-- ==========================================
+                     TAB KHUSUS: PUSAT KONTROL DIGIFLAZZ (TERPISAH DARI STOK LOKAL)
+                     4 SUB-TAB: 1. Gudang Produk Digiflazz, 2. Monitor Transaksi & Pascabayar, 3. Saldo & Tiket Deposit, 4. Pengaturan API
+                     ========================================== -->
+                <div id="tab-digiflazz" class="admin-tab">
+                    <!-- 4 Kartu Ringkasan Digiflazz -->
+                    <div class="stats-grid" style="margin-bottom: 1.25rem;">
+                        <div class="stat-card">
+                            <div class="stat-icon icon-green"><i class="fa-solid fa-wallet"></i></div>
+                            <div class="stat-info">
+                                <span>Saldo Deposit Digiflazz</span>
+                                <h3 id="df-stat-balance">Rp0</h3>
+                                <small id="df-stat-balance-sub">Klik Cek Saldo untuk memperbarui</small>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon icon-blue"><i class="fa-solid fa-boxes-stacked"></i></div>
+                            <div class="stat-info">
+                                <span>Gudang Produk Digiflazz</span>
+                                <h3 id="df-stat-sku-total">0 SKU</h3>
+                                <small id="df-stat-sku-active-sub">0 aktif di katalog toko</small>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon icon-purple"><i class="fa-solid fa-bolt"></i></div>
+                            <div class="stat-info">
+                                <span>Transaksi Digiflazz</span>
+                                <h3 id="df-stat-trx-total">0</h3>
+                                <small id="df-stat-trx-sub">0 sukses &bull; 0 pending</small>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon icon-orange"><i class="fa-solid fa-coins"></i></div>
+                            <div class="stat-info">
+                                <span>Estimasi Laba Digiflazz</span>
+                                <h3 id="df-stat-profit">Rp0</h3>
+                                <small>Selisih harga jual &amp; modal</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Navigasi 4 Sub-Tab Digiflazz -->
+                    <div class="cs-subtabs-bar mb-3" style="flex-wrap: wrap;">
+                        <button type="button" id="df-subtab-btn-catalog" class="cs-subtab-btn active" onclick="window.switchDigiflazzSubTab('catalog')">
+                            <i class="fa-solid fa-boxes-stacked"></i>
+                            <span>1. Gudang Produk Digiflazz</span>
+                            <span id="df-badge-catalog-count" class="cs-subtab-badge">0</span>
+                        </button>
+                        <button type="button" id="df-subtab-btn-trx" class="cs-subtab-btn" onclick="window.switchDigiflazzSubTab('trx')">
+                            <i class="fa-solid fa-receipt"></i>
+                            <span>2. Transaksi &amp; Cek Tagihan</span>
+                            <span id="df-badge-trx-count" class="cs-subtab-badge badge-amber">0</span>
+                        </button>
+                        <button type="button" id="df-subtab-btn-deposit" class="cs-subtab-btn" onclick="window.switchDigiflazzSubTab('deposit')">
+                            <i class="fa-solid fa-money-bill-transfer"></i>
+                            <span>3. Saldo &amp; Tiket Deposit</span>
+                        </button>
+                        <button type="button" id="df-subtab-btn-config" class="cs-subtab-btn" onclick="window.switchDigiflazzSubTab('config')">
+                            <i class="fa-solid fa-plug-circle-check"></i>
+                            <span>4. Pengaturan Koneksi Digiflazz</span>
+                        </button>
+                        
+                    </div>
+
+                    <!-- SUB-TAB 1: GUDANG DATA PRODUK DIGIFLAZZ (PRABAYAR & PASCABAYAR) -->
+                    <div id="df-panel-catalog" class="df-subpanel active">
+                        <div class="dashboard-panel mb-3">
+                            <div class="panel-header">
+                                <div>
+                                    <h3><i class="fa-solid fa-cloud-arrow-down text-primary"></i> Gudang Data Produk Digiflazz</h3>
+                                    <small class="text-muted">Tarik daftar harga Prabayar maupun Pascabayar dari Digiflazz, atur markup keuntungan, lalu pilih produk yang ingin ditampilkan ke Katalog Toko.</small>
+                                </div>
+                                <div class="flex-gap flex-wrap-gap">
+                                    <button type="button" class="btn btn-primary btn-sm" id="btn-df-sync-prepaid" onclick="window.fetchDigiflazzPriceList('prepaid')">
+                                        <i class="fa-solid fa-cloud-arrow-down"></i> Tarik Produk Prabayar
+                                    </button>
+                                    <button type="button" class="btn btn-warning btn-sm" id="btn-df-sync-pasca" onclick="window.fetchDigiflazzPriceList('pasca')">
+                                        <i class="fa-solid fa-file-invoice"></i> Tarik Produk Pascabayar
+                                    </button>
+                                    <button type="button" class="btn btn-outline btn-sm" onclick="window.openAddManualDigiflazzSkuModal()">
+                                        <i class="fa-solid fa-plus"></i> Tambah SKU Manual
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Pengaturan Markup Harga Neo-Brutalist (Pilih Member Biasa / Member Plus -> Pilih Semua / Per Kategori / Per Brand) -->
+                            <div class="neo-markup-panel">
+                                <div class="flex-between align-center flex-wrap-gap mb-2">
+                                    <div>
+                                        <strong class="text-primary" style="font-size:0.95rem; font-weight:900;"><i class="fa-solid fa-sliders"></i> Panel Atur Markup Harga Member Biasa &amp; Member Plus</strong>
+                                        <span class="text-xs text-muted d-block">Pilih jenis member terlebih dahulu di Langkah 1, pilih cakupan produk di Langkah 2, lalu tentukan rumus keuntungan di Langkah 3. Produk bertanda <b>Cek Username (Rp 0)</b> tidak terpengaruh markup.</span>
+                                    </div>
+                                    <span class="status-badge status-pending" id="df-last-pricelist-sync-label">Pembaruan terakhir: Belum pernah</span>
+                                </div>
+
+                                <!-- Langkah 1: Pilih Target Member Terlebih Dahulu -->
+                                <div class="neo-markup-step-box">
+                                    <div class="neo-markup-step-head">
+                                        <span class="neo-markup-step-badge">LANGKAH 1</span>
+                                        <span>Pilih Jenis Member yang Ingin Diatur Harganya</span>
+                                    </div>
+                                    <div class="markup-target-tabs" style="margin-bottom:0;">
+                                        <button type="button" id="btn-markup-tier-regular" class="markup-target-tab active" onclick="window.switchAdminMarkupTargetTier('regular')">
+                                            <i class="fa-solid fa-user-check"></i> <span>1. Atur Harga Member Biasa</span>
+                                        </button>
+                                        <button type="button" id="btn-markup-tier-memberplus" class="markup-target-tab tab-gold" onclick="window.switchAdminMarkupTargetTier('member_plus')">
+                                            <i class="fa-solid fa-crown"></i> <span>2. Atur Harga Member Plus (Emas)</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Langkah 2: Pilih Cakupan (Semua / Per Kategori / Per Brand) -->
+                                <div class="neo-markup-step-box">
+                                    <div class="neo-markup-step-head">
+                                        <span class="neo-markup-step-badge">LANGKAH 2</span>
+                                        <span>Pilih Cakupan Pengaturan Harga (Semua Produk / Per Kategori / Per Brand)</span>
+                                    </div>
+                                    <div class="grid-auto" style="grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); gap: 10px;">
+                                        <div class="form-group mb-0">
+                                            <label class="text-xs fw-bold">Target Member Aktif</label>
+                                            <input type="text" id="df-markup-active-tier-Display" class="form-control fw-bold" value="MEMBER BIASA" readonly style="background:var(--surface);">
+                                            <input type="hidden" id="df-markup-target-tier" value="regular">
+                                        </div>
+                                        <div class="form-group mb-0">
+                                            <label class="text-xs fw-bold">Cakupan Pengaturan Harga</label>
+                                            <select id="df-markup-scope-select" class="form-control fw-bold" onchange="window.onChangeAdminMarkupScope()">
+                                                <option value="ALL">Semua Produk Digiflazz</option>
+                                                <option value="CATEGORY">Per Kategori Pilihan</option>
+                                                <option value="BRAND">Per Brand / Produk Pilihan</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group mb-0" id="df-markup-scope-cat-wrap" style="display:none;">
+                                            <label class="text-xs fw-bold">Pilih Kategori</label>
+                                            <select id="df-markup-scope-cat" class="form-control" onchange="window.onChangeAdminMarkupScopeValue()">
+                                                <option value="">-- Pilih Kategori --</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group mb-0" id="df-markup-scope-brand-wrap" style="display:none;">
+                                            <label class="text-xs fw-bold">Pilih Brand</label>
+                                            <select id="df-markup-scope-brand" class="form-control" onchange="window.onChangeAdminMarkupScopeValue()">
+                                                <option value="">-- Pilih Brand --</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Langkah 3: Kolom Atur Markup -->
+                                <div class="neo-markup-step-box" style="margin-bottom:0;">
+                                    <div class="neo-markup-step-head">
+                                        <span class="neo-markup-step-badge">LANGKAH 3</span>
+                                        <span>Atur Rumus Keuntungan &amp; Terapkan Harga</span>
+                                    </div>
+                                    <div class="grid-auto" style="grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); gap: 10px; align-items: end;">
+                                        <div class="form-group mb-0">
+                                            <label class="text-xs fw-bold">Jenis Hitungan Markup</label>
+                                            <select id="df-markup-type" class="form-control" onchange="window.saveDigiflazzMarkupPreview()">
+                                                <option value="smart_tiered">Bertingkat Berdasarkan Harga Modal</option>
+                                                <option value="hybrid">Kombinasi (% + Untung Minimal Rp)</option>
+                                                <option value="nominal">Nominal Tetap (+Rp)</option>
+                                                <option value="percent">Persentase (+%)</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group mb-0" id="df-markup-val-wrap">
+                                            <label class="text-xs fw-bold" id="df-markup-val-label">Markup Dasar (Rp / %)</label>
+                                            <input type="number" id="df-markup-value" class="form-control fw-bold" value="1500" min="0" oninput="window.saveDigiflazzMarkupPreview()">
+                                        </div>
+                                        <div class="form-group mb-0" id="df-markup-min-wrap">
+                                            <label class="text-xs fw-bold">Untung Minimal (Rp)</label>
+                                            <input type="number" id="df-markup-min-rp" class="form-control fw-bold" value="1000" min="0" oninput="window.saveDigiflazzMarkupPreview()">
+                                        </div>
+                                        <div class="form-group mb-0">
+                                            <label class="text-xs fw-bold">Pembulatan Harga</label>
+                                            <select id="df-markup-round" class="form-control" onchange="window.saveDigiflazzMarkupPreview()">
+                                                <option value="100">Ke Atas Rp100 Terdekat</option>
+                                                <option value="500">Ke Atas Rp500 Terdekat</option>
+                                                <option value="1000">Ke Atas Rp1.000 Terdekat</option>
+                                                <option value="none">Tanpa Pembulatan</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group mb-0">
+                                            <label class="text-xs text-success fw-bold"><i class="fa-solid fa-crown"></i> Potongan Member Plus (%)</label>
+                                            <input type="number" id="df-markup-memberplus-disc" class="form-control fw-bold" value="35" min="5" max="80" title="Potongan dari selisih keuntungan untuk Member Plus" oninput="window.saveDigiflazzMarkupPreview()">
+                                        </div>
+                                        <div class="flex-gap">
+                                            <button type="button" class="btn btn-success btn-sm w-full" onclick="window.applyMarkupToAllCatalogDigiflazzProducts()">
+                                                <i class="fa-solid fa-bolt"></i> Simpan &amp; Terapkan Harga
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Pengaturan Rentang Modal Bertingkat -->
+                                    <div id="df-smart-tiers-box" class="mt-2 pt-2" style="border-top: 1.5px dashed var(--border-subtle); display: grid; grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); gap: 8px;">
+                                        <div class="form-group mb-0">
+                                            <label class="text-xs text-muted">Modal &le; Rp20.000 (+Rp)</label>
+                                            <input type="number" id="df-tier-1" class="form-control text-xs fw-bold" value="1200" min="100" oninput="window.saveDigiflazzMarkupPreview()">
+                                        </div>
+                                        <div class="form-group mb-0">
+                                            <label class="text-xs text-muted">Modal Rp20rb - Rp75rb (+Rp)</label>
+                                            <input type="number" id="df-tier-2" class="form-control text-xs fw-bold" value="2000" min="100" oninput="window.saveDigiflazzMarkupPreview()">
+                                        </div>
+                                        <div class="form-group mb-0">
+                                            <label class="text-xs text-muted">Modal Rp75rb - Rp200rb (+Rp)</label>
+                                            <input type="number" id="df-tier-3" class="form-control text-xs fw-bold" value="3500" min="100" oninput="window.saveDigiflazzMarkupPreview()">
+                                        </div>
+                                        <div class="form-group mb-0">
+                                            <label class="text-xs text-muted">Modal &gt; Rp200.000 (+%)</label>
+                                            <input type="number" id="df-tier-4-pct" class="form-control text-xs fw-bold" value="2.5" step="0.5" min="0.5" oninput="window.saveDigiflazzMarkupPreview()">
+                                        </div>
+                                    </div>
+
+                                    <!-- Simulasi Perbandingan Harga Jual Langsung -->
+                                    <div id="df-markup-live-sim-box" class="neo-markup-sim-grid"></div>
+
+                                    <!-- Daftar Aturan Harga Tersimpan Per Kategori / Brand -->
+                                    <div id="df-saved-markup-rules-box" style="margin-top: 10px;"></div>
+                                </div>
+                            </div>
+
+                            <!-- Filter & Pencarian Gudang Digiflazz -->
+                            <div class="grid-auto mb-3" style="grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px;">
+                                <select id="df-filter-cmd" class="form-control" onchange="window.renderDigiflazzCatalogTable()">
+                                    <option value="ALL">Semua Layanan (Prabayar &amp; Pasca)</option>
+                                    <option value="prepaid">Prabayar (Topup / Pulsa / Game / PLN)</option>
+                                    <option value="pasca">Pascabayar (Tagihan PPOB)</option>
+                                </select>
+                                <select id="df-filter-category" class="form-control" onchange="window.onChangeDigiflazzCategoryFilter()">
+                                    <option value="ALL">Semua Kategori</option>
+                                </select>
+                                <select id="df-filter-brand" class="form-control" onchange="window.renderDigiflazzCatalogTable()">
+                                    <option value="ALL">Semua Brand</option>
+                                </select>
+                                <select id="df-filter-imported" class="form-control" onchange="window.renderDigiflazzCatalogTable()">
+                                    <option value="ALL">Semua Status Katalog</option>
+                                    <option value="IMPORTED">Sudah Masuk Katalog Toko</option>
+                                    <option value="NOT_IMPORTED">Belum Masuk Katalog Toko</option>
+                                    <option value="GANGGUAN">Sedang Gangguan Seller</option>
+                                </select>
+                            </div>
+
+                            <div class="flex-between flex-wrap-gap mb-3 align-center">
+                                <input type="text" id="df-search-sku" class="form-control" style="max-width: 380px;" placeholder="Cari nama produk, brand, atau kode SKU..." oninput="window.renderDigiflazzCatalogTable()">
+                                <div class="flex-gap flex-wrap-gap">
+                                    <button type="button" class="btn btn-primary btn-sm" onclick="window.importFilteredDigiflazzToStoreCatalog()">
+                                        <i class="fa-solid fa-file-import"></i> Tarik Hasil Filter ke Katalog Toko
+                                    </button>
+                                    <button type="button" class="btn btn-outline btn-sm text-danger border-danger" onclick="window.clearDigiflazzWarehouseCache()">
+                                        <i class="fa-solid fa-trash-can"></i> Kosongkan Gudang Digiflazz
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="table-responsive">
+                                <table class="modern-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Kode SKU</th>
+                                            <th>Nama Produk &amp; Seller</th>
+                                            <th>Brand &amp; Kategori</th>
+                                            <th>Modal / Admin</th>
+                                            <th>Harga Jual Toko</th>
+                                            <th>Cut Off &amp; Multi</th>
+                                            <th>Status</th>
+                                            <th>Aksi Katalog</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="df-catalog-tbody">
+                                        <tr><td colspan="8" class="text-center text-muted" style="padding: 2rem;">Belum ada produk Digiflazz ditarik. Klik <b>Tarik Produk Prabayar</b> atau <b>Tambah SKU Manual</b> di atas.</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SUB-TAB 2: MONITOR TRANSAKSI & CEK TAGIHAN PASCABAYAR / PLN -->
+                    <div id="df-panel-trx" class="df-subpanel" style="display: none;">
+                        <div class="grid-2col mb-3">
+                            <!-- Alat 1: Cek Validasi Nomor PLN (/v1/inquiry-pln) -->
+                            <div class="dashboard-panel mb-0">
+                                <div class="panel-header" style="margin-bottom: 0.75rem;">
+                                    <h3><i class="fa-solid fa-bolt text-warning"></i> Cek Validasi ID Pelanggan PLN</h3>
+                                </div>
+                                <div class="flex-gap mb-2">
+                                    <input type="text" id="df-tool-pln-no" class="form-control code-mono" placeholder="Masukkan No. Meter / ID Pelanggan PLN (Cth: 530000000001)">
+                                    <button type="button" class="btn btn-warning btn-sm" id="btn-df-tool-pln" onclick="window.adminInquiryPlnCustomer()" style="white-space:nowrap;">
+                                        <i class="fa-solid fa-magnifying-glass"></i> Cek PLN
+                                    </button>
+                                </div>
+                                <div id="df-tool-pln-result" class="info-box text-xs" style="display:none;"></div>
+                            </div>
+
+                            <!-- Alat 2: Cek Tagihan Pascabayar (inq-pasca) -->
+                            <div class="dashboard-panel mb-0">
+                                <div class="panel-header" style="margin-bottom: 0.75rem;">
+                                    <h3><i class="fa-solid fa-file-invoice-dollar text-primary"></i> Cek Tagihan Pascabayar (PPOB)</h3>
+                                </div>
+                                <div class="grid-2col mb-2" style="gap: 8px;">
+                                    <input type="text" id="df-tool-pasca-sku" class="form-control code-mono" placeholder="Kode SKU (Cth: pln / pdam / bpjs)">
+                                    <input type="text" id="df-tool-pasca-no" class="form-control code-mono" placeholder="Nomor Pelanggan (Cth: 530000000001)">
+                                </div>
+                                <button type="button" class="btn btn-primary btn-sm w-full" id="btn-df-tool-pasca" onclick="window.adminInquiryPascaBill()">
+                                    <i class="fa-solid fa-file-magnifying-glass"></i> Cek Tagihan Sekarang
+                                </button>
+                                <div id="df-tool-pasca-result" class="info-box text-xs mt-2" style="display:none;"></div>
+                            </div>
+                        </div>
+
+                        <div class="dashboard-panel">
+                            <div class="panel-header">
+                                <div>
+                                    <h3><i class="fa-solid fa-satellite-dish text-primary"></i> Daftar Transaksi Digiflazz (Prabayar &amp; Pascabayar)</h3>
+                                    <small class="text-muted">Pantau status pengiriman, Serial Number (SN), Response Code (RC), dan lakukan cek status ulang dengan jeda aman minimal 1 menit.</small>
+                                </div>
+                                <div class="order-filter-pills">
+                                    <button class="filter-pill active" onclick="window.setDigiflazzTrxFilter('ALL', this)">Semua</button>
+                                    <button class="filter-pill" onclick="window.setDigiflazzTrxFilter('SUCCESS', this)">Sukses</button>
+                                    <button class="filter-pill" onclick="window.setDigiflazzTrxFilter('PENDING', this)">Pending</button>
+                                    <button class="filter-pill" onclick="window.setDigiflazzTrxFilter('FAILED', this)">Gagal</button>
+                                </div>
+                            </div>
+
+                            <div class="table-responsive">
+                                <table class="modern-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Ref ID / Waktu</th>
+                                            <th>Produk &amp; Kode SKU</th>
+                                            <th>Tujuan (Customer No)</th>
+                                            <th>Modal &amp; Harga Jual</th>
+                                            <th>Status &amp; RC</th>
+                                            <th>SN / Keterangan</th>
+                                            <th>Aksi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="df-trx-tbody">
+                                        <tr><td colspan="7" class="text-center text-muted" style="padding: 2rem;">Belum ada transaksi produk Digiflazz.</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SUB-TAB 3: SALDO & TIKET DEPOSIT DIGIFLAZZ -->
+                    <div id="df-panel-deposit" class="df-subpanel" style="display: none;">
+                        <div class="grid-2col mb-3">
+                            <!-- Form Request Tiket Deposit (/v1/deposit) -->
+                            <div class="dashboard-panel mb-0">
+                                <div class="panel-header">
+                                    <div>
+                                        <h3><i class="fa-solid fa-money-bill-transfer text-success"></i> Tarik Tiket Deposit Digiflazz</h3>
+                                        <small class="text-muted">Buat tiket penambahan saldo deposit langsung ke rekening resmi Digiflazz.</small>
+                                    </div>
+                                    <button type="button" class="btn btn-outline btn-sm" id="btn-df-check-balance" onclick="window.checkDigiflazzBalance(true)">
+                                        <i class="fa-solid fa-rotate"></i> Cek Saldo Sekarang
+                                    </button>
+                                </div>
+
+                                <div class="form-group">
+                                    <label>Nominal Deposit (Rp) <span class="text-danger">*</span></label>
+                                    <input type="number" id="df-dep-amount" class="form-control fw-bold" placeholder="Contoh: 200000" min="10000" value="200000">
+                                </div>
+
+                                <div class="grid-2col">
+                                    <div class="form-group">
+                                        <label>Bank / Metode Tujuan <span class="text-danger">*</span></label>
+                                        <select id="df-dep-bank" class="form-control">
+                                            <option value="BCA">Bank BCA</option>
+                                            <option value="MANDIRI">Bank Mandiri</option>
+                                            <option value="BRI">Bank BRI</option>
+                                            <option value="BNI">Bank BNI</option>
+                                            <option value="Flip">Flip (Perorangan)</option>
+                                            <option value="ShopeePay">ShopeePay (Perorangan)</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Nama Pemilik Rekening Pengirim <span class="text-danger">*</span></label>
+                                        <input type="text" id="df-dep-owner" class="form-control" placeholder="Contoh: Miler Teves">
+                                    </div>
+                                </div>
+
+                                <button type="button" class="btn btn-success w-full" id="btn-df-req-deposit" onclick="window.requestDigiflazzDepositTicket()">
+                                    <i class="fa-solid fa-paper-plane"></i> Buat Tiket Deposit
+                                </button>
+                            </div>
+
+                            <!-- Hasil Tiket Deposit Terbaru -->
+                            <div class="dashboard-panel mb-0">
+                                <div class="panel-header">
+                                    <h3><i class="fa-solid fa-ticket text-primary"></i> Instruksi Transfer Deposit</h3>
+                                </div>
+                                <div id="df-active-deposit-box" class="info-box" style="min-height: 210px; display: flex; flex-direction: column; justify-content: center;">
+                                    <div class="text-center text-muted text-xs">
+                                        <i class="fa-solid fa-building-columns" style="font-size: 2rem; margin-bottom: 8px; opacity: 0.5;"></i>
+                                        <p class="m-0">Isi formulir di sebelah kiri untuk mendapatkan Nomor Rekening Tujuan, Nominal Unik, dan Berita Transfer resmi dari Digiflazz.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Riwayat Tiket Deposit -->
+                        <div class="dashboard-panel">
+                            <div class="panel-header">
+                                <h3><i class="fa-solid fa-clock-rotate-left text-primary"></i> Riwayat Tiket Deposit</h3>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="modern-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Waktu</th>
+                                            <th>Bank &amp; Metode</th>
+                                            <th>No. Rekening Tujuan</th>
+                                            <th>Nominal Transfer</th>
+                                            <th>Berita Transfer (Notes)</th>
+                                            <th>Pemilik Rekening</th>
+                                            <th>Aksi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="df-deposit-history-tbody">
+                                        <tr><td colspan="7" class="text-center text-muted">Belum ada riwayat tiket deposit.</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SUB-TAB 4: PENGATURAN KONEKSI API & SERVER BRIDGE VPS -->
+                    <div id="df-panel-config" class="df-subpanel" style="display: none;">
+                        <div class="dashboard-panel">
+                            <div class="panel-header">
+                                <div>
+                                    <h3><i class="fa-solid fa-plug-circle-check text-primary"></i> Konfigurasi Koneksi API Digiflazz</h3>
+                                    <small class="text-muted">Simpan API Key Development dan Production di kolom terpisah. Sistem otomatis memilih kunci sesuai Mode Lingkungan yang aktif.</small>
+                                </div>
+                                <span id="df-connection-mode-badge" class="status-badge status-pending">DEVELOPMENT</span>
+                            </div>
+
+                            <div class="grid-2col">
+                                <div class="form-group">
+                                    <label>URL Server Bridge VPS</label>
+                                    <input type="text" id="set-df-bridge-url" class="form-control code-mono" placeholder="Contoh: http://139.59.60.91:3100/api/digiflazz">
+                                </div>
+                                <div class="form-group">
+                                    <label>Mode Lingkungan Transaksi Aktif</label>
+                                    <select id="set-df-env-mode" class="form-control" onchange="window.updateDigiflazzEnvBadgePreview()">
+                                        <option value="development">Development / Testing (Pakai API Key Development)</option>
+                                        <option value="production">Production / Live (Pakai API Key Production)</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="grid-2col">
+                                <div class="form-group">
+                                    <label>Username Buyer Digiflazz <span class="text-danger">*</span></label>
+                                    <input type="text" id="set-df-username" class="form-control code-mono" placeholder="Username dari menu Atur Koneksi API">
+                                </div>
+                                <div class="form-group">
+                                    <label>Secret Key Webhook Digiflazz</label>
+                                    <input type="text" id="set-df-webhook-secret" class="form-control code-mono" placeholder="Contoh: VIPERCELL_DF_WEBHOOK_2026">
+                                </div>
+                            </div>
+
+                            <div id="df-env-active-indicator" class="info-box mb-3" style="border-color: var(--primary); display:flex; align-items:center; gap:10px;">
+                                <i class="fa-solid fa-flask text-warning"></i>
+                                <div class="text-xs">Mode aktif sedang dimuat...</div>
+                            </div>
+
+                            <!-- 2 Kolom Terpisah: API Key Development & API Key Production (Dengan Tombol Lihat/Sembunyikan & Anti-Tertukar) -->
+                            <div class="grid-2col">
+                                <div class="form-group" id="df-dev-key-card">
+                                    <label class="text-warning fw-bold"><i class="fa-solid fa-flask"></i> API Key Development (Testing)</label>
+                                    <div class="flex-gap">
+                                        <input type="password" id="set-df-dev-apikey" class="form-control code-mono" placeholder="dev-xxxxxxxxxxxxxxxx" autocomplete="off">
+                                        <button type="button" class="btn btn-outline btn-sm" onclick="window.toggleAdminInputEye('set-df-dev-apikey', this)" title="Tampilkan / Sembunyikan Key">
+                                            <i class="fa-regular fa-eye"></i>
+                                        </button>
+                                    </div>
+                                    <small class="text-xs text-muted d-block mt-1">Digunakan khusus saat Mode Lingkungan = <b>Development</b>.</small>
+                                </div>
+                                <div class="form-group" id="df-prod-key-card">
+                                    <label class="text-success fw-bold"><i class="fa-solid fa-bolt"></i> API Key Production (Live)</label>
+                                    <div class="flex-gap">
+                                        <input type="password" id="set-df-prod-apikey" class="form-control code-mono" placeholder="Masukkan API Key Production" autocomplete="off">
+                                        <button type="button" class="btn btn-outline btn-sm" onclick="window.toggleAdminInputEye('set-df-prod-apikey', this)" title="Tampilkan / Sembunyikan Key">
+                                            <i class="fa-regular fa-eye"></i>
+                                        </button>
+                                    </div>
+                                    <small class="text-xs text-muted d-block mt-1">Digunakan khusus saat Mode Lingkungan = <b>Production</b>.</small>
+                                </div>
+                            </div>
+                            <input type="hidden" id="set-df-apikey" value="">
+
+                            <div class="grid-2col mb-3">
+                                <div class="info-box flex-between align-center mb-0">
+                                    <div>
+                                        <strong class="text-sm d-block">Proses Otomatis Saat Pembayaran Lunas</strong>
+                                        <span class="text-xs text-muted">Kirim pesanan ke Digiflazz otomatis saat pembayaran QRIS atau Saldo selesai.</span>
+                                    </div>
+                                    <label class="switch">
+                                        <input type="checkbox" id="set-df-autohit" checked>
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+
+                                <div class="info-box flex-between align-center mb-0" style="border-color: var(--primary);">
+                                    <div>
+                                        <strong class="text-sm d-block">Kunci Produk Jika Saldo Digiflazz Tidak Cukup</strong>
+                                        <span class="text-xs text-muted">Produk yang harga modalnya di atas sisa saldo Digiflazz tidak dapat dibeli.</span>
+                                    </div>
+                                    <label class="switch">
+                                        <input type="checkbox" id="set-df-balance-guard" checked>
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="flex-gap flex-wrap-gap">
+                                <button type="button" class="btn btn-primary flex-2" onclick="window.saveDigiflazzSettings()">
+                                    <i class="fa-solid fa-floppy-disk"></i> Simpan Pengaturan Digiflazz
+                                </button>
+                                <button type="button" class="btn btn-outline flex-1" onclick="window.testDigiflazzBridgeConnection()">
+                                    <i class="fa-solid fa-plug-circle-bolt text-success"></i> Tes Koneksi &amp; Cek Saldo
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ==========================================
+                     TAB KHUSUS: PUSAT KONEKSI MACRODROID & MUTASI QRIS (TERPISAH DARI PENGATURAN TOKO)
+                     ========================================== -->
+                <div id="tab-qris" class="admin-tab">
+                    <div class="dashboard-panel mb-3" id="admin-firebase-qris-log-section">
+                        <div class="panel-header" style="margin-bottom: 1rem;">
+                            <div>
+                                <h3><i class="fa-solid fa-qrcode text-primary"></i> Pengaturan QRIS &amp; Koneksi Aplikasi Mutasi (MacroDroid)</h3>
+                                <small class="text-muted">Kelola kode QRIS toko dan pantau mutasi pembayaran masuk untuk verifikasi pesanan maupun pengisian saldo member.</small>
+                            </div>
+                            <span class="status-badge status-success" id="auto-clean-1h-status-badge"><i class="fa-solid fa-circle-check"></i> VERIFIKASI OTOMATIS AKTIF</span>
+                        </div>
+
+                        <div class="form-group mb-3">
+                            <label>String Data QRIS Statis Toko</label>
+                            <div class="flex-gap mb-2 flex-wrap-gap">
+                                <label class="btn btn-outline btn-sm m-0 pointer">
+                                    <i class="fa-solid fa-qrcode"></i> Scan Gambar QRIS
+                                    <input type="file" accept="image/*" style="display:none;" onchange="window.decodeQRISImage(this)">
+                                </label>
+                                <button type="button" class="btn btn-primary btn-sm" onclick="window.saveSiteSettings()">
+                                    <i class="fa-solid fa-floppy-disk"></i> Simpan String QRIS
+                                </button>
+                                <span id="qris-status-text" class="text-xs text-muted align-center flex-center">Belum ada string QRIS</span>
+                            </div>
+                            <textarea id="set-qris-data" class="form-control code-mono" rows="2" placeholder="00020101021126..."></textarea>
+                        </div>
+
+                        <div class="info-box mb-3" style="background: var(--surface-elevated); border-color: var(--primary);">
+                            <div class="flex-between align-center flex-wrap-gap mb-2">
+                                <div>
+                                    <strong class="text-primary text-sm"><i class="fa-solid fa-mobile-screen-button"></i> Pengaturan HTTP POST MacroDroid</strong>
+                                    <span class="text-xs text-muted d-block">Gunakan URL Endpoint dan format JSON di bawah ini pada aksi HTTP Request di aplikasi MacroDroid Anda.</span>
+                                </div>
+                                <span class="status-badge status-success">POST &bull; application/json</span>
+                            </div>
+
+                            <div class="grid-2col mb-2">
+                                <div class="form-group mb-0">
+                                    <label class="text-xs">1. URL Endpoint Penerima Mutasi</label>
+                                    <div class="flex-gap">
+                                        <input type="text" id="macrodroid-direct-fb-url-display" class="form-control code-mono text-xs" readonly value="https://firestore.googleapis.com/v1/projects/vipercell23/databases/(default)/documents/payment_mutations?key=AIzaSyD3nBBicctpG8Ceukny5uNHqFMQjZsVipU">
+                                        <button type="button" class="btn btn-primary btn-sm" onclick="window.copyMacroDroidDirectFirebaseUrl()" style="white-space:nowrap;">
+                                            <i class="fa-regular fa-copy"></i> Salin URL
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="form-group mb-0">
+                                    <label class="text-xs">2. Salin Format Body JSON MacroDroid</label>
+                                    <div class="flex-gap flex-wrap-gap">
+                                        <button type="button" class="btn btn-success btn-sm flex-1" onclick="window.copyMacroDroidDirectFirebaseJson('square')">
+                                            <i class="fa-solid fa-code"></i> Format [notification]
+                                        </button>
+                                        <button type="button" class="btn btn-outline btn-sm flex-1" onclick="window.copyMacroDroidDirectFirebaseJson('curly')">
+                                            <i class="fa-solid fa-code"></i> Format {notification}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <details class="v279-json-preview-details">
+                                <summary class="text-xs fw-bold text-primary pointer"><i class="fa-solid fa-eye"></i> Lihat Struktur Body JSON</summary>
+                                <pre id="macrodroid-json-code-preview" class="code-mono v279-json-pre">{
+  "fields": {
+    "appName": { "stringValue": "[not_app_name]" },
+    "title": { "stringValue": "[not_title]" },
+    "text": { "stringValue": "[notification]" },
+    "bigText": { "stringValue": "[not_big_text]" },
+    "rawText": { "stringValue": "[not_title] | [notification] | [not_big_text] | [not_sub_text] | [not_ticker]" },
+    "timeSent": { "stringValue": "[hour]:[minute]:[second]" },
+    "source": { "stringValue": "MACRODROID_GATEWAY" }
+  }
+}</pre>
+                            </details>
+                        </div>
+
+                        <div class="info-box mb-0" style="background: var(--surface);">
+                            <div class="flex-between align-center flex-wrap-gap mb-2">
+                                <div>
+                                    <div class="flex-gap align-center flex-wrap-gap">
+                                        <strong class="text-dark text-sm"><i class="fa-solid fa-list-check text-success"></i> Riwayat Mutasi Pembayaran Masuk</strong>
+                                        <span id="admin-mutations-total-badge" class="status-badge status-success" style="font-size:0.62rem;">0 Mutasi</span>
+                                    </div>
+                                    <span class="text-xs text-muted d-block">Menampilkan notifikasi pembayaran yang masuk dalam 1 jam terakhir.</span>
+                                </div>
+                                <div class="flex-gap flex-wrap-gap">
+                                    <button type="button" class="btn btn-outline btn-sm" id="btn-refresh-firebase-log" onclick="window.refreshFirebaseMutationsLogNow()">
+                                        <i class="fa-solid fa-rotate text-primary" id="icon-refresh-firebase-log"></i> Segarkan
+                                    </button>
+                                    <button type="button" class="btn btn-danger btn-sm" onclick="window.cleanOldPaymentMutations()">
+                                        <i class="fa-solid fa-trash-can"></i> Bersihkan Log
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="flex-between align-center flex-wrap-gap mb-2">
+                                <span class="text-xs text-muted fw-bold" id="admin-last-mutation-sync-info">
+                                    <i class="fa-solid fa-circle-check text-success"></i> Pemantauan pembayaran aktif
+                                </span>
+                                <input type="text" id="admin-search-mutation-log" class="form-control" style="max-width: 260px; padding: 5px 10px; font-size: 0.76rem;" placeholder="Cari nominal atau isi pesan..." oninput="window.renderAdminQrisControlMonitor()">
+                            </div>
+
+                            <div id="admin-recent-mutations-log" class="v279-firebase-log-container">
+                                <div class="text-xs text-muted p-3 text-center">Belum ada mutasi pembayaran yang masuk dalam 1 jam terakhir.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ==========================================
                      TAB 10: PENGATURAN TOKO (#2, #4, #5, #9)
                      ========================================== -->
                 <div id="tab-settings" class="admin-tab">
@@ -1074,6 +1841,68 @@
                             </div>
                         </div>
 
+                        
+                        <!-- PENGATURAN PIN KEAMANAN ADMIN & LANGGANAN MEMBER PLUS -->
+                        <div class="grid-2col mb-4">
+                            <div class="dashboard-panel mb-0" style="background: var(--surface-elevated); border-color: var(--primary);">
+                                <div class="panel-header" style="margin-bottom: 0.85rem;">
+                                    <div>
+                                        <h3><i class="fa-solid fa-user-lock text-primary"></i> PIN Keamanan Admin (Kasir Tunai &amp; Pesanan Manual)</h3>
+                                        <small class="text-muted">PIN ini wajib dimasukkan saat Admin memvalidasi pembayaran tunai atau menyelesaikan pesanan manual.</small>
+                                    </div>
+                                    <span id="admin-pin-status-badge" class="status-badge status-success">AKTIF</span>
+                                </div>
+                                <div class="grid-2col">
+                                    <div class="form-group mb-0">
+                                        <label for="set-admin-security-pin">PIN Keamanan Admin (6 Digit Angka)</label>
+                                        <div class="flex-gap">
+                                            <input type="password" id="set-admin-security-pin" class="form-control code-mono fw-bold" maxlength="6" inputmode="numeric" placeholder="Contoh: 123456">
+                                            <button type="button" class="btn btn-outline btn-sm" onclick="window.toggleAdminInputEye('set-admin-security-pin', this)">
+                                                <i class="fa-regular fa-eye"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="info-box flex-between align-center mb-0">
+                                        <div>
+                                            <strong class="text-xs d-block">Wajibkan PIN Saat Konfirmasi</strong>
+                                            <span class="text-xs text-muted">Kunci validasi tunai &amp; proses manual dengan PIN.</span>
+                                        </div>
+                                        <label class="switch">
+                                            <input type="checkbox" id="set-require-admin-pin" checked>
+                                            <span class="slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="dashboard-panel mb-0" style="background: var(--surface-elevated); border-color: var(--success);">
+                                <div class="panel-header" style="margin-bottom: 0.85rem;">
+                                    <div>
+                                        <h3><i class="fa-solid fa-crown text-warning"></i> Langganan Bulanan Member Plus</h3>
+                                        <small class="text-muted">Pengguna Member Plus mendapat harga lebih hemat otomatis dan akses Kode Promo khusus Member Plus.</small>
+                                    </div>
+                                    <label class="switch">
+                                        <input type="checkbox" id="set-memberplus-enabled" checked>
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <div class="grid-2col">
+                                    <div class="form-group mb-0">
+                                        <label for="set-memberplus-price">Harga Langganan / Bulan (Rp)</label>
+                                        <input type="number" id="set-memberplus-price" class="form-control fw-bold" value="25000" min="1000">
+                                    </div>
+                                    <div class="form-group mb-0">
+                                        <label for="set-memberplus-discount-pct">Potongan Harga Produk Lokal (%)</label>
+                                        <input type="number" id="set-memberplus-discount-pct" class="form-control fw-bold" value="5" min="1" max="50">
+                                    </div>
+                                </div>
+                                <div class="form-group mt-2 mb-0">
+                                    <label for="set-memberplus-tagline">Keunggulan Member Plus (Tampil di Web User)</label>
+                                    <input type="text" id="set-memberplus-tagline" class="form-control" value="Harga lebih hemat di semua produk, akses voucher eksklusif Member Plus, dan prioritas layanan.">
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- 2. PENGATURAN JAM OPERASIONAL TOKO (TANPA FITUR PAKSA STOK LOKAL #4 & #5) -->
                         <div class="dashboard-panel" style="background: var(--surface-elevated); margin-bottom: 1.5rem; border-color: var(--primary);">
                             <div class="panel-header" style="margin-bottom: 1rem;">
@@ -1107,12 +1936,12 @@
                             </div>
                         </div>
 
-                        <!-- 3. Teks Info Berjalan Neo-Brutalism (Mendukung 15 - 20 Teks #2) -->
+                        <!-- 3. Teks Info Berjalan  (Mendukung 15 - 20 Teks #2) -->
                         <div class="dashboard-panel" style="background: var(--surface-elevated); margin-bottom: 1.5rem;">
                             <div class="panel-header">
                                 <div>
-                                    <h3><i class="fa-solid fa-bullhorn text-warning"></i> Teks Info Berjalan (Running Text 15–20 Slot)</h3>
-                                    <small class="text-muted">Atur hingga 20 teks berjalan bergaya Neo-Brutalism di halaman utama toko.</small>
+                                    <h3><i class="fa-solid fa-bullhorn text-warning"></i> Teks Info Berjalan Atas (Halaman Utama)</h3>
+                                    <small class="text-muted">Atur hingga 20 informasi atau promo berjalan di bagian atas toko.</small>
                                 </div>
                                 <button type="button" id="btn-add-marquee-slot" class="btn btn-primary btn-sm" onclick="window.openMarqueeSlotForm(-1)">
                                     <i class="fa-solid fa-plus"></i> Tambah Teks (<span id="marquee-slot-count-badge">0/20</span>)
@@ -1174,12 +2003,12 @@
                                 <input type="text" id="set-marquee" class="form-control" placeholder="Selamat datang di Vipercell.">
                             </div>
 
-                            <!-- PANEL KONTROL BARU v27.8: RUNNING TEXT KATALOG BAWAH OTOMATIS -->
+                            <!-- PANEL KONTROL BARU : RUNNING TEXT KATALOG BAWAH OTOMATIS -->
                             <div class="dashboard-panel mt-4 mb-0 v278-control-panel" style="background: var(--surface); border-color: var(--primary);">
                                 <div class="panel-header" style="margin-bottom: 0.9rem;">
                                     <div>
-                                        <h3><i class="fa-solid fa-sliders text-primary"></i> Panel Kontrol Running Text Bawah Otomatis (Sinkron Katalog v27.8)</h3>
-                                        <small class="text-muted">Teks berjalan di bagian bawah toko kini 100% otomatis menampilkan item katalog aktif (Viu, Prime Video, Netflix, dll.) secara real-time tanpa input manual.</small>
+                                        <h3><i class="fa-solid fa-sliders text-primary"></i> Pengaturan Running Text Katalog Bawah</h3>
+                                        <small class="text-muted">Menampilkan daftar produk aktif di bagian bawah halaman toko.</small>
                                     </div>
                                     <button type="button" class="btn btn-outline btn-sm" onclick="window.refreshAdminControlCenterUI(true)">
                                         <i class="fa-solid fa-arrows-rotate text-primary"></i> Segarkan Pratinjau
@@ -1271,117 +2100,9 @@
                             </div>
                         </div>
 
-                        <!-- 5. PUSAT VALIDASI QRIS OTOMATIS DIRECT FIREBASE & LOG REALTIME (AUTO-CLEAN 1 JAM) v27.9 -->
-                        <div class="dashboard-panel mt-3 mb-3 v278-qris-control-center" id="admin-firebase-qris-log-section" style="background: var(--surface-elevated); border-color: var(--primary);">
-                            <div class="panel-header" style="margin-bottom: 0.9rem;">
-                                <div>
-                                    <h3><i class="fa-solid fa-fire text-warning"></i> Pusat Validasi QRIS Otomatis Direct Firebase &amp; Panel Log Masuk (v27.9)</h3>
-                                    <small class="text-muted">Sistem verifikasi bekerja 100% otomatis &amp; real-time begitu notifikasi masuk ke Firebase tanpa perlu menekan tombol segarkan. Riwayat log yang berusia lebih dari 1 jam akan dibersihkan secara otomatis.</small>
-                                </div>
-                                <div class="flex-gap align-center flex-wrap-gap">
-                                    <span class="status-badge status-success"><i class="fa-solid fa-bolt"></i> AUTO-VERIFY REALTIME</span>
-                                    <span class="status-badge status-pending" id="auto-clean-1h-status-badge"><i class="fa-solid fa-clock-rotate-left"></i> AUTO-CLEAN 1 JAM AKTIF</span>
-                                </div>
-                            </div>
-
-                            <!-- Input tersembunyi untuk kompatibilitas mundur -->
-                            <input type="hidden" id="set-email-webhook" value="">
-                            <input type="hidden" id="set-webhook-secret" value="VIPERCELL_SECRET_2026">
-
-                            <div class="form-group">
-                                <label>String Data QRIS Statis Toko</label>
-                                <div class="flex-gap mb-2 flex-wrap-gap">
-                                    <label class="btn btn-outline btn-sm m-0 pointer">
-                                        <i class="fa-solid fa-qrcode"></i> Scan Gambar QRIS
-                                        <input type="file" accept="image/*" style="display:none;" onchange="window.decodeQRISImage(this)">
-                                    </label>
-                                    <span id="qris-status-text" class="text-xs text-muted align-center flex-center">Belum ada string QRIS</span>
-                                </div>
-                                <textarea id="set-qris-data" class="form-control code-mono" rows="2" placeholder="00020101021126..."></textarea>
-                            </div>
-
-                            <!-- Salin Link Firebase & Salin Format Kode JSON MacroDroid yang Sudah Terbukti Berfungsi -->
-                            <div class="info-box mb-3" style="background: var(--surface); border-color: var(--primary);">
-                                <div class="flex-between align-center flex-wrap-gap mb-2">
-                                    <div>
-                                        <strong class="text-primary text-sm"><i class="fa-solid fa-mobile-screen-button"></i> Koneksi Langsung MacroDroid &rarr; Firebase Firestore (Instan &amp; Otomatis)</strong>
-                                        <span class="text-xs text-muted d-block">Salin URL Firebase dan format JSON MacroDroid di bawah ini (menggunakan <code>[not_title]</code> dan <code>[notification]</code> yang sudah terbukti berfungsi).</span>
-                                    </div>
-                                    <span class="status-badge status-success">POST &bull; application/json</span>
-                                </div>
-
-                                <div class="grid-2col mb-2">
-                                    <div class="form-group mb-0">
-                                        <label class="text-xs">1. Link Endpoint Firebase (HTTP POST URL)</label>
-                                        <div class="flex-gap">
-                                            <input type="text" id="macrodroid-direct-fb-url-display" class="form-control code-mono text-xs" readonly value="https://firestore.googleapis.com/v1/projects/vipercell-fc50e/databases/(default)/documents/payment_mutations?key=AIzaSyBQGZjl7uj5CRiLWCvPQKjiK4HvIYnXSJg">
-                                            <button type="button" class="btn btn-primary btn-sm" onclick="window.copyMacroDroidDirectFirebaseUrl()" style="white-space:nowrap;">
-                                                <i class="fa-regular fa-copy"></i> Salin Link Firebase
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <div class="form-group mb-0">
-                                        <label class="text-xs">2. Salin Format Kode JSON untuk MacroDroid</label>
-                                        <div class="flex-gap flex-wrap-gap">
-                                            <button type="button" class="btn btn-success btn-sm flex-1" onclick="window.copyMacroDroidDirectFirebaseJson('square')">
-                                                <i class="fa-solid fa-code"></i> Salin JSON [notification] (Utama)
-                                            </button>
-                                            <button type="button" class="btn btn-outline btn-sm flex-1" onclick="window.copyMacroDroidDirectFirebaseJson('curly')">
-                                                <i class="fa-solid fa-code"></i> Salin JSON {notification} (Alternatif)
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <details class="v279-json-preview-details">
-                                    <summary class="text-xs fw-bold text-primary pointer"><i class="fa-solid fa-eye"></i> Lihat Format Kode JSON MacroDroid yang Digunakan Saat Ini</summary>
-                                    <pre id="macrodroid-json-code-preview" class="code-mono v279-json-pre">{
-  "fields": {
-    "appName": { "stringValue": "[not_app_name]" },
-    "title": { "stringValue": "[not_title]" },
-    "text": { "stringValue": "[notification]" },
-    "bigText": { "stringValue": "[not_big_text]" },
-    "rawText": { "stringValue": "[not_title] | [notification] | [not_big_text] | [not_sub_text] | [not_ticker]" },
-    "timeSent": { "stringValue": "[hour]:[minute]:[second]" },
-    "source": { "stringValue": "MACRODROID_DIRECT_FIREBASE" }
-  }
-}</pre>
-                                </details>
-                            </div>
-
-                            <!-- Panel Log Masuk Realtime & Pembersihan Otomatis 1 Jam (Tanpa Fitur Simulasi) -->
-                            <div class="info-box mb-0" style="background: var(--surface);">
-                                <div class="flex-between align-center flex-wrap-gap mb-2">
-                                    <div>
-                                        <div class="flex-gap align-center flex-wrap-gap">
-                                            <strong class="text-dark text-sm"><i class="fa-solid fa-database text-success"></i> Panel Log Notifikasi Masuk Firebase (Realtime Stream)</strong>
-                                            <span id="admin-mutations-total-badge" class="status-badge status-success" style="font-size:0.62rem;">0 Log Masuk</span>
-                                        </div>
-                                        <span class="text-xs text-muted d-block">Menampilkan pesan notifikasi pembayaran secara langsung saat itu juga. Log berusia &gt; 1 jam otomatis dihapus permanen dari Firebase.</span>
-                                    </div>
-                                    <div class="flex-gap flex-wrap-gap">
-                                        <button type="button" class="btn btn-outline btn-sm" id="btn-refresh-firebase-log" onclick="window.refreshFirebaseMutationsLogNow()">
-                                            <i class="fa-solid fa-rotate text-primary" id="icon-refresh-firebase-log"></i> Refresh Log
-                                        </button>
-                                        <button type="button" class="btn btn-danger btn-sm" onclick="window.cleanOldPaymentMutations()">
-                                            <i class="fa-solid fa-trash-can"></i> Hapus Log Permanen
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div class="flex-between align-center flex-wrap-gap mb-2">
-                                    <span class="text-xs text-muted fw-bold" id="admin-last-mutation-sync-info">
-                                        <i class="fa-solid fa-circle-check text-success"></i> Listener Realtime Aktif &bull; Pembersihan otomatis setiap 1 jam berjalan di latar belakang
-                                    </span>
-                                    <input type="text" id="admin-search-mutation-log" class="form-control" style="max-width: 260px; padding: 5px 10px; font-size: 0.76rem;" placeholder="Cari nominal atau isi pesan..." oninput="window.renderAdminQrisControlMonitor()">
-                                </div>
-
-                                <div id="admin-recent-mutations-log" class="v279-firebase-log-container">
-                                    <div class="text-xs text-muted p-3 text-center">Belum ada log notifikasi yang masuk di Firebase dalam 1 jam terakhir.</div>
-                                </div>
-                            </div>
-                        </div>
+                        <!-- Input tersembunyi untuk kompatibilitas pengaturan -->
+                        <input type="hidden" id="set-email-webhook" value="">
+                        <input type="hidden" id="set-webhook-secret" value="VIPERCELL_SECRET_2026">
 
                         <!-- 6. Logo Header, Ikon Web & Banner Slider -->
                         <div class="grid-2col mt-3">
@@ -1429,16 +2150,16 @@
 
             </div>
 
-            <!-- FOOTER RESMI WEB ADMIN VIPERCELL (BAGIAN PALING BAWAH) v27.9 -->
+            <!-- FOOTER WEB ADMIN VIPERCELL -->
             <footer class="admin-footer-neo">
                 <div class="admin-footer-inner">
                     <div class="admin-footer-brand-col">
                         <div class="flex-gap align-center mb-1">
                             <span class="brand-icon" style="width:30px; height:30px; font-size:0.85rem;"><i class="fa-solid fa-bolt"></i></span>
-                            <strong class="brand-title" style="font-size:1.05rem;">VIPER<span>ADMIN</span> <small class="status-badge status-vip" style="font-size:0.58rem; margin-left:4px;">v27.9</small></strong>
+                            <strong class="brand-title" style="font-size:1.05rem;">VIPER<span>ADMIN</span></strong>
                         </div>
                         <p class="text-xs text-muted m-0">
-                            Pusat Kendali Toko Produk Digital, Aplikasi Premium &amp; Top Up Game &bull; Direct Firebase Auto-Verification Engine.
+                            Panel Pengelola Toko Produk Digital, Aplikasi Premium &amp; Top Up.
                         </p>
                     </div>
 
@@ -1449,23 +2170,23 @@
                         <button type="button" class="admin-footer-nav-chip" onclick="window.switchAdminTabByName('tab-orders')">
                             <i class="fa-solid fa-boxes-packing"></i> Pesanan
                         </button>
+                        <button type="button" class="admin-footer-nav-chip" onclick="window.switchAdminTabByName('tab-digiflazz')">
+                            <i class="fa-solid fa-microchip"></i> Digiflazz
+                        </button>
                         <button type="button" class="admin-footer-nav-chip" onclick="window.switchAdminTabByName('tab-stocks')">
                             <i class="fa-solid fa-vault"></i> Gudang Stok
                         </button>
-                        <button type="button" class="admin-footer-nav-chip" onclick="window.switchAdminTabByName('tab-livechat')">
-                            <i class="fa-solid fa-comments"></i> CS Bantuan
-                        </button>
-                        <button type="button" class="admin-footer-nav-chip" onclick="window.jumpToFirebaseLogSection()">
-                            <i class="fa-solid fa-fire text-warning"></i> Log Firebase
+                        <button type="button" class="admin-footer-nav-chip" onclick="window.switchAdminTabByName('tab-qris')">
+                            <i class="fa-solid fa-qrcode"></i> Mutasi QRIS
                         </button>
                     </div>
 
                     <div class="admin-footer-status-col">
                         <div class="admin-footer-status-pill">
                             <span class="admin-marquee-pulse-dot" style="background:var(--success);"></span>
-                            <span>Firebase Realtime: <b>TERHUBUNG</b></span>
+                            <span>Status Layanan: <b>AKTIF</b></span>
                         </div>
-                        <span class="text-xs text-muted">&copy; 2026 <b>Vipercell Store</b> &bull; Auto-Clean Log 1 Jam</span>
+                        <span class="text-xs text-muted">&copy; 2026 <b>Vipercell Store</b></span>
                     </div>
                 </div>
             </footer>
@@ -1473,7 +2194,7 @@
     </div>
 
     <!-- ==========================================================================
-         MODE POP-UP MODALS & NOTIFIKASI NEO-BRUTALISM (#1, #13)
+         MODE POP-UP MODALS & NOTIFIKASI AKUN (#1, #13)
          ========================================================================== -->
 
     <!-- 1. POP-UP SCANNER BARCODE TUNAI -->
@@ -1517,6 +2238,19 @@
             <input type="hidden" id="proc-order-dbid">
             <div id="proc-order-summary" class="info-box mb-3"></div>
 
+            <div id="proc-digiflazz-box" class="info-box mb-3" style="display: none; border-color: var(--primary); background: var(--surface-elevated);">
+                <div class="flex-between align-center flex-wrap-gap mb-1">
+                    <strong class="text-primary text-xs"><i class="fa-solid fa-microchip"></i> TRANSAKSI OTOMATIS DIGIFLAZZ</strong>
+                    <span id="proc-df-status-badge" class="status-badge status-pending">PENDING</span>
+                </div>
+                <div id="proc-df-info-text" class="text-xs text-muted mb-2">-</div>
+                <div class="flex-gap flex-wrap-gap">
+                    <button type="button" id="btn-proc-hit-digiflazz" class="btn btn-primary btn-sm flex-1" onclick="window.triggerDigiflazzFromOrderModal()">
+                        <i class="fa-solid fa-bolt"></i> Kirim / Cek Status Digiflazz
+                    </button>
+                </div>
+            </div>
+
             <div id="proc-subscription-box" class="info-box bg-warning-light border-warning mb-3" style="display: none;">
                 <div class="flex-between align-center flex-wrap-gap mb-2">
                     <strong class="text-warning"><i class="fa-solid fa-stopwatch"></i> Durasi Langganan</strong>
@@ -1534,27 +2268,34 @@
                 </div>
             </div>
             
+            <div id="proc-completed-locked-banner" class="info-box bg-success-light border-success mb-2" style="display:none;">
+                <div class="flex-between align-center flex-wrap-gap">
+                    <span class="text-xs fw-bold text-success"><i class="fa-solid fa-lock"></i> Pesanan ini sudah selesai. Rincian yang telah dikirim bersifat permanen dan tidak dapat diubah.</span>
+                    <button type="button" class="btn btn-outline btn-sm" style="padding:2px 8px; min-height:24px; font-size:0.68rem;" onclick="window.copyCompletedOrderReply()">
+                        <i class="fa-regular fa-copy"></i> Salin Detail
+                    </button>
+                </div>
+            </div>
+
             <div class="form-group">
                 <div class="flex-between align-center mb-1 flex-wrap-gap">
-                    <label for="proc-admin-reply" class="m-0">Rincian Akun / Pesanan yang Dikirim</label>
-                    <button type="button" class="btn btn-outline btn-sm" style="padding:2px 8px; min-height:26px; font-size:0.7rem;" onclick="window.pullAvailableStockIntoOrderModal()">
+                    <label for="proc-admin-reply" class="m-0" id="proc-admin-reply-label">Rincian Akun / Pesanan yang Dikirim</label>
+                    <button type="button" id="btn-proc-pull-stock" class="btn btn-outline btn-sm" style="padding:2px 8px; min-height:26px; font-size:0.7rem;" onclick="window.pullAvailableStockIntoOrderModal()">
                         <i class="fa-solid fa-vault text-primary"></i> Ambil 1 Stok Ready
                     </button>
                 </div>
                 <textarea id="proc-admin-reply" class="form-control code-mono" rows="5" placeholder="Masukkan detail akun atau catatan pengiriman untuk pembeli..."></textarea>
             </div>
 
-
-            
-            <div class="flex-col-gap">
+            <div id="proc-action-buttons-wrap" class="flex-col-gap">
                 <button id="btn-mark-order-success" class="btn btn-success w-full" onclick="window.markOrderComplete('SUCCESS')">
                     <i class="fa-solid fa-check"></i> <span>Selesaikan</span>
                 </button>
                 <div class="flex-gap">
-                    <button class="btn btn-warning flex-1" onclick="window.markOrderComplete('PENDING')">
+                    <button id="btn-mark-order-pending" class="btn btn-warning flex-1" onclick="window.markOrderComplete('PENDING')">
                         <i class="fa-solid fa-clock"></i> Set Diproses Admin (Pending)
                     </button>
-                    <button class="btn btn-danger flex-1" onclick="window.markOrderComplete('FAILED')">
+                    <button id="btn-mark-order-failed" class="btn btn-danger flex-1" onclick="window.markOrderComplete('FAILED')">
                         <i class="fa-solid fa-ban"></i> Batalkan / Gagal
                     </button>
                 </div>
@@ -1789,6 +2530,7 @@
                             <label>Syarat Penggunaan Member</label>
                             <select id="manage-promo-user" class="form-control" onchange="window.updatePromoLivePreview()">
                                 <option value="member">Semua Member</option>
+                                <option value="member_plus">Khusus Pelanggan Member Plus</option>
                                 <option value="new">Member Transaksi Pertama</option>
                             </select>
                         </div>
@@ -1858,6 +2600,10 @@
                     <select id="manage-prod-type" class="form-control" onchange="window.toggleManageGameInput()">
                         <option value="app">Aplikasi Premium</option>
                         <option value="game">Top Up Game</option>
+                        <option value="pulsa">Pulsa &amp; Paket Data</option>
+                        <option value="pln">Listrik PLN (Token &amp; Tagihan)</option>
+                        <option value="ewallet">Saldo E-Wallet</option>
+                        <option value="ppob">Tagihan Pascabayar (PPOB)</option>
                         <option value="tools">Tools &amp; Produk Email</option>
                     </select>
                 </div>
@@ -1865,12 +2611,34 @@
 
             <div id="manage-game-input-wrap" class="form-group" style="display:none;">
                 <label>Format Input Tujuan Pembeli</label>
-                <select id="manage-input-type" class="form-control">
+                <select id="manage-input-type" class="form-control" onchange="window.autoFillCheckIdSkuByBrand()">
                     <option value="id_zone">ID Player + Zone/Server (2 Kolom)</option>
                     <option value="id_only">Hanya ID Player / UID (1 Kolom)</option>
+                    <option value="phone">Nomor HP Pulsa &amp; Data (Deteksi Operator Otomatis)</option>
+                    <option value="ewallet_no">Nomor HP E-Wallet + Cek Nama Pengguna</option>
+                    <option value="pln_token">No. Meter / ID Pelanggan PLN + Cek Nama Pelanggan</option>
+                    <option value="pasca_no">Nomor Pelanggan Tagihan Pascabayar (Cek &amp; Bayar Tagihan)</option>
                     <option value="custom">Username / Email / Link Tujuan (1 Kolom)</option>
                     <option value="none">Tanpa Input Tujuan</option>
                 </select>
+
+                <!-- Pengaturan Cek Username / Nama Akun Otomatis Saat Konfirmasi Sebelum Bayar -->
+                <div class="info-box mt-2 mb-0" style="background: var(--surface-elevated); border-color: var(--primary);">
+                    <div class="flex-between align-center">
+                        <div>
+                            <strong class="text-primary d-block text-xs"><i class="fa-solid fa-user-check"></i> Cek Username / Nama Pelanggan Otomatis Sebelum Bayar</strong>
+                            <span class="text-xs text-muted">Otomatis memverifikasi nama akun Game, E-Wallet, atau PLN saat pembeli menekan tombol Beli.</span>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" id="manage-auto-check-target" checked onchange="window.toggleCheckIdSkuBox()">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div id="manage-check-id-sku-wrap" class="mt-2">
+                        <label class="text-xs fw-bold">Kode Produk / SKU Cek Username (Terisi Otomatis Sesuai Brand)</label>
+                        <input type="text" id="manage-check-id-sku" class="form-control code-mono" placeholder="Contoh: ml / ff / pln / dana / ovo / gopay">
+                    </div>
+                </div>
             </div>
 
             <div id="manage-app-input-wrap" class="info-box bg-primary-light border-primary mb-3">
@@ -1907,15 +2675,27 @@
                         </label>
                     </div>
                 </div>
-                <div class="info-box flex-between align-center mb-0">
-                    <div>
-                        <strong class="d-block text-sm">Mode Gangguan</strong>
-                        <span class="text-xs text-muted">Tutup sementara seluruh variasi produk ini</span>
+                <div class="grid-2col" style="gap: 8px;">
+                    <div class="info-box flex-between align-center mb-0">
+                        <div>
+                            <strong class="d-block text-xs">Mode Gangguan</strong>
+                            <span class="text-xs text-muted">Tutup sementara</span>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" id="manage-brand-gangguan">
+                            <span class="slider"></span>
+                        </label>
                     </div>
-                    <label class="switch">
-                        <input type="checkbox" id="manage-brand-gangguan">
-                        <span class="slider"></span>
-                    </label>
+                    <div class="info-box flex-between align-center mb-0" style="border-color: var(--primary);">
+                        <div>
+                            <strong class="d-block text-xs text-primary"><i class="fa-solid fa-eye-slash"></i> Sembunyikan</strong>
+                            <span class="text-xs text-muted">Sembunyikan di Web User</span>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" id="manage-brand-hidden">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
                 </div>
             </div>
 
@@ -1931,12 +2711,22 @@
                 <div class="grid-2col mb-2">
                     <div class="form-group mb-0">
                         <label class="text-xs">Nama Variasi <span class="text-danger">*</span></label>
-                        <input type="text" id="temp-nom-name" class="form-control" placeholder="Contoh: 1 Bulan Sharing / 1 Bulan Private">
+                        <input type="text" id="temp-nom-name" class="form-control" placeholder="Contoh: 1 Bulan Sharing / Cek Username">
                     </div>
                     <div class="form-group mb-0">
                         <label class="text-xs">Harga (Rp) <span class="text-danger">*</span></label>
-                        <input type="number" id="temp-nom-price" class="form-control" placeholder="Contoh: 15000">
+                        <input type="number" id="temp-nom-price" class="form-control" placeholder="Contoh: 15000 (atau 0 untuk Cek Username)" min="0">
                     </div>
+                </div>
+
+                <div class="info-box mb-2" style="padding: 8px 12px; background: var(--surface); border-color: var(--success);">
+                    <label class="pointer flex-between align-center m-0">
+                        <div>
+                            <strong class="text-xs text-success d-block"><i class="fa-solid fa-user-check"></i> Tandai Sebagai Produk Cek Username (Gratis / Rp 0)</strong>
+                            <span class="text-xs text-muted">Jika diaktifkan, harga dikunci Rp 0 (Gratis) dan tidak akan berubah oleh markup harga saat penarikan data ke katalog.</span>
+                        </div>
+                        <input type="checkbox" id="temp-nom-is-check-username" style="width:18px; height:18px;" onchange="window.onToggleTempCheckUsernameCheckbox(this)">
+                    </label>
                 </div>
 
                 <div class="grid-2col mb-2">
@@ -1946,17 +2736,31 @@
                     </div>
                     <div class="form-group mb-0">
                         <label class="text-xs">Mode Pengiriman</label>
-                        <select id="temp-nom-status" class="form-control">
-                            <option value="auto">Otomatis (Dari Gudang Stok)</option>
+                        <select id="temp-nom-status" class="form-control" onchange="window.toggleTempNominalDigiflazzFields()">
+                            <option value="auto">Otomatis (Gudang Stok Lokal)</option>
+                            <option value="digiflazz">Otomatis (API Digiflazz Prabayar)</option>
+                            <option value="digiflazz_pasca">Otomatis (Tagihan Pascabayar Digiflazz)</option>
+                            <option value="ewallet_custom">E-Wallet Bebas Nominal (Maks Rp500.000)</option>
                             <option value="manual">Manual (Diproses Admin)</option>
                             <option value="ask_auto">Tanya &amp; Otomatis</option>
                         </select>
                     </div>
                 </div>
 
-                <div class="grid-2col mb-2">
+                <div id="temp-nom-digiflazz-wrap" class="grid-2col mb-2" style="display: none; background: var(--surface); padding: 10px; border-radius: 8px; border: 1.5px dashed var(--primary);">
                     <div class="form-group mb-0">
-                        <label class="text-xs">Format Stok</label>
+                        <label class="text-xs text-primary fw-bold">Kode SKU Buyer Digiflazz <span class="text-danger">*</span></label>
+                        <input type="text" id="temp-nom-sku" class="form-control code-mono" placeholder="Contoh: xld10 / ml5 / pln">
+                    </div>
+                    <div class="form-group mb-0">
+                        <label class="text-xs">Harga Modal Digiflazz (Rp)</label>
+                        <input type="number" id="temp-nom-modal" class="form-control" placeholder="Contoh: 10000" value="0" min="0">
+                    </div>
+                </div>
+
+                <div class="grid-2col mb-2">
+                    <div class="form-group mb-0" id="temp-nom-stock-mode-wrap">
+                        <label class="text-xs">Format Stok Lokal</label>
                         <select id="temp-nom-stock-mode" class="form-control">
                             <option value="PRIVATE">Private (1x Pakai)</option>
                             <option value="SHARING">Sharing Multi-Slot</option>
@@ -1965,7 +2769,7 @@
                     </div>
                     <div class="form-group mb-0">
                         <label class="text-xs">Keterangan Singkat Variasi</label>
-                        <input type="text" id="temp-nom-desc" class="form-control" placeholder="Contoh: Bergaransi penuh">
+                        <input type="text" id="temp-nom-desc" class="form-control" placeholder="Contoh: Proses instan 24 jam">
                     </div>
                 </div>
 
@@ -1987,7 +2791,96 @@
         </div>
     </div>
 
-    <!-- POP-UP ALERT & KONFIRMASI NEO-BRUTALISM (#13) -->
+    <!-- 10. POP-UP TAMBAH / EDIT SKU DIGIFLAZZ MANUAL KE GUDANG DIGIFLAZZ -->
+    <div class="modal-overlay" id="modal-manual-df-sku">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2><i class="fa-solid fa-microchip text-primary"></i> Tambah SKU ke Gudang Digiflazz</h2>
+                <button class="close-btn" onclick="window.closeModal('modal-manual-df-sku')" aria-label="Tutup">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="grid-2col">
+                <div class="form-group">
+                    <label>Jenis Layanan</label>
+                    <select id="mdf-cmd" class="form-control">
+                        <option value="prepaid">Prabayar (Topup / Token / Pulsa)</option>
+                        <option value="pasca">Pascabayar (Cek &amp; Bayar Tagihan)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Kode SKU Buyer (`buyer_sku_code`) <span class="text-danger">*</span></label>
+                    <input type="text" id="mdf-sku" class="form-control code-mono" placeholder="Contoh: xld10 / pln / pdam">
+                </div>
+            </div>
+
+            <div class="grid-2col">
+                <div class="form-group">
+                    <label>Brand <span class="text-danger">*</span></label>
+                    <input type="text" id="mdf-brand" class="form-control" placeholder="Contoh: MOBILE LEGENDS / XL / PLN">
+                </div>
+                <div class="form-group">
+                    <label>Kategori <span class="text-danger">*</span></label>
+                    <input type="text" id="mdf-category" class="form-control" placeholder="Contoh: Games / Pulsa / Pascabayar">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Nama Produk / Variasi <span class="text-danger">*</span></label>
+                <input type="text" id="mdf-name" class="form-control" placeholder="Contoh: Weekly Diamond Pass / Pulsa XL 10.000">
+            </div>
+
+            <div class="grid-2col">
+                <div class="form-group">
+                    <label>Harga Modal / Admin (Rp) <span class="text-danger">*</span></label>
+                    <input type="number" id="mdf-modal" class="form-control" placeholder="Contoh: 10000" value="10000" min="0">
+                </div>
+                <div class="form-group">
+                    <label>Harga Jual Toko (Rp) <span class="text-danger">*</span></label>
+                    <input type="number" id="mdf-sell" class="form-control" placeholder="Contoh: 12000" value="12000" min="0">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="pointer flex-gap align-center">
+                    <input type="checkbox" id="mdf-also-import" checked style="width:18px; height:18px;">
+                    <span class="text-xs fw-bold">Langsung tampilkan ke Katalog Toko utama</span>
+                </label>
+            </div>
+
+            <button type="button" class="btn btn-primary w-full" onclick="window.saveManualDigiflazzSku()">
+                <i class="fa-solid fa-check"></i> Simpan SKU Digiflazz
+            </button>
+        </div>
+    </div>
+
+    
+    <!-- 11. POP-UP VERIFIKASI PIN KEAMANAN ADMIN -->
+    <div class="modal-overlay" id="modal-admin-pin-verify">
+        <div class="modal-content" style="max-width: 390px; text-align: center;">
+            <div class="modal-header">
+                <h2><i class="fa-solid fa-shield-halved text-primary"></i> Verifikasi PIN Admin</h2>
+                <button class="close-btn" onclick="window.closeAdminPinModal()" aria-label="Tutup">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <p id="admin-pin-modal-desc" class="text-xs text-muted mb-3">
+                Masukkan 6 digit PIN Keamanan Admin untuk memvalidasi tindakan ini.
+            </p>
+            <div class="form-group">
+                <input type="password" id="admin-pin-verify-input" class="form-control code-mono text-center fw-900" style="font-size: 1.5rem; letter-spacing: 0.35em;" maxlength="6" inputmode="numeric" placeholder="••••••" onkeypress="if(event.key === 'Enter') window.confirmAdminPinVerification()">
+            </div>
+            <div class="flex-gap">
+                <button type="button" class="btn btn-outline flex-1" onclick="window.closeAdminPinModal()">Batal</button>
+                <button type="button" class="btn btn-primary flex-1" onclick="window.confirmAdminPinVerification()">
+                    <i class="fa-solid fa-check"></i> Konfirmasi PIN
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- POP-UP ALERT & KONFIRMASI -->
     <div class="msg-overlay" id="custom-alert">
         <div class="msg-box">
             <div id="ca-icon" class="msg-icon info"><i class="fa-solid fa-circle-info"></i></div>

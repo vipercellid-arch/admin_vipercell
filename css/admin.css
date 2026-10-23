@@ -2479,8 +2479,17 @@ input:checked + .slider:before {
     animation: adminTopMarqueeScroll var(--admin-marquee-duration, 38s) linear infinite;
 }
 
-.admin-top-marquee-bar:hover .admin-marquee-track {
-    animation-play-state: paused;
+.admin-marquee-group {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.df-subpanel {
+    display: none;
+}
+.df-subpanel.active {
+    display: block;
 }
 
 @keyframes adminTopMarqueeScroll {
@@ -2820,3 +2829,241 @@ input:checked + .slider:before {
         display: none;
     }
 }
+/* Nonaktifkan efek gerak pada kartu biasa saat disentuh di layar sentuh */
+.catalog-card:hover,
+.member-card:hover,
+.marquee-slot-card:hover,
+.stat-card:not(.pointer):hover,
+.suggestion-admin-card:hover {
+    transform: none !important;
+}
+/* #water-ripple-canvas dikendalikan dinamis melalui pengaturan waterRippleEnabled */
+
+
+/* Sembunyikan Running Text Admin Secara Permanen */
+#admin-top-marquee-bar,
+.admin-top-marquee-bar {
+    display: none !important;
+}
+
+/* Badge & Kartu Produk Disembunyikan */
+.catalog-card.is-hidden-brand {
+    opacity: 0.78;
+    border-style: dashed;
+}
+.status-hidden-badge {
+    background: #334155 !important;
+    color: #f8fafc !important;
+}
+
+/* ==========================================================================
+   PEMBARUAN v28.3 — IDENTITAS EMAS MEMBER PLUS DI ADMIN (TRANSAKSI, CHAT,
+   DATA PENGGUNA), SELECTOR MARKUP BERTINGKAT & KUNCI PESANAN SELESAI
+   ========================================================================== */
+
+/* 1. Badge & Kartu Emas Member Plus (#1) */
+.status-memberplus-gold {
+    background: linear-gradient(135deg, #fde047, #f59e0b) !important;
+    color: #0f172a !important;
+    border: 1.5px solid #0f172a !important;
+    box-shadow: 2px 2px 0px #0f172a !important;
+    font-weight: 900 !important;
+}
+
+/* Baris Transaksi Member Plus di Tabel Pesanan Admin */
+.modern-table tbody tr.row-order-memberplus {
+    background: linear-gradient(90deg, rgba(250, 204, 21, 0.22), rgba(245, 158, 11, 0.08)) !important;
+    border-left: 5px solid #f59e0b !important;
+}
+[data-theme="dark"] .modern-table tbody tr.row-order-memberplus {
+    background: linear-gradient(90deg, rgba(250, 204, 21, 0.16), rgba(217, 119, 6, 0.06)) !important;
+    border-left: 5px solid #facc15 !important;
+}
+
+/* Item Chat Member Plus di CS Bantuan Admin */
+.wa-chat-item.chat-memberplus {
+    background: linear-gradient(90deg, rgba(250, 204, 21, 0.2), rgba(254, 240, 138, 0.06));
+    border-left: 4px solid #f59e0b;
+}
+.wa-avatar.avatar-memberplus-gold {
+    background: linear-gradient(135deg, #facc15, #f59e0b) !important;
+    color: #0f172a !important;
+    border: 2px solid #0f172a !important;
+    box-shadow: 2px 2px 0px #0f172a;
+}
+
+/* Kartu Data Pengguna Member Plus Berwarna Emas (#1) */
+.member-card.member-card-gold {
+    background: linear-gradient(145deg, #fef9c3 0%, #fef08a 48%, #fde68a 100%) !important;
+    border: 2.5px solid #b45309 !important;
+    box-shadow: 5px 5px 0px #92400e !important;
+    color: #0f172a !important;
+}
+[data-theme="dark"] .member-card.member-card-gold {
+    background: linear-gradient(145deg, rgba(120, 53, 15, 0.52) 0%, rgba(180, 83, 9, 0.35) 100%) !important;
+    border: 2.5px solid #facc15 !important;
+    box-shadow: 5px 5px 0px #020617 !important;
+    color: #f8fafc !important;
+}
+.member-card.member-card-gold .member-avatar {
+    background: linear-gradient(135deg, #f59e0b, #d97706) !important;
+    color: #ffffff !important;
+    border-color: #0f172a !important;
+}
+.member-card.member-card-gold .member-meta-box {
+    background: rgba(255, 255, 255, 0.78) !important;
+    border-color: #b45309 !important;
+}
+[data-theme="dark"] .member-card.member-card-gold .member-meta-box {
+    background: rgba(15, 23, 42, 0.72) !important;
+    border-color: #facc15 !important;
+}
+
+/* 2. Tab Pemilih Target Member Biasa vs Member Plus di Pengaturan Markup (#4) */
+.markup-target-tabs {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    background: var(--bg);
+    padding: 5px;
+    border-radius: 11px;
+    border: var(--brutal-border-thin);
+    margin-bottom: 12px;
+}
+
+.markup-target-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-weight: 900;
+    border: 2px solid transparent;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.14s ease;
+}
+
+.markup-target-btn.active {
+    background: var(--primary);
+    color: #ffffff;
+    border-color: #0f172a;
+    box-shadow: 2px 2px 0px #0f172a;
+}
+
+.markup-target-btn.target-plus.active {
+    background: var(--accent-yellow);
+    color: #0f172a;
+    border-color: #0f172a;
+    box-shadow: 2px 2px 0px #0f172a;
+}
+
+.status-hidden-badge {
+    background: #e2e8f0;
+    color: #334155;
+    border-color: #0f172a;
+}
+
+/* ==========================================================================
+   PEMBARUAN v28.4 — PANEL MARKUP HARGA NEO-BRUTALIST & SIMULASI HARGA
+   ========================================================================== */
+.neo-markup-panel {
+    background: var(--surface);
+    border: 2.5px solid var(--border);
+    border-radius: 14px;
+    padding: 1.15rem 1.25rem;
+    box-shadow: 5px 5px 0px var(--border);
+    margin-bottom: 1.25rem;
+}
+.neo-markup-step-box {
+    background: var(--bg);
+    border: 2px solid var(--border);
+    border-radius: 11px;
+    padding: 0.9rem 1rem;
+    box-shadow: 3px 3px 0px var(--border);
+    margin-bottom: 0.9rem;
+}
+.neo-markup-step-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.78rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.65rem;
+    color: var(--text);
+}
+.neo-markup-step-badge {
+    background: var(--primary);
+    color: #ffffff;
+    border: 1.5px solid var(--border);
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-size: 0.68rem;
+    font-weight: 900;
+    box-shadow: 2px 2px 0px var(--border);
+}
+.neo-markup-sim-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(195px, 1fr));
+    gap: 10px;
+    margin-top: 0.65rem;
+}
+.neo-markup-sim-card {
+    background: var(--surface);
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    box-shadow: 3px 3px 0px var(--border);
+}
+.neo-markup-sim-card .sim-modal-label {
+    font-size: 0.7rem;
+    font-weight: 800;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 4px;
+}
+.neo-markup-sim-card .sim-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.78rem;
+    font-weight: 800;
+    margin-top: 3px;
+}
+.neo-markup-rules-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+}
+.neo-markup-rule-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: var(--surface);
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    padding: 5px 10px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    box-shadow: 2px 2px 0px var(--border);
+}
+.neo-markup-rule-chip.chip-gold {
+    background: linear-gradient(135deg, #fef9c3, #fde047);
+    color: #422006;
+    border-color: #854d0e;
+}
+.neo-markup-rule-chip button {
+    background: transparent;
+    border: none;
+    color: var(--danger);
+    cursor: pointer;
+    font-weight: 900;
+    padding: 0 2px;
+}
+
