@@ -998,7 +998,7 @@ async function callUnifiedGasWebhook(payloadObj) {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify({
-                    projectId: 'vipercell23',
+                    projectId: 'vipercell-fc50e',
                     secret: activeSecret,
                     key: activeSecret,
                     backupWebhookUrls: backupUrls,
@@ -1515,7 +1515,7 @@ window.autoCleanExpiredAnonAccounts6h = async function(isManualTrigger = false) 
         try {
             // Hapus akun dari Firebase Authentication menggunakan token sesi jika tersedia (#9)
             if (anon.anonIdToken) {
-                await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:delete?key=AIzaSyD3nBBicctpG8Ceukny5uNHqFMQjZsVipU`, {
+                await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:delete?key=AIzaSyBQGZjl7uj5CRiLWCvPQKjiK4HvIYnXSJg`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ idToken: anon.anonIdToken })
@@ -6533,7 +6533,7 @@ window.deleteSinglePaymentMutation = async function(docId) {
 };
 
 window.copyMacroDroidDirectFirebaseUrl = function() {
-    const directUrl = `https://firestore.googleapis.com/v1/projects/vipercell23/databases/(default)/documents/payment_mutations?key=AIzaSyD3nBBicctpG8Ceukny5uNHqFMQjZsVipU`;
+    const directUrl = `https://firestore.googleapis.com/v1/projects/vipercell-fc50e/databases/(default)/documents/payment_mutations?key=AIzaSyBQGZjl7uj5CRiLWCvPQKjiK4HvIYnXSJg`;
     window.copyTextToClipboard(directUrl, 'Link Endpoint Firebase');
 };
 
