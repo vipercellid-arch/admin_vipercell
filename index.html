@@ -33,7 +33,7 @@
     <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
     
     <!-- Stylesheet Admin -->
-    <link rel="stylesheet" href="css/admin.css">
+    <link rel="stylesheet" href="css/admin.css?v=28.6">
     
     <!-- jsQR & Html5Qrcode untuk Pemindai QRIS & Barcode Kasir -->
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js" defer></script>
@@ -835,10 +835,12 @@
                     <div id="admin-members-panel-mp-orders" class="dashboard-panel" style="display: none; border-color: #d97706;">
                         <div class="panel-header">
                             <div>
-                                <h3><i class="fa-solid fa-crown" style="color: #f59e0b;"></i> Daftar Pesanan Masuk Langganan Member Plus</h3>
-                                <small class="text-muted">Pesanan via Saldo Akun langsung aktif otomatis. Untuk pembayaran Tunai, tekan tombol <b>Aktifkan Langganan</b> dan masukkan PIN Admin.</small>
+                                <h3><i class="fa-solid fa-crown" style="color: #f59e0b;"></i> Daftar Pesanan Langganan Member Plus</h3>
                             </div>
                             <div class="flex-gap flex-wrap-gap">
+                                <button type="button" class="btn btn-warning btn-sm" onclick="window.openBarcodeScannerModal()">
+                                    <i class="fa-solid fa-barcode"></i> Scan Kasir
+                                </button>
                                 <button type="button" class="btn btn-outline btn-sm" onclick="window.renderAdminMemberPlusOrders()">
                                     <i class="fa-solid fa-rotate"></i> Segarkan Daftar
                                 </button>
@@ -1245,44 +1247,28 @@
                                 </div>
                             </div>
 
-                            <!-- Pengaturan Markup Harga Neo-Brutalist (Pilih Member Biasa / Member Plus -> Pilih Semua / Per Kategori / Per Brand) -->
+                            <!-- Panel Atur Markup Harga Member Biasa & Member Plus -->
                             <div class="neo-markup-panel">
                                 <div class="flex-between align-center flex-wrap-gap mb-2">
-                                    <div>
-                                        <strong class="text-primary" style="font-size:0.95rem; font-weight:900;"><i class="fa-solid fa-sliders"></i> Panel Atur Markup Harga Member Biasa &amp; Member Plus</strong>
-                                        <span class="text-xs text-muted d-block">Pilih jenis member terlebih dahulu di Langkah 1, pilih cakupan produk di Langkah 2, lalu tentukan rumus keuntungan di Langkah 3. Produk bertanda <b>Cek Username (Rp 0)</b> tidak terpengaruh markup.</span>
-                                    </div>
+                                    <strong class="text-primary" style="font-size:0.95rem; font-weight:900;"><i class="fa-solid fa-sliders"></i> Panel Atur Markup Harga Member Biasa &amp; Member Plus</strong>
                                     <span class="status-badge status-pending" id="df-last-pricelist-sync-label">Pembaruan terakhir: Belum pernah</span>
                                 </div>
 
-                                <!-- Langkah 1: Pilih Target Member Terlebih Dahulu -->
-                                <div class="neo-markup-step-box">
-                                    <div class="neo-markup-step-head">
-                                        <span class="neo-markup-step-badge">LANGKAH 1</span>
-                                        <span>Pilih Jenis Member yang Ingin Diatur Harganya</span>
-                                    </div>
-                                    <div class="markup-target-tabs" style="margin-bottom:0;">
-                                        <button type="button" id="btn-markup-tier-regular" class="markup-target-tab active" onclick="window.switchAdminMarkupTargetTier('regular')">
-                                            <i class="fa-solid fa-user-check"></i> <span>1. Atur Harga Member Biasa</span>
-                                        </button>
-                                        <button type="button" id="btn-markup-tier-memberplus" class="markup-target-tab tab-gold" onclick="window.switchAdminMarkupTargetTier('member_plus')">
-                                            <i class="fa-solid fa-crown"></i> <span>2. Atur Harga Member Plus (Emas)</span>
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <!-- Langkah 2: Pilih Cakupan (Semua / Per Kategori / Per Brand) -->
-                                <div class="neo-markup-step-box">
-                                    <div class="neo-markup-step-head">
-                                        <span class="neo-markup-step-badge">LANGKAH 2</span>
-                                        <span>Pilih Cakupan Pengaturan Harga (Semua Produk / Per Kategori / Per Brand)</span>
-                                    </div>
-                                    <div class="grid-auto" style="grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); gap: 10px;">
-                                        <div class="form-group mb-0">
+                                <div class="neo-markup-step-box" style="margin-bottom:0;">
+                                    <div class="grid-auto" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; align-items: end;">
+                                        <div class="form-group mb-0" style="position:relative;">
                                             <label class="text-xs fw-bold">Target Member Aktif</label>
-                                            <input type="text" id="df-markup-active-tier-Display" class="form-control fw-bold" value="MEMBER BIASA" readonly style="background:var(--surface);">
                                             <input type="hidden" id="df-markup-target-tier" value="regular">
+                                            <div class="markup-target-tabs" style="margin-bottom:0; display:grid; grid-template-columns: 1fr 1fr; gap:6px;">
+                                                <button type="button" id="btn-markup-tier-regular" class="markup-target-tab active" style="padding:8px 10px; font-size:0.78rem;" onclick="window.switchAdminMarkupTargetTier('regular')">
+                                                    <i class="fa-solid fa-user-check"></i> <span>Member Biasa</span>
+                                                </button>
+                                                <button type="button" id="btn-markup-tier-memberplus" class="markup-target-tab tab-gold" style="padding:8px 10px; font-size:0.78rem;" onclick="window.switchAdminMarkupTargetTier('member_plus')">
+                                                    <i class="fa-solid fa-crown"></i> <span>Member Plus</span>
+                                                </button>
+                                            </div>
                                         </div>
+
                                         <div class="form-group mb-0">
                                             <label class="text-xs fw-bold">Cakupan Pengaturan Harga</label>
                                             <select id="df-markup-scope-select" class="form-control fw-bold" onchange="window.onChangeAdminMarkupScope()">
@@ -1291,45 +1277,31 @@
                                                 <option value="BRAND">Per Brand / Produk Pilihan</option>
                                             </select>
                                         </div>
+
                                         <div class="form-group mb-0" id="df-markup-scope-cat-wrap" style="display:none;">
                                             <label class="text-xs fw-bold">Pilih Kategori</label>
                                             <select id="df-markup-scope-cat" class="form-control" onchange="window.onChangeAdminMarkupScopeValue()">
                                                 <option value="">-- Pilih Kategori --</option>
                                             </select>
                                         </div>
+
                                         <div class="form-group mb-0" id="df-markup-scope-brand-wrap" style="display:none;">
                                             <label class="text-xs fw-bold">Pilih Brand</label>
                                             <select id="df-markup-scope-brand" class="form-control" onchange="window.onChangeAdminMarkupScopeValue()">
                                                 <option value="">-- Pilih Brand --</option>
                                             </select>
                                         </div>
-                                    </div>
-                                </div>
 
-                                <!-- Langkah 3: Kolom Atur Markup -->
-                                <div class="neo-markup-step-box" style="margin-bottom:0;">
-                                    <div class="neo-markup-step-head">
-                                        <span class="neo-markup-step-badge">LANGKAH 3</span>
-                                        <span>Atur Rumus Keuntungan &amp; Terapkan Harga</span>
-                                    </div>
-                                    <div class="grid-auto" style="grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); gap: 10px; align-items: end;">
                                         <div class="form-group mb-0">
                                             <label class="text-xs fw-bold">Jenis Hitungan Markup</label>
-                                            <select id="df-markup-type" class="form-control" onchange="window.saveDigiflazzMarkupPreview()">
+                                            <select id="df-markup-type" class="form-control fw-bold" onchange="window.saveDigiflazzMarkupPreview()">
                                                 <option value="smart_tiered">Bertingkat Berdasarkan Harga Modal</option>
                                                 <option value="hybrid">Kombinasi (% + Untung Minimal Rp)</option>
                                                 <option value="nominal">Nominal Tetap (+Rp)</option>
                                                 <option value="percent">Persentase (+%)</option>
                                             </select>
                                         </div>
-                                        <div class="form-group mb-0" id="df-markup-val-wrap">
-                                            <label class="text-xs fw-bold" id="df-markup-val-label">Markup Dasar (Rp / %)</label>
-                                            <input type="number" id="df-markup-value" class="form-control fw-bold" value="1500" min="0" oninput="window.saveDigiflazzMarkupPreview()">
-                                        </div>
-                                        <div class="form-group mb-0" id="df-markup-min-wrap">
-                                            <label class="text-xs fw-bold">Untung Minimal (Rp)</label>
-                                            <input type="number" id="df-markup-min-rp" class="form-control fw-bold" value="1000" min="0" oninput="window.saveDigiflazzMarkupPreview()">
-                                        </div>
+
                                         <div class="form-group mb-0">
                                             <label class="text-xs fw-bold">Pembulatan Harga</label>
                                             <select id="df-markup-round" class="form-control" onchange="window.saveDigiflazzMarkupPreview()">
@@ -1339,39 +1311,51 @@
                                                 <option value="none">Tanpa Pembulatan</option>
                                             </select>
                                         </div>
-                                        <div class="form-group mb-0">
-                                            <label class="text-xs text-success fw-bold"><i class="fa-solid fa-crown"></i> Potongan Member Plus (%)</label>
-                                            <input type="number" id="df-markup-memberplus-disc" class="form-control fw-bold" value="35" min="5" max="80" title="Potongan dari selisih keuntungan untuk Member Plus" oninput="window.saveDigiflazzMarkupPreview()">
+                                    </div>
+
+                                    <!-- Tabel Input Sesuai Jenis Hitungan yang Dipilih (Hanya Tampil 1 Tabel Aktif) -->
+                                    <div id="df-markup-single-input-area" class="mt-2 pt-2" style="border-top: 1.5px dashed var(--border-subtle);">
+                                        <!-- 1. Tabel Bertingkat Berdasarkan Harga Modal -->
+                                        <div id="df-smart-tiers-box" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); gap: 10px;">
+                                            <div class="form-group mb-0">
+                                                <label class="text-xs text-muted fw-bold">Modal &le; Rp20.000 (+Rp)</label>
+                                                <input type="number" id="df-tier-1" class="form-control text-xs fw-bold" value="1200" min="100" oninput="window.saveDigiflazzMarkupPreview()">
+                                            </div>
+                                            <div class="form-group mb-0">
+                                                <label class="text-xs text-muted fw-bold">Modal Rp20rb - Rp75rb (+Rp)</label>
+                                                <input type="number" id="df-tier-2" class="form-control text-xs fw-bold" value="2000" min="100" oninput="window.saveDigiflazzMarkupPreview()">
+                                            </div>
+                                            <div class="form-group mb-0">
+                                                <label class="text-xs text-muted fw-bold">Modal Rp75rb - Rp200rb (+Rp)</label>
+                                                <input type="number" id="df-tier-3" class="form-control text-xs fw-bold" value="3500" min="100" oninput="window.saveDigiflazzMarkupPreview()">
+                                            </div>
+                                            <div class="form-group mb-0">
+                                                <label class="text-xs text-muted fw-bold">Modal &gt; Rp200.000 (+%)</label>
+                                                <input type="number" id="df-tier-4-pct" class="form-control text-xs fw-bold" value="2.5" step="0.5" min="0.5" oninput="window.saveDigiflazzMarkupPreview()">
+                                            </div>
                                         </div>
-                                        <div class="flex-gap">
-                                            <button type="button" class="btn btn-success btn-sm w-full" onclick="window.applyMarkupToAllCatalogDigiflazzProducts()">
-                                                <i class="fa-solid fa-bolt"></i> Simpan &amp; Terapkan Harga
-                                            </button>
+
+                                        <!-- 2. Tabel Nominal / Persentase / Kombinasi -->
+                                        <div id="df-flat-hybrid-inputs-box" style="display: none; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+                                            <div class="form-group mb-0" id="df-markup-val-wrap">
+                                                <label class="text-xs fw-bold" id="df-markup-val-label">Nominal Markup (+Rp)</label>
+                                                <input type="number" id="df-markup-value" class="form-control fw-bold" value="1500" min="0" oninput="window.saveDigiflazzMarkupPreview()">
+                                            </div>
+                                            <div class="form-group mb-0" id="df-markup-min-wrap" style="display: none;">
+                                                <label class="text-xs fw-bold">Untung Minimal (Rp)</label>
+                                                <input type="number" id="df-markup-min-rp" class="form-control fw-bold" value="1000" min="0" oninput="window.saveDigiflazzMarkupPreview()">
+                                            </div>
                                         </div>
                                     </div>
 
-                                    <!-- Pengaturan Rentang Modal Bertingkat -->
-                                    <div id="df-smart-tiers-box" class="mt-2 pt-2" style="border-top: 1.5px dashed var(--border-subtle); display: grid; grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); gap: 8px;">
-                                        <div class="form-group mb-0">
-                                            <label class="text-xs text-muted">Modal &le; Rp20.000 (+Rp)</label>
-                                            <input type="number" id="df-tier-1" class="form-control text-xs fw-bold" value="1200" min="100" oninput="window.saveDigiflazzMarkupPreview()">
-                                        </div>
-                                        <div class="form-group mb-0">
-                                            <label class="text-xs text-muted">Modal Rp20rb - Rp75rb (+Rp)</label>
-                                            <input type="number" id="df-tier-2" class="form-control text-xs fw-bold" value="2000" min="100" oninput="window.saveDigiflazzMarkupPreview()">
-                                        </div>
-                                        <div class="form-group mb-0">
-                                            <label class="text-xs text-muted">Modal Rp75rb - Rp200rb (+Rp)</label>
-                                            <input type="number" id="df-tier-3" class="form-control text-xs fw-bold" value="3500" min="100" oninput="window.saveDigiflazzMarkupPreview()">
-                                        </div>
-                                        <div class="form-group mb-0">
-                                            <label class="text-xs text-muted">Modal &gt; Rp200.000 (+%)</label>
-                                            <input type="number" id="df-tier-4-pct" class="form-control text-xs fw-bold" value="2.5" step="0.5" min="0.5" oninput="window.saveDigiflazzMarkupPreview()">
-                                        </div>
-                                    </div>
+                                    <input type="hidden" id="df-markup-memberplus-disc" value="35">
 
-                                    <!-- Simulasi Perbandingan Harga Jual Langsung -->
-                                    <div id="df-markup-live-sim-box" class="neo-markup-sim-grid"></div>
+                                    <div class="flex-between align-center flex-wrap-gap mt-3">
+                                        <div id="df-markup-live-sim-box" class="neo-markup-sim-grid" style="flex:1; margin-top:0;"></div>
+                                        <button type="button" class="btn btn-success" style="min-width: 220px;" onclick="window.applyMarkupToAllCatalogDigiflazzProducts()">
+                                            <i class="fa-solid fa-bolt"></i> Simpan &amp; Terapkan Harga
+                                        </button>
+                                    </div>
 
                                     <!-- Daftar Aturan Harga Tersimpan Per Kategori / Brand -->
                                     <div id="df-saved-markup-rules-box" style="margin-top: 10px;"></div>
@@ -2287,6 +2271,16 @@
                 <textarea id="proc-admin-reply" class="form-control code-mono" rows="5" placeholder="Masukkan detail akun atau catatan pengiriman untuk pembeli..."></textarea>
             </div>
 
+            <div class="flex-gap mb-2">
+                <button type="button" class="btn btn-outline w-full" onclick="window.adminPrintOrderBluetooth58mm()">
+                    <i class="fa-solid fa-print text-primary"></i> <span>Print Struk Bluetooth 58mm</span>
+                </button>
+            </div>
+            <div class="flex-gap mb-2">
+                <button type="button" class="btn btn-outline w-full" onclick="window.adminPrintOrderBluetooth58mm()">
+                    <i class="fa-solid fa-print text-primary"></i> <span>Print Struk Bluetooth 58mm</span>
+                </button>
+            </div>
             <div id="proc-action-buttons-wrap" class="flex-col-gap">
                 <button id="btn-mark-order-success" class="btn btn-success w-full" onclick="window.markOrderComplete('SUCCESS')">
                     <i class="fa-solid fa-check"></i> <span>Selesaikan</span>
@@ -2758,6 +2752,36 @@
                     </div>
                 </div>
 
+                <div id="temp-nom-ewallet-custom-wrap" class="grid-auto mb-2" style="display: none; grid-template-columns: repeat(3, 1fr); gap: 8px; background: var(--surface); padding: 10px; border-radius: 8px; border: 1.5px dashed var(--success);">
+                    <div class="form-group mb-0">
+                        <label class="text-xs fw-bold">Nominal Minimal (Rp)</label>
+                        <input type="number" id="temp-nom-min-custom" class="form-control" value="10000" min="1000">
+                    </div>
+                    <div class="form-group mb-0">
+                        <label class="text-xs fw-bold">Nominal Maksimal (Rp)</label>
+                        <input type="number" id="temp-nom-max-custom" class="form-control" value="500000" min="10000" max="500000">
+                    </div>
+                    <div class="form-group mb-0">
+                        <label class="text-xs fw-bold">Biaya Admin (+Rp)</label>
+                        <input type="number" id="temp-nom-admin-fee" class="form-control" value="1500" min="0">
+                    </div>
+                </div>
+
+                <div id="temp-nom-ewallet-custom-wrap" class="grid-auto mb-2" style="display: none; grid-template-columns: repeat(3, 1fr); gap: 8px; background: var(--surface); padding: 10px; border-radius: 8px; border: 1.5px dashed var(--success);">
+                    <div class="form-group mb-0">
+                        <label class="text-xs fw-bold">Nominal Minimal (Rp)</label>
+                        <input type="number" id="temp-nom-min-custom" class="form-control" value="10000" min="1000">
+                    </div>
+                    <div class="form-group mb-0">
+                        <label class="text-xs fw-bold">Nominal Maksimal (Rp)</label>
+                        <input type="number" id="temp-nom-max-custom" class="form-control" value="500000" min="10000" max="500000">
+                    </div>
+                    <div class="form-group mb-0">
+                        <label class="text-xs fw-bold">Biaya Admin (+Rp)</label>
+                        <input type="number" id="temp-nom-admin-fee" class="form-control" value="1500" min="0">
+                    </div>
+                </div>
+
                 <div class="grid-2col mb-2">
                     <div class="form-group mb-0" id="temp-nom-stock-mode-wrap">
                         <label class="text-xs">Format Stok Lokal</label>
@@ -2903,7 +2927,7 @@
     </div>
 
     <!-- Script Utama Admin -->
-    <script type="module" src="js/admin.js" defer></script>
+    <script type="module" src="js/admin.js?v=28.6" defer></script>
 
     <script>
         if ('serviceWorker' in navigator) {

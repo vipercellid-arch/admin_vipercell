@@ -2,9 +2,6 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // =========================================================
-    // FUNGSI CEK ADMIN RESMI VIPERCELL (AKSES PENUH)
-    // =========================================================
     function isAdmin() {
       return request.auth != null && (
         request.auth.token.email == "vipercell.id@gmail.com" || 
@@ -13,11 +10,6 @@ service cloud.firestore {
       );
     }
 
-    // =========================================================
-    // 1. KOLEKSI USERS (MEMBER, MEMBER PLUS, PIN TRX & TAMU)
-    //    - Pengguna Tamu (Anonim) tidak diizinkan memiliki saldo (balance).
-    //    - Mendukung penyimpanan PIN Transaksi (trxPinHash), Member Plus, dan Auth Token untuk pembersihan 6 jam.
-    // =========================================================
     match /users/{userId} {
       allow read: if true;
       allow create: if isAdmin() || (
@@ -37,9 +29,6 @@ service cloud.firestore {
       allow delete: if isAdmin() || request.auth != null;
     }
 
-    // =========================================================
-    // 2. KOLEKSI ORDERS (PESANAN, TOPUP SALDO, MEMBER PLUS, PLN, PASCA & DIGIFLAZZ)
-    // =========================================================
     match /orders/{orderId} {
       allow read, create: if true;
       allow update: if isAdmin() || (
@@ -92,6 +81,7 @@ service cloud.firestore {
           'digiflazzSku',
           'digiflazzCustomerNo',
           'digiflazzStatus',
+          'digiflazzPending',
           'digiflazzRc',
           'digiflazzSn',
           'digiflazzMessage',
@@ -100,15 +90,13 @@ service cloud.firestore {
           'digiflazzSellingPrice',
           'digiflazzDesc',
           'digiflazzCommand',
-          'digiflazzInFlight'
+          'digiflazzInFlight',
+          'cancelledAt'
         ])
       );
       allow delete: if isAdmin();
     }
 
-    // =========================================================
-    // 3. KOLEKSI STOCKS (GUDANG STOK LOKAL)
-    // =========================================================
     match /stocks/{stockId} {
       allow read: if true;
       allow create, delete: if isAdmin();
@@ -126,9 +114,6 @@ service cloud.firestore {
       );
     }
 
-    // =========================================================
-    // 4. KOLEKSI PRODUCTS (KATALOG PRODUK LOKAL & DIGIFLAZZ + SEMBUNYIKAN PRODUK/VARIAN)
-    // =========================================================
     match /products/{productId} {
       allow read: if true;
       allow create, delete: if isAdmin();
@@ -150,9 +135,6 @@ service cloud.firestore {
       );
     }
 
-    // =========================================================
-    // 5. KOLEKSI DIGIFLAZZ_CATALOG, DIGIFLAZZ_DEPOSITS & BALANCE_LOGS
-    // =========================================================
     match /digiflazz_catalog/{skuId} {
       allow read: if true;
       allow create, update, delete: if isAdmin();
@@ -167,9 +149,6 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
-    // =========================================================
-    // 6. KOLEKSI PROMOS (KODE PROMO MEMBER & MEMBER PLUS)
-    // =========================================================
     match /promos/{promoId} {
       allow read: if true;
       allow create, delete: if isAdmin();
@@ -181,16 +160,12 @@ service cloud.firestore {
       );
     }
 
-    // =========================================================
-    // 7. KOLEKSI SETTINGS (KONFIGURASI TOKO & KREDENSIAL RAHASIA ADMIN)
-    // =========================================================
     match /settings/secretConfig {
-      allow read: if true;
-      allow create, update, delete: if isAdmin();
+      allow read, create, update, delete: if isAdmin();
     }
 
     match /settings/{settingId} {
-      allow read: if true;
+      allow read: if settingId != 'secretConfig' || isAdmin();
       allow create, delete: if isAdmin();
       allow update: if isAdmin() || (
         settingId != 'secretConfig' &&
@@ -202,14 +177,12 @@ service cloud.firestore {
           'footerMarqueeShowPrice',
           'footerMarqueeShowStatus',
           'footerMarqueeSpeed',
-          'digiflazzLastBalance'
+          'digiflazzLastBalance',
+          'digiflazzBalanceUpdatedAt'
         ])
       );
     }
 
-    // =========================================================
-    // 8. KOLEKSI PAYMENT_MUTATIONS, PRODUCT_SUGGESTIONS, DEVICE_LOCKS, REVIEWS & CHATS
-    // =========================================================
     match /payment_mutations/{mutationId} {
       allow read, create, update, delete: if true;
     }
@@ -234,12 +207,8 @@ service cloud.firestore {
       allow delete: if isAdmin() || request.auth != null;
     }
 
-    // =========================================================
-    // RULES WORKSPACE / ARTIFACTS PATH (CADANGAN KOMPATIBILITAS)
-    // =========================================================
     match /artifacts/{appId}/public/data/settings/secretConfig {
-      allow read: if true;
-      allow create, update, delete: if isAdmin();
+      allow read, create, update, delete: if isAdmin();
     }
     match /artifacts/{appId}/public/data/users/{userId} {
       allow read, create, update: if true;
@@ -261,9 +230,9 @@ service cloud.firestore {
           'refundedToBalance', 'refundedAt', 'verifiedTargetName', 'targetAccountName',
           'plnTokenNumber', 'plnSubscriberName', 'plnSegmentPower', 'plnKwh',
           'customEwalletNominal', 'customEwalletAmount', 'adminFeeAmount', 'pascaBillDetails',
-          'digiflazzRefId', 'digiflazzSku', 'digiflazzCustomerNo', 'digiflazzStatus',
+          'digiflazzRefId', 'digiflazzSku', 'digiflazzCustomerNo', 'digiflazzStatus', 'digiflazzPending',
           'digiflazzRc', 'digiflazzSn', 'digiflazzMessage', 'digiflazzLastHitAt',
-          'digiflazzPrice', 'digiflazzSellingPrice', 'digiflazzDesc', 'digiflazzCommand', 'digiflazzInFlight'
+          'digiflazzPrice', 'digiflazzSellingPrice', 'digiflazzDesc', 'digiflazzCommand', 'digiflazzInFlight', 'cancelledAt'
         ])
       );
       allow delete: if isAdmin();
@@ -308,13 +277,13 @@ service cloud.firestore {
       );
     }
     match /artifacts/{appId}/public/data/settings/{settingId} {
-      allow read: if true;
+      allow read: if settingId != 'secretConfig' || isAdmin();
       allow create, delete: if isAdmin();
       allow update: if isAdmin() || (
         settingId != 'secretConfig' &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'lastPaymentDetected', 'lastPaymentTimestamp', 'lastPaymentMutation', 'suggestionsList',
-          'footerMarqueeShowPrice', 'footerMarqueeShowStatus', 'footerMarqueeSpeed', 'digiflazzLastBalance'
+          'footerMarqueeShowPrice', 'footerMarqueeShowStatus', 'footerMarqueeSpeed', 'digiflazzLastBalance', 'digiflazzBalanceUpdatedAt'
         ])
       );
     }

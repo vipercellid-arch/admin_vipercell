@@ -1,11 +1,5 @@
 /**
- * VIPERCELL - DIGIFLAZZ VPS BRIDGE & WEBHOOK RECEIVER (v28.4)
- * Mendukung:
- * 1. Dual API Key (Development & Production) tersimpan di VPS dan otomatis mengambil kunci dari Firestore (mainConfig/digiflazzBridgeSyncToken) jika memori VPS kosong.
- * 2. Auto-Retry Signature Pintar (mencoba Production Key & Development Key secara otomatis jika salah satu mengembalikan pesan Signature salah).
- * 3. Penanganan otomatis penggabungan ID + Zone ID menjadi satu nomor tujuan (Contoh: 123456(1234) -> 1234561234).
- * 4. Cek Username / ID Pelanggan Asli dari Digiflazz (/v1/inquiry-pln & SKU Cek Username via /v1/transaction) TANPA pernah membuat username acak/palsu.
- * 5. Webhook Receiver (/api/digiflazz/webhook) untuk pembaruan status pesanan dan SN/Token PLN secara real-time.
+ * VIPERCELL - DIGIFLAZZ VPS BRIDGE & WEBHOOK RECEIVER (v28.6)
  */
 
 const http = require("http");
@@ -34,15 +28,21 @@ try {
     }
 } catch (e) {}
 
+function isPlaceholderValue(val) {
+    const s = String(val || "").trim().toLowerCase();
+    return !s || s === "username" || s === "dev-apikey" || s === "prod-apikey" || s === "your-username";
+}
+
 function saveServerConfig(newCfg) {
+    if (!newCfg || typeof newCfg !== "object") return;
     const updated = { ...serverConfig };
-    if (newCfg.username !== undefined && String(newCfg.username).trim() !== "") {
+    if (newCfg.username !== undefined && !isPlaceholderValue(newCfg.username)) {
         updated.username = String(newCfg.username).trim();
     }
-    if (newCfg.devApiKey !== undefined && String(newCfg.devApiKey).trim() !== "" && newCfg.devApiKey !== "dev-apikey") {
+    if (newCfg.devApiKey !== undefined && !isPlaceholderValue(newCfg.devApiKey)) {
         updated.devApiKey = String(newCfg.devApiKey).trim();
     }
-    if (newCfg.prodApiKey !== undefined && String(newCfg.prodApiKey).trim() !== "" && newCfg.prodApiKey !== "dev-apikey") {
+    if (newCfg.prodApiKey !== undefined && !isPlaceholderValue(newCfg.prodApiKey)) {
         updated.prodApiKey = String(newCfg.prodApiKey).trim();
     }
     if (newCfg.envMode === "production" || newCfg.envMode === "development") {
@@ -76,14 +76,16 @@ function normalizeCustomerNo(rawTarget, zoneId = "") {
         return `${parenDigits[1].trim()}${parenDigits[2].trim()}`;
     }
 
-    s = s.replace(/^(Tujuan|ID\s*Player|ID\s*PLN|ID|Target|No\.?\s*Pelanggan|No\.?\s*Meter|No\.?\s*HP|No\.?\s*Tujuan)\s*:\s*/i, "").trim();
+    s = s.replace(/^(Tujuan|ID\s*Player|ID\s*PLN|ID|Target|No\.?\s*Pelanggan|No\.?\s*Meter|No\.?\s*HP|No\.?\s*Tujuan|No\.?\s*[A-Za-z0-9_-]+)\s*:\s*/i, "").trim();
     if (s.includes(" (")) {
         s = s.split(" (")[0].trim();
     }
-    if (z && !s.endsWith(z)) {
-        return `${s}${z}`;
+    const cleanS = s.replace(/\s+/g, "");
+    const cleanZ = z.replace(/[\s()]+/g, "");
+    if (cleanZ && !cleanS.endsWith(cleanZ)) {
+        return `${cleanS}${cleanZ}`;
     }
-    return s;
+    return cleanS;
 }
 
 function httpsJsonRequest(urlStr, method, headers, bodyObj) {
@@ -97,6 +99,7 @@ function httpsJsonRequest(urlStr, method, headers, bodyObj) {
             method: method || "POST",
             headers: {
                 "Content-Type": "application/json",
+                "Accept": "application/json",
                 "Content-Length": Buffer.byteLength(bodyStr),
                 ...headers
             }
@@ -119,7 +122,7 @@ function httpsJsonRequest(urlStr, method, headers, bodyObj) {
 
 let lastFirestoreHydrateMs = 0;
 async function hydrateConfigFromFirestoreIfNeeded(forceRefresh = false) {
-    const hasKeys = Boolean(serverConfig.username && (serverConfig.devApiKey || serverConfig.prodApiKey));
+    const hasKeys = Boolean(!isPlaceholderValue(serverConfig.username) && (!isPlaceholderValue(serverConfig.devApiKey) || !isPlaceholderValue(serverConfig.prodApiKey)));
     if (hasKeys && !forceRefresh && (Date.now() - lastFirestoreHydrateMs < 30000)) {
         return;
     }
@@ -154,9 +157,9 @@ async function hydrateConfigFromFirestoreIfNeeded(forceRefresh = false) {
         const sec = syncObj.s || readStr("digiflazzWebhookSecret");
 
         saveServerConfig({
-            username: u || serverConfig.username,
-            devApiKey: dKey || lKey || serverConfig.devApiKey,
-            prodApiKey: pKey || serverConfig.prodApiKey,
+            username: !isPlaceholderValue(u) ? u : serverConfig.username,
+            devApiKey: !isPlaceholderValue(dKey) ? dKey : (!isPlaceholderValue(lKey) ? lKey : serverConfig.devApiKey),
+            prodApiKey: !isPlaceholderValue(pKey) ? pKey : serverConfig.prodApiKey,
             envMode: (mode === "production" || mode === "development") ? mode : serverConfig.envMode,
             webhookSecret: sec || serverConfig.webhookSecret
         });
@@ -167,12 +170,10 @@ function extractRealDigiflazzUsername(d) {
     if (!d || typeof d !== "object") return "";
     if (d.name && String(d.name).trim()) return String(d.name).trim();
     if (d.customer_name && String(d.customer_name).trim()) return String(d.customer_name).trim();
-    if (d.username && String(d.username).trim()) return String(d.username).trim();
+    if (d.username && String(d.username).trim() && d.username !== serverConfig.username) return String(d.username).trim();
 
     const rawSn = String(d.sn || "").trim();
     if (rawSn) {
-        // Banyak produk Cek Username Digiflazz mengembalikan nama di dalam SN, contoh:
-        // "NICKNAME" atau "Username: NICKNAME / ID: 123" atau "SN: NICKNAME" atau "123456/NAMA PELANGGAN/..."
         if (rawSn.includes("/")) {
             const parts = rawSn.split("/").map(s => s.trim()).filter(Boolean);
             for (const p of parts) {
@@ -217,12 +218,62 @@ function formatSnReceiptText(refId, customerNo, snStr, rcStr, itemName) {
 
 async function syncLastBalanceToFirestore(newBalance) {
     if (newBalance === undefined || newBalance === null || isNaN(Number(newBalance))) return;
-    const patchUrl = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/settings/mainConfig?key=${FIREBASE_API_KEY}&updateMask.fieldPaths=digiflazzLastBalance`;
+    const patchUrl = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/settings/mainConfig?key=${FIREBASE_API_KEY}&updateMask.fieldPaths=digiflazzLastBalance&updateMask.fieldPaths=digiflazzBalanceUpdatedAt`;
     await httpsJsonRequest(patchUrl, "PATCH", {}, {
         fields: {
-            digiflazzLastBalance: { integerValue: String(Math.round(Number(newBalance))) }
+            digiflazzLastBalance: { integerValue: String(Math.round(Number(newBalance))) },
+            digiflazzBalanceUpdatedAt: { integerValue: String(Date.now()) }
         }
     }).catch(() => {});
+}
+
+async function refundFailedOrderBalanceOnFirestore(orderDoc, reasonStr) {
+    if (!orderDoc || !orderDoc.name || !orderDoc.fields) return false;
+    const f = orderDoc.fields;
+    const readStr = (k) => (f[k] && f[k].stringValue ? String(f[k].stringValue) : "");
+    const readBool = (k) => Boolean(f[k] && f[k].booleanValue === true);
+    const readInt = (k) => Number((f[k] && (f[k].integerValue || f[k].doubleValue)) || 0);
+
+    const payMethod = readStr("paymentMethod").toLowerCase();
+    const userId = readStr("userId");
+    const alreadyRefunded = readBool("balanceRefunded") || readBool("refundedToBalance");
+    const refundAmt = Math.round(readInt("finalTotal") || readInt("baseTotal"));
+
+    if ((payMethod !== "balance" && payMethod !== "saldo") || !userId || alreadyRefunded || refundAmt <= 0) {
+        return false;
+    }
+
+    try {
+        const userUrl = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/users/${encodeURIComponent(userId)}?key=${FIREBASE_API_KEY}`;
+        const uRes = await httpsJsonRequest(userUrl, "GET", {}, null);
+        if (!uRes || !uRes.data || !uRes.data.fields) return false;
+
+        const uf = uRes.data.fields;
+        const curBal = Math.round(Number((uf.balance && (uf.balance.integerValue || uf.balance.doubleValue)) || 0));
+        const nextBal = curBal + refundAmt;
+        const nowMs = Date.now();
+
+        const userPatchUrl = `${userUrl}&updateMask.fieldPaths=balance&updateMask.fieldPaths=balanceUpdatedAt`;
+        await httpsJsonRequest(userPatchUrl, "PATCH", {}, {
+            fields: {
+                balance: { integerValue: String(nextBal) },
+                balanceUpdatedAt: { integerValue: String(nowMs) }
+            }
+        });
+
+        const refundReply = `[PENGEMBALIAN SALDO OTOMATIS]\nAlasan       : ${reasonStr}\nDana Kembali : Rp${refundAmt.toLocaleString("id-ID")}\nSaldo Akhir  : Rp${nextBal.toLocaleString("id-ID")}`;
+        const ordPatchUrl = `https://firestore.googleapis.com/v1/${orderDoc.name}?key=${FIREBASE_API_KEY}&updateMask.fieldPaths=balanceRefunded&updateMask.fieldPaths=balanceRefundedAt&updateMask.fieldPaths=adminReply`;
+        await httpsJsonRequest(ordPatchUrl, "PATCH", {}, {
+            fields: {
+                balanceRefunded: { booleanValue: true },
+                balanceRefundedAt: { integerValue: String(nowMs) },
+                adminReply: { stringValue: refundReply }
+            }
+        });
+        return true;
+    } catch (e) {
+        return false;
+    }
 }
 
 async function updateOrderFromDigiflazzWebhook(payloadData) {
@@ -267,6 +318,8 @@ async function updateOrderFromDigiflazzWebhook(payloadData) {
 
     const updateFields = {
         digiflazzStatus: { stringValue: statusStr },
+        digiflazzPending: { booleanValue: !isSuccess && !isFailed },
+        digiflazzInFlight: { booleanValue: false },
         digiflazzRc: { stringValue: rcStr },
         digiflazzSn: { stringValue: snStr },
         digiflazzMessage: { stringValue: msgStr },
@@ -276,12 +329,19 @@ async function updateOrderFromDigiflazzWebhook(payloadData) {
 
     const maskParams = [
         "updateMask.fieldPaths=digiflazzStatus",
+        "updateMask.fieldPaths=digiflazzPending",
+        "updateMask.fieldPaths=digiflazzInFlight",
         "updateMask.fieldPaths=digiflazzRc",
         "updateMask.fieldPaths=digiflazzSn",
         "updateMask.fieldPaths=digiflazzMessage",
         "updateMask.fieldPaths=status",
         "updateMask.fieldPaths=autoDelivered"
     ];
+
+    if (d.price !== undefined && !isNaN(Number(d.price))) {
+        updateFields.digiflazzPrice = { integerValue: String(Math.round(Number(d.price))) };
+        maskParams.push("updateMask.fieldPaths=digiflazzPrice");
+    }
 
     if (isSuccess && replyText) {
         updateFields.adminReply = { stringValue: replyText };
@@ -291,10 +351,14 @@ async function updateOrderFromDigiflazzWebhook(payloadData) {
 
     const patchUrl = `https://firestore.googleapis.com/v1/${docFullName}?key=${FIREBASE_API_KEY}&${maskParams.join("&")}`;
     await httpsJsonRequest(patchUrl, "PATCH", {}, { fields: updateFields });
+
+    if (isFailed) {
+        await refundFailedOrderBalanceOnFirestore(firstMatch.document, `${msgStr || "Transaksi Digiflazz Gagal"} (RC ${rcStr})`);
+    }
     return true;
 }
 
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "*");
@@ -307,15 +371,17 @@ const server = http.createServer((req, res) => {
     }
 
     if (req.method === "GET") {
+        await hydrateConfigFromFirestoreIfNeeded(false);
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({
             ok: true,
-            service: "Vipercell Digiflazz VPS Bridge v28.3",
+            service: "Vipercell Digiflazz VPS Bridge v28.6",
             projectId: FIREBASE_PROJECT_ID,
+            username: serverConfig.username || "",
             envMode: serverConfig.envMode,
-            hasDevKey: Boolean(serverConfig.devApiKey),
-            hasProdKey: Boolean(serverConfig.prodApiKey),
-            hasCredentials: Boolean(serverConfig.username && (serverConfig.devApiKey || serverConfig.prodApiKey))
+            hasDevKey: Boolean(!isPlaceholderValue(serverConfig.devApiKey)),
+            hasProdKey: Boolean(!isPlaceholderValue(serverConfig.prodApiKey)),
+            hasCredentials: Boolean(!isPlaceholderValue(serverConfig.username) && (!isPlaceholderValue(serverConfig.devApiKey) || !isPlaceholderValue(serverConfig.prodApiKey)))
         }));
         return;
     }
@@ -350,6 +416,19 @@ const server = http.createServer((req, res) => {
 
             const body = JSON.parse(rawBody || "{}");
 
+            if (body.syncToken) {
+                try {
+                    const decoded = JSON.parse(Buffer.from(String(body.syncToken), "base64").toString("utf8"));
+                    saveServerConfig({
+                        username: decoded.u,
+                        devApiKey: decoded.d,
+                        prodApiKey: decoded.p,
+                        envMode: decoded.m,
+                        webhookSecret: decoded.s
+                    });
+                } catch (e) {}
+            }
+
             // 2. Simpan Konfigurasi Baru dari Web Admin
             if (body.action === "SAVE_BRIDGE_CONFIG") {
                 saveServerConfig({
@@ -362,34 +441,47 @@ const server = http.createServer((req, res) => {
                 res.writeHead(200, { "Content-Type": "application/json" });
                 res.end(JSON.stringify({
                     ok: true,
+                    username: serverConfig.username,
                     envMode: serverConfig.envMode,
-                    hasDevKey: Boolean(serverConfig.devApiKey),
-                    hasProdKey: Boolean(serverConfig.prodApiKey),
-                    message: "Konfigurasi API Key Development & Production tersimpan di VPS Bridge"
+                    hasDevKey: Boolean(!isPlaceholderValue(serverConfig.devApiKey)),
+                    hasProdKey: Boolean(!isPlaceholderValue(serverConfig.prodApiKey)),
+                    message: "Konfigurasi API Digiflazz tersimpan di VPS Bridge"
                 }));
                 return;
             }
 
             await hydrateConfigFromFirestoreIfNeeded(false);
 
-            if (body.devApiKey || body.prodApiKey) {
+            if (!isPlaceholderValue(body.devApiKey) || !isPlaceholderValue(body.prodApiKey) || !isPlaceholderValue(body.username)) {
                 saveServerConfig({
-                    username: body.username || serverConfig.username,
-                    devApiKey: body.devApiKey || serverConfig.devApiKey,
-                    prodApiKey: body.prodApiKey || serverConfig.prodApiKey,
+                    username: !isPlaceholderValue(body.username) ? body.username : serverConfig.username,
+                    devApiKey: !isPlaceholderValue(body.devApiKey) ? body.devApiKey : serverConfig.devApiKey,
+                    prodApiKey: !isPlaceholderValue(body.prodApiKey) ? body.prodApiKey : serverConfig.prodApiKey,
                     envMode: body.envMode || serverConfig.envMode
                 });
             }
 
-            const endpointPath = String(body.endpoint || "/v1/cek-saldo").trim();
-            const activeEnvMode = String(body.envMode || serverConfig.envMode || "development").trim();
-            let username = String(body.username || serverConfig.username || "").trim();
-            if (!username || username === "username") {
-                await hydrateConfigFromFirestoreIfNeeded(true);
-                username = String(serverConfig.username || body.username || "").trim();
+            let endpointPath = String(body.endpoint || "").trim();
+            if (!endpointPath) {
+                if (req.url.includes("price-list") || body.cmd === "prepaid" || body.cmd === "pasca") endpointPath = "/v1/price-list";
+                else if (req.url.includes("deposit") || body.owner_name) endpointPath = "/v1/deposit";
+                else if (req.url.includes("inquiry-pln")) endpointPath = "/v1/inquiry-pln";
+                else if (req.url.includes("check-id")) endpointPath = "/v1/check-id";
+                else if (req.url.includes("transaction") || body.buyer_sku_code || body.sku) endpointPath = "/v1/transaction";
+                else endpointPath = "/v1/cek-saldo";
             }
 
-            const cleanKey = (k) => (k && k !== "dev-apikey" ? String(k).trim() : "");
+            const activeEnvMode = String(body.envMode || serverConfig.envMode || "development").trim();
+            let username = !isPlaceholderValue(body.username)
+                ? String(body.username).trim()
+                : (!isPlaceholderValue(serverConfig.username) ? String(serverConfig.username).trim() : "");
+
+            if (!username) {
+                await hydrateConfigFromFirestoreIfNeeded(true);
+                username = !isPlaceholderValue(serverConfig.username) ? String(serverConfig.username).trim() : "";
+            }
+
+            const cleanKey = (k) => (!isPlaceholderValue(k) ? String(k).trim() : "");
             const devKey = cleanKey(body.devApiKey) || cleanKey(serverConfig.devApiKey) || cleanKey(body.apiKey);
             const prodKey = cleanKey(body.prodApiKey) || cleanKey(serverConfig.prodApiKey) || cleanKey(body.apiKey);
 
@@ -404,7 +496,27 @@ const server = http.createServer((req, res) => {
                 alternateKey = activeEnvMode === "production" ? refreshedDev : refreshedProd;
             }
 
-            const payload = { ...(body.payload || {}) };
+            if (!username || !chosenKey) {
+                res.writeHead(200, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({
+                    data: {
+                        status: "Gagal",
+                        rc: "42",
+                        message: "Username atau API Key Digiflazz belum dikonfigurasi di Pengaturan Koneksi Digiflazz."
+                    }
+                }));
+                return;
+            }
+
+            const rawPayload = (body.payload && typeof body.payload === "object") ? body.payload : body;
+            const payload = { ...rawPayload };
+            delete payload.endpoint;
+            delete payload.devApiKey;
+            delete payload.prodApiKey;
+            delete payload.apiKey;
+            delete payload.envMode;
+            delete payload.syncToken;
+            delete payload.action;
             payload.username = username;
 
             if (payload.customer_no !== undefined) {
@@ -446,6 +558,8 @@ const server = http.createServer((req, res) => {
                                 status: "Sukses",
                                 rc: "00",
                                 customer_no: cNo,
+                                meter_no: dPln.meter_no || cNo,
+                                subscriber_id: dPln.subscriber_id || cNo,
                                 name: realName,
                                 username: realName,
                                 segment_power: dPln.segment_power || ""
@@ -465,16 +579,13 @@ const server = http.createServer((req, res) => {
                 }
 
                 // B. Untuk Game / E-Wallet / Produk dengan SKU Cek Username Digiflazz:
-                // Tembak ke /v1/transaction menggunakan SKU Cek Username yang telah diatur Admin
-                if (!skuCode || !username || !chosenKey) {
+                if (!skuCode) {
                     res.writeHead(200, { "Content-Type": "application/json" });
                     res.end(JSON.stringify({
                         data: {
                             status: "Gagal",
-                            rc: "40",
-                            message: !skuCode
-                                ? "Kode SKU Cek Username belum diatur untuk produk ini."
-                                : "Kredensial API Digiflazz belum tersimpan di server."
+                            rc: "43",
+                            message: "Kode SKU Cek Username belum diatur untuk produk ini."
                         }
                     }));
                     return;
@@ -535,8 +646,13 @@ const server = http.createServer((req, res) => {
                     payload.cmd = "deposit";
                     payload.sign = md5(username + keyToUse + "depo");
                 } else if (endpointPath === "/v1/price-list") {
+                    if (!payload.cmd) payload.cmd = "prepaid";
                     payload.sign = md5(username + keyToUse + "pricelist");
                 } else if (endpointPath === "/v1/deposit") {
+                    const bankVal = payload.Bank || payload.bank || "BCA";
+                    payload.Bank = bankVal;
+                    payload.bank = bankVal;
+                    payload.amount = Number(payload.amount || 0);
                     payload.sign = md5(username + keyToUse + "deposit");
                 } else if (endpointPath === "/v1/inquiry-pln") {
                     const cNo = String(payload.customer_no || "").trim();
@@ -552,14 +668,12 @@ const server = http.createServer((req, res) => {
                 }
             };
 
-            // Untuk /v1/inquiry-pln, utamakan Production Key jika tersedia karena endpoint inquiry PLN Digiflazz menggunakan Production Key
             const primaryKeyForEndpoint = (endpointPath === "/v1/inquiry-pln" && prodKey) ? prodKey : chosenKey;
             const secondaryKeyForEndpoint = (primaryKeyForEndpoint === prodKey) ? devKey : prodKey;
 
             computePayloadSign(primaryKeyForEndpoint);
             let dfRes = await httpsJsonRequest(`https://api.digiflazz.com${endpointPath}`, "POST", {}, payload);
 
-            // Auto-Retry dengan kunci pasangan (Dev <-> Prod) atau re-hydrate dari Firestore jika Digiflazz mengembalikan "Signature Anda salah"
             if (isSignatureErrorResponse(dfRes.data)) {
                 await hydrateConfigFromFirestoreIfNeeded(true);
                 const freshDev = cleanKey(serverConfig.devApiKey);
@@ -591,5 +705,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-    console.log(`Vipercell Digiflazz VPS Bridge v28.3 berjalan di port ${PORT}`);
+    console.log(`Vipercell Digiflazz VPS Bridge v28.6 berjalan di port ${PORT}`);
 });

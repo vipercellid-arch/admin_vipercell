@@ -2158,6 +2158,7 @@ window.lookupOrderByBarcodeInput = function(forcedCode = null) {
         return;
     }
 
+    const isMpSub = Boolean(order.isMemberPlusOrder === true || order.orderType === 'MEMBER_PLUS_SUB' || String(order.id || '').toUpperCase().startsWith('MPLUS-'));
     const item = order.items && order.items[0] ? order.items[0] : {};
     const sBadge = order.status === 'SUCCESS' ? 'status-success' : (order.status === 'PENDING' ? 'status-pending' : 'status-unpaid');
 
@@ -2166,11 +2167,11 @@ window.lookupOrderByBarcodeInput = function(forcedCode = null) {
         actionBtnHtml = `
             <div class="flex-wrap-gap mt-3">
                 <button class="btn btn-success flex-2" onclick="window.approveCashBarcodeDirectly('${order.dbId}')">
-                    <i class="fa-solid fa-cash-register"></i> Terima Tunai & Selesaikan
+                    <i class="fa-solid ${isMpSub ? 'fa-crown' : 'fa-cash-register'}"></i> ${isMpSub ? 'Terima Tunai & Aktifkan Member Plus' : 'Terima Tunai & Selesaikan'}
                 </button>
-                <button class="btn btn-outline flex-1" onclick="window.closeBarcodeScannerModal(); window.promptProcessOrder('${order.dbId}')">
+                ${!isMpSub ? `<button class="btn btn-outline flex-1" onclick="window.closeBarcodeScannerModal(); window.promptProcessOrder('${order.dbId}')">
                     <i class="fa-solid fa-sliders"></i> Proses Manual
-                </button>
+                </button>` : ''}
             </div>`;
     } else {
         actionBtnHtml = `<div class="info-box bg-success-light border-success text-success fw-bold text-center text-xs mt-2"><i class="fa-solid fa-circle-check"></i> Transaksi ini sudah selesai.</div>`;
@@ -2182,7 +2183,7 @@ window.lookupOrderByBarcodeInput = function(forcedCode = null) {
                 <strong class="text-primary code-mono" style="font-size:1.02rem;">#${window.escapeHtml(order.id)}</strong>
                 <span class="status-badge ${sBadge}">${order.status}</span>
             </div>
-            <div class="text-sm fw-bold text-dark">${window.escapeHtml(item.name || '-')}</div>
+            <div class="text-sm fw-bold text-dark">${window.escapeHtml(item.name || (isMpSub ? 'Langganan Member Plus (30 Hari)' : '-'))}</div>
             <div class="text-xs text-muted mb-2">${window.escapeHtml(item.playerInfo || '')} &bull; ${window.escapeHtml(order.userEmail || '-')}</div>
             <div class="flex-between align-center" style="padding-top:8px; border-top:1.5px dashed var(--border-subtle);">
                 <span class="text-xs fw-bold text-muted">TOTAL TUNAI:</span>
@@ -2193,13 +2194,14 @@ window.lookupOrderByBarcodeInput = function(forcedCode = null) {
     `;
 };
 
-window.approveCashBarcodeDirectly = async function(dbId, pinAlreadyVerified = false) {
+window.approveCashBarcodeDirectly = async function(dbId) {
     const order = orders.find(o => o.dbId === dbId);
     if (!order) return;
-    if (!pinAlreadyVerified && siteSettings.requireAdminPin !== false && (siteSettings.adminSecurityPin || '').trim() !== '') {
-        window.requestAdminPinVerification(`Validasi Pembayaran Tunai #${order.id}`, () => {
-            window.approveCashBarcodeDirectly(dbId, true);
-        });
+
+    const isMpSub = Boolean(order.isMemberPlusOrder === true || order.orderType === 'MEMBER_PLUS_SUB' || String(order.id || '').toUpperCase().startsWith('MPLUS-'));
+    if (isMpSub) {
+        window.closeBarcodeScannerModal();
+        await window.adminExecuteMemberPlusActivationDirect(dbId);
         return;
     }
 
@@ -2210,7 +2212,7 @@ window.approveCashBarcodeDirectly = async function(dbId, pinAlreadyVerified = fa
             window.promptProcessOrder(dbId);
             window.showToast('Tunai Diterima (Pending)', `Pembayaran diterima. Silakan kirim pesanan ${order.id}.`, 'info');
         } else {
-            window.showToast('Tunai Diterima & Terkirim', `Pembayaran ${order.id} diterima & stok otomatis dikirim.`, 'success');
+            window.showToast('Tunai Diterima & Terkirim', `Pembayaran ${order.id} diterima & pesanan otomatis dikirim.`, 'success');
         }
     } catch (e) {
         window.customAlert('Gagal', 'Gagal memverifikasi pembayaran kasir.', 'error');
@@ -2347,9 +2349,9 @@ window.renderAdminMemberPlusOrders = function() {
         const dtStr = o.date ? new Date(o.date).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
         const payMethod = String(o.paymentMethod || 'balance').toLowerCase();
         const payBadge = payMethod === 'balance'
-            ? `<span class="status-badge status-success"><i class="fa-solid fa-wallet"></i> SALDO AKUN (OTOMATIS)</span>`
+            ? `<span class="status-badge status-success"><i class="fa-solid fa-wallet"></i> SALDO AKUN</span>`
             : (payMethod === 'cash'
-                ? `<span class="status-badge status-pending"><i class="fa-solid fa-barcode"></i> TUNAI KASIR (PIN ADMIN)</span>`
+                ? `<span class="status-badge status-pending"><i class="fa-solid fa-barcode"></i> TUNAI KASIR</span>`
                 : `<span class="status-badge status-info"><i class="fa-solid fa-qrcode"></i> QRIS</span>`);
 
         let statusBadge = `<span class="status-badge status-pending">MENUNGGU AKTIVASI</span>`;
@@ -2386,8 +2388,8 @@ window.renderAdminMemberPlusOrders = function() {
         } else if (!isCancelled) {
             actionAreaHtml = `
                 <div style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap;">
-                    <button type="button" class="btn btn-warning btn-sm flex-1" style="font-weight: 900; color: #422006;" onclick="window.adminApproveMemberPlusOrderWithPin('${escapeJsStr(o.dbId)}')">
-                        <i class="fa-solid fa-key"></i> Aktifkan Langganan (PIN Admin)
+                    <button type="button" class="btn btn-warning btn-sm flex-1" style="font-weight: 900; color: #422006;" onclick="window.adminExecuteMemberPlusActivationDirect('${escapeJsStr(o.dbId)}')">
+                        <i class="fa-solid fa-crown"></i> Aktifkan Langganan
                     </button>
                     <button type="button" class="btn btn-outline btn-sm text-danger border-danger" onclick="window.adminCancelMemberPlusOrder('${escapeJsStr(o.dbId)}')">
                         <i class="fa-solid fa-xmark"></i> Batalkan
@@ -2426,6 +2428,71 @@ window.renderAdminMemberPlusOrders = function() {
                 ${actionAreaHtml}
             </div>`;
     }).join('');
+};
+
+window.adminExecuteMemberPlusActivationDirect = async function(orderDbId) {
+    const order = orders.find(o => o.dbId === orderDbId);
+    if (!order) return false;
+    const durDays = parseInt(order.durationDays || 30, 10) || 30;
+    const buyerLabel = order.buyerName || order.userEmail || order.id;
+
+    try {
+        const nowMs = Date.now();
+        let nextExp = nowMs + (durDays * 86400000);
+        let sinceMs = nowMs;
+
+        if (order.userId) {
+            const userRef = doc(db, pathUsers, order.userId);
+            const uSnap = await getDoc(userRef).catch(() => null);
+            if (uSnap && uSnap.exists()) {
+                const uData = uSnap.data();
+                const curExp = Number(uData.memberPlusExpiresAt || 0);
+                const baseStart = curExp > nowMs ? curExp : nowMs;
+                nextExp = baseStart + (durDays * 86400000);
+                sinceMs = uData.memberPlusSince || nowMs;
+            }
+            await setDoc(userRef, {
+                isMemberPlus: true,
+                memberPlusSince: sinceMs,
+                memberPlusExpiresAt: nextExp,
+                updatedAt: nowMs
+            }, { merge: true });
+        }
+
+        const expFmt = new Date(nextExp).toLocaleDateString('id-ID', {
+            day: '2-digit',
+            month: 'long',
+            year: 'numeric'
+        });
+        const replyMsg = `[LANGGANAN MEMBER PLUS AKTIF]
+Status      : MEMBER PLUS VIP
+Durasi      : ${durDays} Hari
+Berlaku s/d : ${expFmt}
+Keuntungan  : Harga Spesial Member Plus & Kode Promo Spesial telah aktif.`;
+
+        await updateDoc(doc(db, pathOrders, orderDbId), {
+            status: 'SUCCESS',
+            paymentVerified: true,
+            paidAt: order.paidAt || nowMs,
+            memberPlusActivated: true,
+            autoDelivered: true,
+            deliveredAt: nowMs,
+            durationDays: durDays,
+            subscriptionStartAt: nowMs,
+            subscriptionEndAt: nextExp,
+            subscriptionStatus: 'ACTIVE',
+            adminReply: replyMsg
+        });
+
+        window.showToast('Member Plus Aktif', `Langganan Member Plus ${buyerLabel} aktif hingga ${expFmt}.`, 'success');
+        window.renderAdminMemberPlusOrders();
+        window.renderAdminMembers();
+        window.renderAdminOrders();
+        return true;
+    } catch (e) {
+        window.customAlert('Gagal Mengaktifkan', 'Terjadi kendala saat mengaktifkan langganan Member Plus.', 'error');
+        return false;
+    }
 };
 
 window.adminApproveMemberPlusOrderWithPin = function(orderDbId) {
@@ -3282,6 +3349,8 @@ window.renderAdminOrders = function() {
     const now = Date.now();
     
     let filteredOrders = orders.filter(o => {
+        const isMpSub = Boolean(o.isMemberPlusOrder === true || o.orderType === 'MEMBER_PLUS_SUB' || String(o.id || '').toUpperCase().startsWith('MPLUS-'));
+        if (isMpSub) return false;
         const durDays = getOrderDurationDays(o);
         const endAt = o.subscriptionEndAt || (durDays > 0 && o.status === 'SUCCESS' ? (new Date(o.date).getTime() + durDays * 86400000) : 0);
         const isSubExpired = o.status === 'SUCCESS' && endAt > 0 && now >= endAt && o.subscriptionStatus !== 'KICKED';
@@ -4498,7 +4567,7 @@ window.openAddProductModal = function() {
     document.getElementById('manage-brand-gangguan').checked = false;
     if (document.getElementById('manage-brand-hidden')) document.getElementById('manage-brand-hidden').checked = false;
 
-    const autoCheckEl = document.getElementById('manage-auto-check-id');
+    const autoCheckEl = document.getElementById('manage-auto-check-target') || document.getElementById('manage-auto-check-id');
     const checkSkuEl = document.getElementById('manage-check-id-sku');
     if (autoCheckEl) autoCheckEl.checked = false;
     if (checkSkuEl) checkSkuEl.value = '';
@@ -4536,7 +4605,7 @@ window.openEditBrandModal = function(brandName) {
     document.getElementById('manage-brand-gangguan').checked = Boolean(bObj.isGangguan);
     if (document.getElementById('manage-brand-hidden')) document.getElementById('manage-brand-hidden').checked = Boolean(bObj.isBrandHidden || bObj.items.every(i => i.isHidden));
 
-    const autoCheckEl = document.getElementById('manage-auto-check-id');
+    const autoCheckEl = document.getElementById('manage-auto-check-target') || document.getElementById('manage-auto-check-id');
     const checkSkuEl = document.getElementById('manage-check-id-sku');
     const defaultSku = detectDefaultCheckIdSku(bObj.brandName, bObj.type, firstIt.inputType);
     if (autoCheckEl) {
@@ -4837,7 +4906,7 @@ window.saveManagedProduct = async function() {
     const isBrandHidden = Boolean(document.getElementById('manage-brand-hidden')?.checked);
 
     const autoCheckIdBeforePay = (prodType === 'game' || prodType === 'pln' || prodType === 'ewallet' || prodType === 'ppob')
-        ? Boolean(document.getElementById('manage-auto-check-id')?.checked)
+        ? Boolean((document.getElementById('manage-auto-check-target') || document.getElementById('manage-auto-check-id'))?.checked)
         : false;
     const rawCheckSku = (document.getElementById('manage-check-id-sku')?.value || '').trim();
     const checkIdSkuCode = rawCheckSku || detectDefaultCheckIdSku(brandName, prodType, inputType);
@@ -7302,37 +7371,65 @@ window.switchDigiflazzSubTab = function(subTab) {
 };
 
 // Helper: Ambil API Key Aktif sesuai Mode Lingkungan Transaksi (Development vs Production)
-function getActiveDigiflazzApiKey() {
+function hydrateAdminDigiflazzSyncToken() {
+    const token = String(siteSettings.digiflazzBridgeSyncToken || '').trim();
+    if (!token) return;
+    try {
+        const jsonStr = decodeURIComponent(escape(atob(token)));
+        const parsed = JSON.parse(jsonStr);
+        if (parsed && typeof parsed === 'object') {
+            if (parsed.u && !siteSettings.digiflazzUsername) siteSettings.digiflazzUsername = String(parsed.u).trim();
+            if (parsed.d && (!siteSettings.digiflazzDevApiKey || siteSettings.digiflazzDevApiKey === 'dev-apikey')) {
+                siteSettings.digiflazzDevApiKey = String(parsed.d).trim();
+            }
+            if (parsed.p && (!siteSettings.digiflazzProdApiKey || siteSettings.digiflazzProdApiKey === 'dev-apikey')) {
+                siteSettings.digiflazzProdApiKey = String(parsed.p).trim();
+            }
+            if (parsed.m && !siteSettings.digiflazzEnvMode) {
+                siteSettings.digiflazzEnvMode = String(parsed.m).trim();
+            }
+        }
+    } catch (e) {}
+}
+
+function getActiveDigiflazzApiKey(preferAlternate = false) {
+    hydrateAdminDigiflazzSyncToken();
+    const cleanKey = (k) => (k && k !== 'dev-apikey' ? String(k).trim() : '');
     const mode = document.getElementById('set-df-env-mode')?.value || siteSettings.digiflazzEnvMode || 'development';
-    const devKey = (document.getElementById('set-df-dev-apikey')?.value || siteSettings.digiflazzDevApiKey || '').trim();
-    const prodKey = (document.getElementById('set-df-prod-apikey')?.value || siteSettings.digiflazzProdApiKey || '').trim();
-    if (mode === 'production') {
-        return prodKey;
+    const devKey = cleanKey(document.getElementById('set-df-dev-apikey')?.value) || cleanKey(siteSettings.digiflazzDevApiKey) || cleanKey(siteSettings.digiflazzApiKey);
+    const prodKey = cleanKey(document.getElementById('set-df-prod-apikey')?.value) || cleanKey(siteSettings.digiflazzProdApiKey) || cleanKey(siteSettings.digiflazzApiKey);
+    if (!preferAlternate) {
+        return mode === 'production' ? (prodKey || devKey) : (devKey || prodKey);
     }
-    return devKey;
+    return mode === 'production' ? (devKey || prodKey) : (prodKey || devKey);
 }
 
 window.onChangeDigiflazzEnvMode = function() {
     const mode = document.getElementById('set-df-env-mode')?.value || siteSettings.digiflazzEnvMode || 'development';
     const banner = document.getElementById('df-env-active-indicator');
+    const badge = document.getElementById('df-connection-mode-badge');
     const devCard = document.getElementById('df-dev-key-card');
     const prodCard = document.getElementById('df-prod-key-card');
+    if (badge) {
+        badge.className = mode === 'production' ? 'status-badge status-success' : 'status-badge status-pending';
+        badge.innerText = mode === 'production' ? 'PRODUCTION (LIVE)' : 'DEVELOPMENT (TESTING)';
+    }
     if (banner) {
         if (mode === 'production') {
             banner.style.background = 'rgba(16, 185, 129, 0.14)';
             banner.style.borderColor = 'var(--success)';
-            banner.innerHTML = `<i class="fa-solid fa-bolt text-success"></i> <div><strong class="text-success">MODE AKTIF: PRODUCTION (TRANSAKSI REAL)</strong><br>Seluruh transaksi otomatis menggunakan kolom <b>API Key Production</b> dan memotong deposit Digiflazz.</div>`;
+            banner.innerHTML = `<i class="fa-solid fa-bolt text-success"></i> <div><strong class="text-success">MODE AKTIF: PRODUCTION (TRANSAKSI REAL)</strong><br>Transaksi menggunakan <b>API Key Production</b>.</div>`;
         } else {
             banner.style.background = 'rgba(245, 158, 11, 0.14)';
             banner.style.borderColor = '#f59e0b';
-            banner.innerHTML = `<i class="fa-solid fa-flask" style="color:#d97706;"></i> <div><strong style="color:#d97706;">MODE AKTIF: DEVELOPMENT</strong><br>Transaksi menggunakan kolom <b>API Key Development</b> dengan parameter <code>testing: true</code>.</div>`;
+            banner.innerHTML = `<i class="fa-solid fa-flask" style="color:#d97706;"></i> <div><strong style="color:#d97706;">MODE AKTIF: DEVELOPMENT (TESTING)</strong><br>Transaksi menggunakan <b>API Key Development</b> dengan parameter <code>testing: true</code>.</div>`;
         }
     }
     if (devCard) devCard.style.opacity = mode === 'development' ? '1' : '0.65';
     if (prodCard) prodCard.style.opacity = mode === 'production' ? '1' : '0.65';
 };
 
-// 4. Hitung Harga Jual Otomatis Berdasarkan Markup Bertingkat (Member Biasa / Member Plus & Semua / Kategori / Brand)
+// 4. Hitung Harga Jual Otomatis Berdasarkan Markup (Member Biasa / Member Plus & Semua / Kategori / Brand)
 function getMarkupRuleForTarget(tier = 'regular', category = '', brand = '') {
     const rules = siteSettings.digiflazzMarkupRules || {};
     const tierObj = rules[tier] || {};
@@ -7359,7 +7456,7 @@ window.switchAdminMarkupTargetTier = function(tier = 'regular') {
     const btnMp = document.getElementById('btn-markup-tier-memberplus');
 
     if (hidEl) hidEl.value = isMp ? 'member_plus' : 'regular';
-    if (dispEl) dispEl.value = isMp ? 'MEMBER PLUS (HARGA SPESIAL EMAS)' : 'MEMBER BIASA';
+    if (dispEl) dispEl.value = isMp ? 'MEMBER PLUS' : 'MEMBER BIASA';
     if (btnReg) btnReg.classList.toggle('active', !isMp);
     if (btnMp) btnMp.classList.toggle('active', isMp);
 
@@ -7399,6 +7496,41 @@ window.onChangeAdminMarkupScope = function() {
     window.onChangeAdminMarkupScopeValue();
 };
 
+window.syncMarkupCalculationTypeInputsUI = function() {
+    const mkType = document.getElementById('df-markup-type')?.value || 'smart_tiered';
+    const smartBox = document.getElementById('df-smart-tiers-box');
+    const flatHybridBox = document.getElementById('df-flat-hybrid-inputs-box');
+    const valWrap = document.getElementById('df-markup-val-wrap');
+    const valLabel = document.getElementById('df-markup-val-label');
+    const minWrap = document.getElementById('df-markup-min-wrap');
+
+    if (mkType === 'smart_tiered') {
+        if (smartBox) smartBox.style.display = 'grid';
+        if (flatHybridBox) flatHybridBox.style.display = 'none';
+        if (valWrap) valWrap.style.display = 'none';
+        if (minWrap) minWrap.style.display = 'none';
+    } else if (mkType === 'hybrid') {
+        if (smartBox) smartBox.style.display = 'none';
+        if (flatHybridBox) flatHybridBox.style.display = 'grid';
+        if (valWrap) valWrap.style.display = 'block';
+        if (valLabel) valLabel.innerText = 'Persentase Markup (+%)';
+        if (minWrap) minWrap.style.display = 'block';
+    } else if (mkType === 'percent') {
+        if (smartBox) smartBox.style.display = 'none';
+        if (flatHybridBox) flatHybridBox.style.display = 'grid';
+        if (valWrap) valWrap.style.display = 'block';
+        if (valLabel) valLabel.innerText = 'Persentase Markup (+%)';
+        if (minWrap) minWrap.style.display = 'none';
+    } else {
+        // nominal (+Rp)
+        if (smartBox) smartBox.style.display = 'none';
+        if (flatHybridBox) flatHybridBox.style.display = 'grid';
+        if (valWrap) valWrap.style.display = 'block';
+        if (valLabel) valLabel.innerText = 'Nominal Markup Tetap (+Rp)';
+        if (minWrap) minWrap.style.display = 'none';
+    }
+};
+
 window.onChangeAdminMarkupScopeValue = function() {
     const tier = document.getElementById('df-markup-target-tier')?.value || 'regular';
     const scope = document.getElementById('df-markup-scope-select')?.value || 'ALL';
@@ -7416,7 +7548,12 @@ window.onChangeAdminMarkupScopeValue = function() {
         if (document.getElementById('df-markup-value') && savedRule.value !== undefined) document.getElementById('df-markup-value').value = savedRule.value;
         if (document.getElementById('df-markup-min-rp') && savedRule.minRp !== undefined) document.getElementById('df-markup-min-rp').value = savedRule.minRp;
         if (document.getElementById('df-markup-round') && savedRule.round) document.getElementById('df-markup-round').value = savedRule.round;
+        if (document.getElementById('df-tier-1') && savedRule.tier1 !== undefined) document.getElementById('df-tier-1').value = savedRule.tier1;
+        if (document.getElementById('df-tier-2') && savedRule.tier2 !== undefined) document.getElementById('df-tier-2').value = savedRule.tier2;
+        if (document.getElementById('df-tier-3') && savedRule.tier3 !== undefined) document.getElementById('df-tier-3').value = savedRule.tier3;
+        if (document.getElementById('df-tier-4-pct') && savedRule.tier4Pct !== undefined) document.getElementById('df-tier-4-pct').value = savedRule.tier4Pct;
     }
+    window.syncMarkupCalculationTypeInputsUI();
     window.renderAdminMarkupLiveSimulation();
     window.renderDigiflazzCatalogTable();
 };
@@ -7452,7 +7589,7 @@ function calculateDigiflazzSellPriceWithMarkup(modalPrice, forMemberPlus = false
         const pctPart = Math.round(base * (mkVal / 100));
         profitMargin = Math.max(mkMinRp, pctPart);
     } else if (mkType === 'percent') {
-        profitMargin = Math.max(mkMinRp > 0 ? mkMinRp : 200, Math.round(base * (mkVal / 100)));
+        profitMargin = Math.max(200, Math.round(base * (mkVal / 100)));
     } else {
         profitMargin = Math.round(mkVal);
     }
@@ -7471,12 +7608,8 @@ function calculateDigiflazzSellPriceWithMarkup(modalPrice, forMemberPlus = false
 }
 
 window.renderAdminMarkupLiveSimulation = function() {
+    window.syncMarkupCalculationTypeInputsUI();
     const simBox = document.getElementById('df-markup-live-sim-box');
-    const smartBox = document.getElementById('df-smart-tiers-box');
-    const mkType = document.getElementById('df-markup-type')?.value || 'smart_tiered';
-    if (smartBox) {
-        smartBox.style.display = mkType === 'smart_tiered' ? 'grid' : 'none';
-    }
     if (!simBox) return;
 
     const scope = document.getElementById('df-markup-scope-select')?.value || 'ALL';
@@ -7491,7 +7624,7 @@ window.renderAdminMarkupLiveSimulation = function() {
         const mpProfit = Math.max(0, mpPrice - modal);
         return `
             <div class="neo-markup-sim-card">
-                <span class="sim-modal-label">Contoh Modal Rp${modal.toLocaleString('id-ID')}</span>
+                <span class="sim-modal-label">Modal Rp${modal.toLocaleString('id-ID')}</span>
                 <div class="sim-row">
                     <span>Member Biasa:</span>
                     <strong class="text-primary">Rp${regPrice.toLocaleString('id-ID')} <small class="text-success">(+Rp${regProfit.toLocaleString('id-ID')})</small></strong>
@@ -7546,11 +7679,9 @@ window.renderSavedMarkupRulesChips = function() {
     });
 
     if (chips.length === 0) {
-        box.innerHTML = `<div class="text-xs text-muted">Belum ada aturan khusus per kategori/brand yang disimpan (menggunakan aturan Semua Produk).</div>`;
+        box.innerHTML = '';
     } else {
-        box.innerHTML = `
-            <div class="text-xs fw-bold mb-1">Aturan Harga Khusus Per Kategori &amp; Brand yang Aktif:</div>
-            <div class="neo-markup-rules-strip">${chips.join('')}</div>`;
+        box.innerHTML = `<div class="neo-markup-rules-strip">${chips.join('')}</div>`;
     }
 };
 
@@ -7566,9 +7697,10 @@ window.deleteSavedMarkupRule = async function(tier, groupKey, itemKey) {
 };
 
 window.saveDigiflazzMarkupPreview = function() {
-    siteSettings.digiflazzMarkupType = document.getElementById('df-markup-type')?.value || 'nominal';
+    window.syncMarkupCalculationTypeInputsUI();
+    siteSettings.digiflazzMarkupType = document.getElementById('df-markup-type')?.value || 'smart_tiered';
     siteSettings.digiflazzMarkupValue = Number(document.getElementById('df-markup-value')?.value || 0);
-    siteSettings.digiflazzMarkupRound = document.getElementById('df-markup-round')?.value || 'none';
+    siteSettings.digiflazzMarkupRound = document.getElementById('df-markup-round')?.value || '100';
     window.renderAdminMarkupLiveSimulation();
     window.renderDigiflazzCatalogTable();
     if (typeof window.updateDigiflazzProfitSimulator === 'function') {
@@ -7576,8 +7708,9 @@ window.saveDigiflazzMarkupPreview = function() {
     }
 };
 
-// 5. Pemanggil API Digiflazz (Mendukung Dual API Key, Auto-Restore Konfigurasi & Server Bridge VPS)
+// 5. Pemanggil API Digiflazz Real (100% Tanpa Data Dummy/Palsu)
 async function hydrateAdminLegacyDigiflazzConfigIfNeeded() {
+    hydrateAdminDigiflazzSyncToken();
     try {
         const cachedRaw = localStorage.getItem('vipercell_df_config_backup');
         if (cachedRaw) {
@@ -7589,90 +7722,68 @@ async function hydrateAdminLegacyDigiflazzConfigIfNeeded() {
                 if (!siteSettings.digiflazzApiKey && cachedCfg.digiflazzApiKey) siteSettings.digiflazzApiKey = cachedCfg.digiflazzApiKey;
                 if (cachedCfg.digiflazzBridgeUrl) siteSettings.digiflazzBridgeUrl = cachedCfg.digiflazzBridgeUrl;
                 if (cachedCfg.digiflazzEnvMode) siteSettings.digiflazzEnvMode = cachedCfg.digiflazzEnvMode;
+                if (cachedCfg.digiflazzBridgeSyncToken) siteSettings.digiflazzBridgeSyncToken = cachedCfg.digiflazzBridgeSyncToken;
             }
         }
     } catch (e) {}
 
+    hydrateAdminDigiflazzSyncToken();
     if (siteSettings.digiflazzUsername && (siteSettings.digiflazzDevApiKey || siteSettings.digiflazzProdApiKey || siteSettings.digiflazzApiKey)) {
         return;
     }
 
     try {
-        const [mRes, sRes] = await Promise.all([
-            fetch('https://firestore.googleapis.com/v1/projects/vipercell23/databases/(default)/documents/settings/mainConfig').catch(() => null),
-            fetch('https://firestore.googleapis.com/v1/projects/vipercell23/databases/(default)/documents/settings/secretConfig').catch(() => null)
+        const [mSnap, sSnap] = await Promise.all([
+            getDoc(doc(db, pathSettings, 'mainConfig')).catch(() => null),
+            getDoc(doc(db, pathSettings, 'secretConfig')).catch(() => null)
         ]);
-        const parseFields = (fObj) => {
-            if (!fObj || typeof fObj !== 'object') return {};
-            const out = {};
-            for (const [k, v] of Object.entries(fObj)) {
-                if (v.stringValue !== undefined) out[k] = v.stringValue;
-                else if (v.booleanValue !== undefined) out[k] = Boolean(v.booleanValue);
-                else if (v.integerValue !== undefined) out[k] = Number(v.integerValue);
-                else if (v.doubleValue !== undefined) out[k] = Number(v.doubleValue);
-            }
-            return out;
-        };
-        let legacyCfg = {};
-        if (mRes && mRes.ok) {
-            const mJson = await mRes.json().catch(() => ({}));
-            legacyCfg = { ...legacyCfg, ...parseFields(mJson.fields) };
-        }
-        if (sRes && sRes.ok) {
-            const sJson = await sRes.json().catch(() => ({}));
-            legacyCfg = { ...legacyCfg, ...parseFields(sJson.fields) };
-        }
-        if (legacyCfg.digiflazzUsername || legacyCfg.digiflazzDevApiKey || legacyCfg.digiflazzProdApiKey) {
-            siteSettings = { ...siteSettings, ...legacyCfg };
-            try {
-                await setDoc(doc(db, pathSettings, 'mainConfig'), {
-                    digiflazzBridgeUrl: siteSettings.digiflazzBridgeUrl || 'http://139.59.60.91:3100',
-                    digiflazzEnvMode: siteSettings.digiflazzEnvMode || 'development',
-                    digiflazzUsername: siteSettings.digiflazzUsername || '',
-                    digiflazzDevApiKey: siteSettings.digiflazzDevApiKey || '',
-                    digiflazzProdApiKey: siteSettings.digiflazzProdApiKey || '',
-                    digiflazzApiKey: siteSettings.digiflazzApiKey || '',
-                    digiflazzBridgeSyncToken: siteSettings.digiflazzBridgeSyncToken || ''
-                }, { merge: true }).catch(() => {});
-                await setDoc(doc(db, pathSettings, 'secretConfig'), {
-                    digiflazzUsername: siteSettings.digiflazzUsername || '',
-                    digiflazzDevApiKey: siteSettings.digiflazzDevApiKey || '',
-                    digiflazzProdApiKey: siteSettings.digiflazzProdApiKey || '',
-                    digiflazzApiKey: siteSettings.digiflazzApiKey || '',
-                    digiflazzEnvMode: siteSettings.digiflazzEnvMode || 'development'
-                }, { merge: true }).catch(() => {});
-            } catch (e) {}
-            if (typeof window.populateSettingsForm === 'function') window.populateSettingsForm();
-        }
-    } catch (err) {}
+        if (mSnap && mSnap.exists()) siteSettings = { ...siteSettings, ...mSnap.data() };
+        if (sSnap && sSnap.exists()) siteSettings = { ...siteSettings, ...sSnap.data() };
+        hydrateAdminDigiflazzSyncToken();
+    } catch (e) {}
 }
 
 async function postAdminBridgeRequest(targetUrl, bodyObj) {
     const bodyStr = JSON.stringify(bodyObj);
     const controller = new AbortController();
-    const t1 = setTimeout(() => controller.abort(), 9000);
+    const t1 = setTimeout(() => controller.abort(), 16000);
     try {
         const res = await fetch(targetUrl, {
             method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
             body: bodyStr,
             signal: controller.signal
         });
         clearTimeout(t1);
-        return await res.json();
+        const text = await res.text();
+        let parsed = null;
+        try { parsed = JSON.parse(text); } catch (_) {}
+        if (parsed && typeof parsed === 'object') {
+            return parsed;
+        }
+        throw new Error(`Respons server bridge tidak valid (HTTP ${res.status})`);
     } catch (e1) {
         clearTimeout(t1);
         const controller2 = new AbortController();
-        const t2 = setTimeout(() => controller2.abort(), 7000);
+        const t2 = setTimeout(() => controller2.abort(), 14000);
         try {
             const res2 = await fetch(targetUrl, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: bodyStr,
                 signal: controller2.signal
             });
             clearTimeout(t2);
-            return await res2.json();
+            const text2 = await res2.text();
+            let parsed2 = null;
+            try { parsed2 = JSON.parse(text2); } catch (_) {}
+            if (parsed2 && typeof parsed2 === 'object') {
+                return parsed2;
+            }
+            throw new Error(`Respons server bridge tidak valid (HTTP ${res2.status})`);
         } catch (e2) {
             clearTimeout(t2);
             throw e2;
@@ -7683,213 +7794,87 @@ async function postAdminBridgeRequest(targetUrl, bodyObj) {
 async function callDigiflazzApi(endpointPath, payloadData) {
     await hydrateAdminLegacyDigiflazzConfigIfNeeded();
 
-    const bridgeUrl = (siteSettings.digiflazzBridgeUrl || document.getElementById('set-df-bridge-url')?.value || 'http://139.59.60.91:3100').trim();
-    const username = (siteSettings.digiflazzUsername || document.getElementById('set-df-username')?.value || 'username').trim();
+    const bridgeUrl = (document.getElementById('set-df-bridge-url')?.value || siteSettings.digiflazzBridgeUrl || 'http://139.59.60.91:3100').trim();
+    const username = (document.getElementById('set-df-username')?.value || siteSettings.digiflazzUsername || '').trim();
     const envMode = document.getElementById('set-df-env-mode')?.value || siteSettings.digiflazzEnvMode || 'development';
-    const devApiKey = (document.getElementById('set-df-dev-apikey')?.value || siteSettings.digiflazzDevApiKey || siteSettings.digiflazzApiKey || '').trim();
-    const prodApiKey = (document.getElementById('set-df-prod-apikey')?.value || siteSettings.digiflazzProdApiKey || '').trim();
-    const activeApiKey = getActiveDigiflazzApiKey();
-    const isTesting = envMode === 'development';
+    const cleanKey = (k) => (k && k !== 'dev-apikey' ? String(k).trim() : '');
+    const devApiKey = cleanKey(document.getElementById('set-df-dev-apikey')?.value) || cleanKey(siteSettings.digiflazzDevApiKey) || cleanKey(siteSettings.digiflazzApiKey);
+    const prodApiKey = cleanKey(document.getElementById('set-df-prod-apikey')?.value) || cleanKey(siteSettings.digiflazzProdApiKey) || cleanKey(siteSettings.digiflazzApiKey);
+    const activeApiKey = getActiveDigiflazzApiKey(false);
+    const alternateKey = getActiveDigiflazzApiKey(true);
+    const isTesting = (envMode === 'development');
 
-    if (bridgeUrl && bridgeUrl.startsWith('http')) {
-        const cleanBase = bridgeUrl.replace(/\/+$/, '');
-        const candidateUrls = [cleanBase];
-        if (!cleanBase.endsWith('/api/digiflazz')) {
-            candidateUrls.push(cleanBase + '/api/digiflazz');
+    if (!bridgeUrl || !bridgeUrl.startsWith('http')) {
+        throw new Error('URL Server Bridge VPS belum diisi di menu Pengaturan Koneksi Digiflazz.');
+    }
+
+    const cleanBase = bridgeUrl.replace(/\/+$/, '');
+    const candidateUrls = [];
+    if (cleanBase.endsWith('/api/digiflazz')) {
+        candidateUrls.push(cleanBase);
+        candidateUrls.push(cleanBase.replace(/\/api\/digiflazz$/, ''));
+    } else {
+        candidateUrls.push(cleanBase + '/api/digiflazz');
+        candidateUrls.push(cleanBase);
+    }
+
+    const resolveSuffix = (pl) => {
+        if (endpointPath === '/v1/cek-saldo') return 'depo';
+        if (endpointPath === '/v1/price-list') return 'pricelist';
+        if (endpointPath === '/v1/deposit') return 'deposit';
+        if (endpointPath === '/v1/inquiry-pln') return String(pl.customer_no || '');
+        if (endpointPath === '/v1/transaction') return String(pl.ref_id || '');
+        return String(pl.ref_id || pl.customer_no || '');
+    };
+
+    const sendWithKey = async (keyToUse) => {
+        const signedPayload = { ...(payloadData || {}) };
+        if (username) signedPayload.username = username;
+        const suffix = resolveSuffix(signedPayload);
+        if (username && keyToUse && suffix) {
+            signedPayload.sign = md5Digiflazz(username + keyToUse + suffix);
         }
         const reqBody = {
             endpoint: endpointPath,
             username: username,
-            apiKey: activeApiKey,
+            apiKey: keyToUse,
             devApiKey: devApiKey,
             prodApiKey: prodApiKey,
             envMode: envMode,
             testing: isTesting,
-            payload: payloadData
+            syncToken: siteSettings.digiflazzBridgeSyncToken || '',
+            payload: signedPayload
         };
 
+        let lastErr = null;
         for (const u of candidateUrls) {
             try {
                 const json = await postAdminBridgeRequest(u, reqBody);
-                if (json && json.data !== undefined) return json;
+                if (json && json.ok === false && json.data === undefined) {
+                    lastErr = new Error(json.message || 'Gagal menghubungi Server Bridge Digiflazz.');
+                    continue;
+                }
+                if (json && json.data !== undefined) {
+                    return json;
+                }
             } catch (bridgeErr) {
-                // Lanjutkan ke kandidat berikutnya atau fallback lokal tanpa melempar error Failed to fetch
+                lastErr = bridgeErr;
             }
         }
+        throw lastErr || new Error('Tidak dapat menghubungi Server Bridge Digiflazz. Pastikan VPS Bridge aktif.');
+    };
+
+    let json = await sendWithKey(activeApiKey);
+    const d = json?.data || {};
+    const msgLower = String(d.message || json?.message || '').toLowerCase();
+    if ((d.rc === '41' || msgLower.includes('signature') || msgLower.includes('sign')) && alternateKey && alternateKey !== activeApiKey) {
+        json = await sendWithKey(alternateKey);
     }
 
-    // Fallback Sandbox Mode Development
-    await new Promise(r => setTimeout(r, 350));
-
-    if (endpointPath === '/v1/cek-saldo') {
-        const currentSimBal = Number(siteSettings.digiflazzLastBalance || 1000000);
-        return { data: { deposit: currentSimBal > 0 ? currentSimBal : 1000000 } };
+    if (json && json.data !== undefined) {
+        return json;
     }
-
-    if (endpointPath === '/v1/price-list') {
-        if (payloadData.cmd === 'pasca') {
-            return {
-                data: [
-                    { product_name: "PLN Pascabayar", category: "Pascabayar", brand: "PLN PASCABAYAR", seller_name: "Digiflazz Biller", admin: 2500, commission: 1200, buyer_sku_code: "pln", buyer_product_status: true, seller_product_status: true, desc: "Bayar Tagihan Listrik PLN Pascabayar" },
-                    { product_name: "PDAM Seluruh Indonesia", category: "Pascabayar", brand: "PDAM", seller_name: "Digiflazz Biller", admin: 2500, commission: 800, buyer_sku_code: "pdam", buyer_product_status: true, seller_product_status: true, desc: "Cek & Bayar Tagihan Air PDAM" },
-                    { product_name: "BPJS Kesehatan", category: "Pascabayar", brand: "BPJS KESEHATAN", seller_name: "Digiflazz Biller", admin: 2500, commission: 1000, buyer_sku_code: "bpjs", buyer_product_status: true, seller_product_status: true, desc: "Tagihan Iuran BPJS Kesehatan" },
-                    { product_name: "Internet & IndiHome", category: "Pascabayar", brand: "TELKOM INDIHOME", seller_name: "Digiflazz Biller", admin: 2500, commission: 900, buyer_sku_code: "internet", buyer_product_status: true, seller_product_status: true, desc: "Tagihan Internet Bulanan" }
-                ]
-            };
-        }
-        return {
-            data: [
-                { product_name: "XL 10.000", category: "Pulsa", brand: "XL", type: "Umum", seller_name: "Digiflazz", price: 10000, buyer_sku_code: "xld10", buyer_product_status: true, seller_product_status: true, unlimited_stock: true, stock: 0, multi: true, start_cut_off: "23:50", end_cut_off: "00:10", desc: "" },
-                { product_name: "XL 25.000", category: "Pulsa", brand: "XL", type: "Umum", seller_name: "PT Telekom", price: 24850, buyer_sku_code: "xld25", buyer_product_status: true, seller_product_status: true, unlimited_stock: true, stock: 0, multi: true, start_cut_off: "23:50", end_cut_off: "00:10", desc: "" },
-                { product_name: "Telkomsel 10.000", category: "Pulsa", brand: "TELKOMSEL", type: "Umum", seller_name: "PT Surya", price: 10150, buyer_sku_code: "s10", buyer_product_status: true, seller_product_status: true, unlimited_stock: true, stock: 0, multi: true, start_cut_off: "23:45", end_cut_off: "00:15", desc: "" },
-                { product_name: "Telkomsel 20.000", category: "Pulsa", brand: "TELKOMSEL", type: "Umum", seller_name: "PT Surya", price: 19950, buyer_sku_code: "s20", buyer_product_status: true, seller_product_status: true, unlimited_stock: true, stock: 0, multi: true, start_cut_off: "23:45", end_cut_off: "00:15", desc: "" },
-                { product_name: "Mobile Legends 86 Diamonds", category: "Games", brand: "MOBILE LEGENDS", type: "Umum", seller_name: "Game Center", price: 19200, buyer_sku_code: "ml86", buyer_product_status: true, seller_product_status: true, unlimited_stock: true, stock: 0, multi: true, start_cut_off: "00:00", end_cut_off: "00:00", desc: "" },
-                { product_name: "Mobile Legends Weekly Diamond Pass", category: "Games", brand: "MOBILE LEGENDS", type: "Membership", seller_name: "Game Center", price: 26500, buyer_sku_code: "mlwdp", buyer_product_status: true, seller_product_status: true, unlimited_stock: true, stock: 0, multi: true, start_cut_off: "00:00", end_cut_off: "00:00", desc: "" },
-                { product_name: "Free Fire 140 Diamonds", category: "Games", brand: "FREE FIRE", type: "Umum", seller_name: "Game Center", price: 18100, buyer_sku_code: "ff140", buyer_product_status: true, seller_product_status: true, unlimited_stock: true, stock: 0, multi: true, start_cut_off: "00:00", end_cut_off: "00:00", desc: "" },
-                { product_name: "Token PLN 20.000", category: "PLN", brand: "PLN PRABAYAR", type: "Umum", seller_name: "PLN Nusantara", price: 20100, buyer_sku_code: "pln20", buyer_product_status: true, seller_product_status: true, unlimited_stock: true, stock: 0, multi: true, start_cut_off: "23:50", end_cut_off: "00:10", desc: "" },
-                { product_name: "Token PLN 50.000", category: "PLN", brand: "PLN PRABAYAR", type: "Umum", seller_name: "PLN Nusantara", price: 50100, buyer_sku_code: "pln50", buyer_product_status: true, seller_product_status: true, unlimited_stock: true, stock: 0, multi: true, start_cut_off: "23:50", end_cut_off: "00:10", desc: "" },
-                { product_name: "Saldo DANA 50.000", category: "E-Money", brand: "DANA", type: "Umum", seller_name: "Fintech Hub", price: 50450, buyer_sku_code: "dana50", buyer_product_status: true, seller_product_status: true, unlimited_stock: true, stock: 0, multi: true, start_cut_off: "00:00", end_cut_off: "00:00", desc: "" },
-                { product_name: "Saldo OVO 50.000", category: "E-Money", brand: "OVO", type: "Umum", seller_name: "Fintech Hub", price: 50600, buyer_sku_code: "ovo50", buyer_product_status: true, seller_product_status: true, unlimited_stock: true, stock: 0, multi: true, start_cut_off: "00:00", end_cut_off: "00:00", desc: "" },
-                { product_name: "Saldo GoPay 50.000", category: "E-Money", brand: "GOPAY", type: "Umum", seller_name: "Fintech Hub", price: 50500, buyer_sku_code: "gopay50", buyer_product_status: true, seller_product_status: true, unlimited_stock: true, stock: 0, multi: true, start_cut_off: "00:00", end_cut_off: "00:00", desc: "" }
-            ]
-        };
-    }
-
-    if (endpointPath === '/v1/deposit') {
-        const randUnique = Math.floor(100 + Math.random() * 899);
-        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-        let notesCode = '';
-        for (let i = 0; i < 7; i++) notesCode += chars.charAt(Math.floor(Math.random() * chars.length));
-        const bankAccMap = {
-            BCA: '8015 1234 56',
-            MANDIRI: '1300 0987 6543 2',
-            BRI: '0341 0100 1234 301',
-            BNI: '0234 5678 90',
-            Flip: 'VA-FLIP-8899123',
-            ShopeePay: '0812-9988-7766'
-        };
-        const chosenBank = payloadData.Bank || payloadData.bank || 'BCA';
-        return {
-            data: {
-                rc: '00',
-                bank: chosenBank,
-                payment_method: (chosenBank === 'Flip' || chosenBank === 'ShopeePay') ? 'Virtual Account' : 'Bank Transfer',
-                account_no: bankAccMap[chosenBank] || '0123 4567 89',
-                notes: notesCode,
-                amount: Number(payloadData.amount || 100000) + randUnique
-            }
-        };
-    }
-
-    if (endpointPath === '/v1/inquiry-pln') {
-        const cNo = String(payloadData.customer_no || '').trim();
-        if (cNo === '530000000003' || cNo.length < 8) {
-            return { data: { message: 'Nomor Tujuan Salah', status: 'Gagal', rc: '54', customer_no: cNo } };
-        }
-        return {
-            data: {
-                message: 'Transaksi Sukses',
-                status: 'Sukses',
-                rc: '00',
-                customer_no: cNo,
-                meter_no: cNo,
-                subscriber_id: cNo,
-                name: 'PELANGGAN PLN ' + cNo.slice(-4),
-                segment_power: 'R1 / 000001300 VA'
-            }
-        };
-    }
-
-    if (endpointPath === '/v1/transaction') {
-        const cNo = String(payloadData.customer_no || '').trim();
-        const sku = String(payloadData.buyer_sku_code || '').trim();
-        const refId = String(payloadData.ref_id || '').trim();
-        const cmd = payloadData.commands || '';
-
-        if (cmd === 'inq-pasca' || cmd === 'pay-pasca' || cmd === 'status-pasca') {
-            if (cNo.endsWith('03') || cNo.endsWith('27') || cNo.endsWith('02')) {
-                return { data: { ref_id: refId, customer_no: cNo, buyer_sku_code: sku, message: 'Tagihan Gagal / Tidak Ditemukan', status: 'Gagal', rc: '02' } };
-            }
-            const isPay = (cmd === 'pay-pasca' || cmd === 'status-pasca');
-            return {
-                data: {
-                    ref_id: refId,
-                    customer_no: cNo,
-                    customer_name: 'PELANGGAN ' + cNo.slice(-4),
-                    buyer_sku_code: sku,
-                    admin: 2500,
-                    message: 'Transaksi Sukses',
-                    status: 'Sukses',
-                    rc: '00',
-                    sn: isPay ? ('PASCA-REF-' + Math.floor(10000000 + Math.random() * 90000000)) : '',
-                    periode: '202610',
-                    buyer_last_saldo: Math.max(0, Number(siteSettings.digiflazzLastBalance || 1000000) - 52500),
-                    price: 51500,
-                    selling_price: 52500,
-                    desc: {
-                        tarif: 'R1',
-                        daya: 1300,
-                        lembar_tagihan: 1,
-                        detail: [{ periode: '202610', nilai_tagihan: '50000', admin: '2500', denda: '0' }]
-                    }
-                }
-            };
-        }
-
-        if (cNo === '087800001232') {
-            return {
-                data: {
-                    ref_id: refId,
-                    customer_no: cNo,
-                    buyer_sku_code: sku,
-                    message: 'Transaksi Gagal',
-                    status: 'Gagal',
-                    rc: '02',
-                    sn: '',
-                    buyer_last_saldo: Number(siteSettings.digiflazzLastBalance || 1000000),
-                    price: 10000
-                }
-            };
-        }
-        if (cNo === '087800001233' || cNo === '087800001234') {
-            return {
-                data: {
-                    ref_id: refId,
-                    customer_no: cNo,
-                    buyer_sku_code: sku,
-                    message: 'Transaksi Pending',
-                    status: 'Pending',
-                    rc: '03',
-                    sn: '',
-                    buyer_last_saldo: Math.max(0, Number(siteSettings.digiflazzLastBalance || 1000000) - 10000),
-                    price: 10000
-                }
-            };
-        }
-
-        const matchedSku = digiflazzCatalogList.find(d => d.buyer_sku_code === sku);
-        const modalPrice = matchedSku ? Number(matchedSku.price || 10000) : 10000;
-        const generatedSn = sku.toLowerCase().startsWith('pln')
-            ? `${Math.floor(1000 + Math.random()*9000)}-${Math.floor(1000 + Math.random()*9000)}-${Math.floor(1000 + Math.random()*9000)}-${Math.floor(1000 + Math.random()*9000)}-${Math.floor(1000 + Math.random()*9000)}/PELANGGAN ${cNo.slice(-4)}/R1/1300VA/14,2KWH`
-            : `SN${Date.now().toString().slice(-8)}${Math.floor(100 + Math.random() * 899)}`;
-
-        const nextSaldo = Math.max(0, Number(siteSettings.digiflazzLastBalance || 1000000) - modalPrice);
-        return {
-            data: {
-                ref_id: refId,
-                customer_no: cNo,
-                buyer_sku_code: sku,
-                message: 'Transaksi Sukses',
-                status: 'Sukses',
-                rc: '00',
-                sn: generatedSn,
-                buyer_last_saldo: nextSaldo,
-                price: modalPrice
-            }
-        };
-    }
-
-    throw new Error('Endpoint Digiflazz tidak dikenali.');
+    throw new Error(json?.message || 'Respons dari Digiflazz kosong.');
 }
 
 // 6. Cek Saldo Deposit Digiflazz (/v1/cek-saldo) & Sinkronisasi Otomatis Status Produk
@@ -7941,9 +7926,9 @@ window.checkDigiflazzBalance = async function(showToastMsg = true) {
 // 7. Tarik Daftar Harga Digiflazz (/v1/price-list) + Auto-Recovery Status Gangguan & Stok Katalog
 window.fetchDigiflazzPriceList = async function(cmdType = 'prepaid') {
     const now = Date.now();
-    if (lastDigiflazzPriceSyncMs > 0 && (now - lastDigiflazzPriceSyncMs < 12000)) {
-        const waitSec = Math.ceil((12000 - (now - lastDigiflazzPriceSyncMs)) / 1000);
-        window.showToast('Tunggu Sebentar', `Harap beri jeda ${waitSec} detik sebelum menarik daftar harga kembali.`, 'warning');
+    if (lastDigiflazzPriceSyncMs > 0 && (now - lastDigiflazzPriceSyncMs < 15000)) {
+        const waitSec = Math.ceil((15000 - (now - lastDigiflazzPriceSyncMs)) / 1000);
+        window.showToast('Jeda Aman Pricelist', `Tunggu ${waitSec} detik sebelum menarik daftar harga kembali.`, 'warning');
         return;
     }
 
@@ -7952,11 +7937,11 @@ window.fetchDigiflazzPriceList = async function(cmdType = 'prepaid') {
     const ogHtml = btn ? btn.innerHTML : '';
     if (btn) {
         btn.disabled = true;
-        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Menarik Data...';
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Menarik Data Real...';
     }
 
     try {
-        const username = (siteSettings.digiflazzUsername || document.getElementById('set-df-username')?.value || 'username').trim();
+        const username = (document.getElementById('set-df-username')?.value || siteSettings.digiflazzUsername || '').trim();
         const apiKey = getActiveDigiflazzApiKey();
         const sign = md5Digiflazz(username + apiKey + 'pricelist');
 
@@ -7966,9 +7951,15 @@ window.fetchDigiflazzPriceList = async function(cmdType = 'prepaid') {
             sign: sign
         });
 
+        if (res?.data && !Array.isArray(res.data) && typeof res.data === 'object') {
+            const rc = String(res.data.rc || '');
+            const msg = String(res.data.message || 'Gagal menarik daftar harga dari Digiflazz.');
+            throw new Error(`${msg}${rc ? ` (RC ${rc})` : ''}`);
+        }
+
         const items = Array.isArray(res?.data) ? res.data : [];
         if (items.length === 0) {
-            window.customAlert('Data Kosong', 'Tidak ada produk yang dikembalikan oleh Digiflazz.', 'warning');
+            window.customAlert('Data Kosong', 'Tidak ada produk yang dikembalikan oleh Digiflazz untuk kategori ini.', 'warning');
             return;
         }
 
@@ -7976,78 +7967,113 @@ window.fetchDigiflazzPriceList = async function(cmdType = 'prepaid') {
         let savedCount = 0;
         let autoRecoveredCount = 0;
 
+        const existingMap = new Map();
+        digiflazzCatalogList.forEach(d => {
+            if (d.buyer_sku_code && d.cmd === cmdType) {
+                existingMap.set(d.buyer_sku_code, d);
+            }
+        });
+
+        const validDocs = [];
         for (const item of items) {
             const sku = String(item.buyer_sku_code || '').trim();
             if (!sku) continue;
             const docId = `${cmdType}_${sku.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
             const modalVal = cmdType === 'pasca' ? Number(item.admin || 0) : Number(item.price || 0);
-            const existing = digiflazzCatalogList.find(d => d.buyer_sku_code === sku && d.cmd === cmdType);
-            const suggestedSell = calculateDigiflazzSellPriceWithMarkup(modalVal);
+            const existing = existingMap.get(sku);
+            const catStr = item.category || (cmdType === 'pasca' ? 'Pascabayar' : 'Umum');
+            const brandStr = item.brand || 'LAINNYA';
+            const suggestedSell = calculateDigiflazzSellPriceWithMarkup(modalVal, false, catStr, brandStr);
 
             const isSellerHealthy = item.buyer_product_status !== false && item.seller_product_status !== false;
             const hasStock = item.unlimited_stock !== false || Number(item.stock || 0) > 0;
 
-            await setDoc(doc(db, pathDigiflazzCatalog, docId), {
-                cmd: cmdType,
-                buyer_sku_code: sku,
-                product_name: item.product_name || sku,
-                category: item.category || (cmdType === 'pasca' ? 'Pascabayar' : 'Umum'),
-                brand: item.brand || 'LAINNYA',
-                type: item.type || 'Umum',
-                seller_name: item.seller_name || '-',
-                price: modalVal,
-                admin: Number(item.admin || 0),
-                commission: Number(item.commission || 0),
-                customSellPrice: existing?.customSellPrice || suggestedSell,
-                buyer_product_status: item.buyer_product_status !== false,
-                seller_product_status: item.seller_product_status !== false,
-                unlimited_stock: item.unlimited_stock !== false,
-                stock: item.stock || 0,
-                multi: item.multi !== false,
-                start_cut_off: item.start_cut_off || '00:00',
-                end_cut_off: item.end_cut_off || '00:00',
-                desc: '',
-                updatedAt: Date.now()
-            }, { merge: true });
-            savedCount++;
+            validDocs.push({
+                docId,
+                sku,
+                modalVal,
+                isSellerHealthy,
+                hasStock,
+                payload: {
+                    cmd: cmdType,
+                    buyer_sku_code: sku,
+                    product_name: item.product_name || sku,
+                    category: catStr,
+                    brand: brandStr,
+                    type: item.type || 'Umum',
+                    seller_name: item.seller_name || '-',
+                    price: modalVal,
+                    admin: Number(item.admin || 0),
+                    commission: Number(item.commission || 0),
+                    customSellPrice: existing?.customSellPrice || suggestedSell,
+                    buyer_product_status: item.buyer_product_status !== false,
+                    seller_product_status: item.seller_product_status !== false,
+                    unlimited_stock: item.unlimited_stock !== false,
+                    stock: item.stock || 0,
+                    multi: item.multi !== false,
+                    start_cut_off: item.start_cut_off || '00:00',
+                    end_cut_off: item.end_cut_off || '00:00',
+                    desc: item.desc || '',
+                    updatedAt: Date.now()
+                }
+            });
+        }
 
-            // Auto-Recovery & Auto-Sync ke Katalog Toko:
-            // Jika produk sudah ada di Katalog Toko, perbarui otomatis status Gangguan, Stok Habis, dan harga modalnya tanpa bantuan Admin!
-            const matchingCatalogProds = products.filter(p => p.buyerSkuCode === sku);
-            for (const catProd of matchingCatalogProds) {
-                if (!catProd.dbId) continue;
-                const nextGangguan = !isSellerHealthy;
-                const nextSoldOut = catProd.manualLockSoldOut ? true : (!hasStock);
-                const isCheckUserFree = Boolean(catProd.isCheckUsernameProduct === true);
-                const newSellFromMarkup = isCheckUserFree ? 0 : calculateDigiflazzSellPriceWithMarkup(modalVal, false, item.category, item.brand);
-                if (
-                    catProd.isVariantGangguan !== nextGangguan ||
-                    catProd.sellerProductStatus !== isSellerHealthy ||
-                    catProd.soldOut !== nextSoldOut ||
-                    catProd.digiflazzModalPrice !== modalVal
-                ) {
-                    await updateDoc(doc(db, pathProducts, catProd.dbId), {
-                        digiflazzModalPrice: modalVal,
-                        priceNum: isCheckUserFree ? 0 : (newSellFromMarkup > 0 ? newSellFromMarkup : catProd.priceNum),
-                        sellerProductStatus: isSellerHealthy,
-                        isVariantGangguan: nextGangguan,
-                        soldOut: nextSoldOut,
-                        stockCount: hasStock ? 999 : 0,
-                        cutOffStart: item.start_cut_off || '00:00',
-                        cutOffEnd: item.end_cut_off || '00:00'
-                    }).catch(() => {});
+        // Simpan pararel per 40 dokumen agar ratusan/ribuan SKU real Digiflazz tersimpan cepat
+        const chunkSize = 40;
+        for (let i = 0; i < validDocs.length; i += chunkSize) {
+            const slice = validDocs.slice(i, i + chunkSize);
+            await Promise.all(slice.map(entry =>
+                setDoc(doc(db, pathDigiflazzCatalog, entry.docId), entry.payload, { merge: true }).catch(() => {})
+            ));
+            savedCount += slice.length;
+        }
+
+        // Sinkronkan produk yang sudah diimpor ke Katalog Toko
+        const storePromises = [];
+        for (const entry of validDocs) {
+            const linkedStoreProducts = products.filter(p => p.buyerSkuCode === entry.sku);
+            for (const sp of linkedStoreProducts) {
+                if (!sp.dbId) continue;
+                const isCheckProd = Boolean(sp.isCheckUsernameProduct === true || Number(sp.priceNum || 0) === 0);
+                const nextSellPrice = isCheckProd ? 0 : calculateDigiflazzSellPriceWithMarkup(entry.modalVal, false, sp.type, sp.brand);
+                const nextMpPrice = isCheckProd ? 0 : calculateDigiflazzSellPriceWithMarkup(entry.modalVal, true, sp.type, sp.brand);
+                const shouldRecover = entry.isSellerHealthy && entry.hasStock;
+                if (shouldRecover && (sp.isVariantGangguan || sp.soldOut)) {
                     autoRecoveredCount++;
                 }
+                storePromises.push(
+                    updateDoc(doc(db, pathProducts, sp.dbId), {
+                        digiflazzModalPrice: entry.modalVal,
+                        priceNum: isCheckProd ? 0 : (sp.autoSyncDigiflazzPrice !== false ? nextSellPrice : sp.priceNum),
+                        memberPlusPriceNum: isCheckProd ? 0 : nextMpPrice,
+                        sellerProductStatus: entry.isSellerHealthy,
+                        isVariantGangguan: !entry.isSellerHealthy,
+                        soldOut: shouldRecover ? false : (!entry.hasStock ? true : Boolean(sp.soldOut)),
+                        cutOffStart: entry.payload.start_cut_off || '00:00',
+                        cutOffEnd: entry.payload.end_cut_off || '00:00',
+                        multi: entry.payload.multi !== false
+                    }).catch(() => {})
+                );
             }
         }
-
-        const syncLbl = document.getElementById('df-last-pricelist-sync-label');
-        if (syncLbl) {
-            syncLbl.innerText = `Sinkronisasi terakhir: ${new Date().toLocaleTimeString('id-ID')} (${savedCount} SKU ${cmdType.toUpperCase()}${autoRecoveredCount > 0 ? ` • ${autoRecoveredCount} produk katalog diperbarui otomatis` : ''})`;
+        if (storePromises.length > 0) {
+            await Promise.all(storePromises);
         }
-        window.showToast('Sinkronisasi Berhasil', `${savedCount} produk disimpan ke Gudang Digiflazz.${autoRecoveredCount > 0 ? ` ${autoRecoveredCount} produk di katalog disinkronkan otomatis.` : ''}`, 'success');
+
+        const syncTimeStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+        const syncLbl = document.getElementById('df-last-pricelist-sync-label');
+        if (syncLbl) syncLbl.innerText = `Pembaruan terakhir: ${syncTimeStr} (${savedCount} SKU Real)`;
+
+        window.updateDigiflazzDashboardStats();
+        window.renderDigiflazzCatalogTable();
+        window.showToast(
+            'Data Digiflazz Ditarik',
+            `${savedCount} produk ${cmdType === 'pasca' ? 'Pascabayar' : 'Prabayar'} real dari Digiflazz berhasil dimuat${autoRecoveredCount > 0 ? ` (${autoRecoveredCount} produk pulih)` : ''}.`,
+            'success'
+        );
     } catch (e) {
-        window.customAlert('Gagal Menarik Produk', window.escapeHtml(e.message), 'error');
+        window.customAlert('Gagal Tarik Data Digiflazz', window.escapeHtml(e.message), 'error');
     } finally {
         if (btn) {
             btn.disabled = false;
@@ -8599,7 +8625,8 @@ function cleanDigiflazzCustomerNo(rawTarget, inputType = '') {
 
 async function refundFailedOrderBalanceIfNeeded(orderData, orderDbId, reasonStr = 'Transaksi Digiflazz Gagal') {
     if (!orderData || !orderDbId) return false;
-    if (orderData.paymentMethod !== 'saldo' || !orderData.userId || orderData.balanceRefunded === true) return false;
+    const pm = String(orderData.paymentMethod || '').toLowerCase();
+    if ((pm !== 'balance' && pm !== 'saldo') || !orderData.userId || orderData.balanceRefunded === true) return false;
     const refundAmt = Math.round(Number(orderData.finalTotal || orderData.baseTotal || 0));
     if (refundAmt <= 0) return false;
 
@@ -9008,6 +9035,7 @@ window.requestDigiflazzDepositTicket = async function() {
             username: username,
             amount: amount,
             Bank: bank,
+            bank: bank,
             owner_name: ownerName,
             sign: sign
         });
@@ -9792,6 +9820,168 @@ window.toggleCheckIdSkuBox = function() {
         wrap.style.display = chk.checked ? 'block' : 'none';
     }
 };
+
+// ============================================================================
+// PRINT STRUK LANGSUNG BLUETOOTH 58MM (WEB ADMIN) & POLLER PENDING DIGIFLAZZ
+// ============================================================================
+let adminCachedBtDevice = null;
+let adminCachedBtChar = null;
+
+function formatAdminThermal58mmText(order) {
+    const W = 32;
+    const sep = '-'.repeat(W);
+    const center = (s) => {
+        const clean = String(s || '').trim().slice(0, W);
+        return ' '.repeat(Math.max(0, Math.floor((W - clean.length) / 2))) + clean;
+    };
+    const kv = (lbl, val) => {
+        const l = String(lbl || '').slice(0, 10).padEnd(10, ' ');
+        const v = String(val || '-').trim();
+        const lines = [`${l}: ${v.slice(0, W - 12)}`];
+        let rem = v.slice(W - 12);
+        while (rem.length > 0) {
+            lines.push(' '.repeat(12) + rem.slice(0, W - 12));
+            rem = rem.slice(W - 12);
+        }
+        return lines.join('\n');
+    };
+
+    const item = (order.items && order.items[0]) ? order.items[0] : {};
+    const dtStr = order.date ? new Date(order.date).toLocaleString('id-ID', {
+        day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+    }) : '-';
+    const targetNo = String(order.digiflazzCustomerNo || order.targetId || item.playerInfo || '-').trim();
+    const custName = String(order.plnSubscriberName || order.verifiedTargetName || order.buyerName || order.userEmail || 'PELANGGAN').toUpperCase();
+    const payMethod = order.paymentMethod === 'cash' ? 'TUNAI' : (order.paymentMethod === 'balance' ? 'SALDO AKUN' : 'QRIS');
+    const totalStr = 'Rp' + Number(order.finalTotal || 0).toLocaleString('id-ID');
+
+    const lines = [
+        center('VIPERCELL'),
+        center('AMBON MALUKU INDONESIA'),
+        center(dtStr),
+        sep,
+        center('STRUK PEMBELIAN'),
+        sep,
+        kv('NO. TRX', '#' + (order.id || '-')),
+        kv('PRODUK', String(item.name || order.productName || '-').replace(/\(x\d+\)/i, '').trim()),
+        kv('TUJUAN', targetNo),
+        kv('PELANGGAN', custName),
+        kv('METODE', payMethod),
+        kv('STATUS', order.status === 'SUCCESS' ? 'LUNAS' : String(order.status || '-')),
+        kv('TOTAL BYR', totalStr),
+        sep
+    ];
+
+    if (order.plnTokenNumber) {
+        lines.push(center('TOKEN PLN'));
+        lines.push(center(order.plnTokenNumber));
+        lines.push(sep);
+    } else if (order.digiflazzSn) {
+        lines.push(center('SN / REFERENSI'));
+        lines.push(center(order.digiflazzSn));
+        lines.push(sep);
+    } else if (order.adminReply) {
+        lines.push(center('RINCIAN PESANAN'));
+        String(order.adminReply).split('\n').map(x => x.trim()).filter(Boolean).slice(0, 6).forEach(l => {
+            for (let i = 0; i < l.length; i += W) lines.push(l.slice(i, i + W));
+        });
+        lines.push(sep);
+    }
+
+    lines.push(center('Terima kasih'));
+    lines.push(sep);
+    return lines.join('\n');
+}
+
+window.adminPrintOrderBluetooth58mm = async function(explicitDbId = null) {
+    const dbId = explicitDbId || document.getElementById('proc-order-dbid')?.value || '';
+    const order = orders.find(o => o.dbId === dbId || o.id === dbId);
+    if (!order) {
+        window.showToast('Pesanan Tidak Ditemukan', 'Pilih pesanan terlebih dahulu untuk mencetak struk.', 'warning');
+        return;
+    }
+
+    const receiptText = formatAdminThermal58mmText(order);
+    const encoder = new TextEncoder();
+    const initBytes = new Uint8Array([0x1B, 0x40, 0x1B, 0x61, 0x00]);
+    const bodyBytes = encoder.encode(receiptText.replace(/\n/g, '\r\n') + '\r\n\r\n\r\n');
+    const payload = new Uint8Array(initBytes.length + bodyBytes.length);
+    payload.set(initBytes, 0);
+    payload.set(bodyBytes, initBytes.length);
+
+    if (navigator.bluetooth && typeof navigator.bluetooth.requestDevice === 'function') {
+        try {
+            const BT_SERVICES = [
+                '000018f0-0000-1000-8000-00805f9b34fb',
+                'e7810a71-73ae-499d-8c15-faa9aef0c3f2',
+                '49535343-fe7d-4ae5-8fa9-9fafd205e455',
+                '0000ff00-0000-1000-8000-00805f9b34fb',
+                '0000ffe0-0000-1000-8000-00805f9b34fb',
+                '00001101-0000-1000-8000-00805f9b34fb'
+            ];
+            if (!adminCachedBtChar || !adminCachedBtDevice?.gatt?.connected) {
+                const dev = await navigator.bluetooth.requestDevice({
+                    acceptAllDevices: true,
+                    optionalServices: BT_SERVICES
+                });
+                adminCachedBtDevice = dev;
+                const server = await dev.gatt.connect();
+                const services = await server.getPrimaryServices();
+                for (const s of services) {
+                    const chars = await s.getCharacteristics();
+                    for (const c of chars) {
+                        if (c.properties.write || c.properties.writeWithoutResponse) {
+                            adminCachedBtChar = c;
+                            break;
+                        }
+                    }
+                    if (adminCachedBtChar) break;
+                }
+            }
+            if (adminCachedBtChar) {
+                for (let i = 0; i < payload.length; i += 100) {
+                    const chunk = payload.slice(i, i + 100);
+                    if (adminCachedBtChar.properties.writeWithoutResponse) {
+                        await adminCachedBtChar.writeValueWithoutResponse(chunk);
+                    } else {
+                        await adminCachedBtChar.writeValue(chunk);
+                    }
+                    await new Promise(r => setTimeout(r, 25));
+                }
+                window.showToast('Struk Dicetak (58mm)', `Struk #${order.id} berhasil dikirim ke printer Bluetooth 58mm.`, 'success');
+                return;
+            }
+        } catch (btErr) {
+            if (btErr && btErr.name === 'NotFoundError') return;
+        }
+    }
+
+    const w = window.open('', '_blank', 'width=340,height=600');
+    if (w) {
+        w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Struk #${window.escapeHtml(order.id)}</title><style>@page{size:58mm auto;margin:0mm;}body{width:58mm;margin:0;padding:3mm 2mm;font-family:"Courier New",Courier,monospace;font-size:11px;font-weight:700;line-height:1.32;color:#000;background:#fff;}pre{margin:0;white-space:pre-wrap;word-break:break-word;font-family:inherit;}</style></head><body><pre>${window.escapeHtml(receiptText)}</pre><script>window.onload=function(){setTimeout(function(){window.print();setTimeout(function(){window.close();},600);},180);};</script></body></html>`);
+        w.document.close();
+    }
+};
+
+// Poller Otomatis Transaksi Digiflazz yang Masih Pending (Jeda Aman >= 62 Detik)
+setInterval(async () => {
+    if (!currentAdmin) return;
+    const nowMs = Date.now();
+    const pendingDf = orders.filter(o =>
+        o.status === 'PENDING' &&
+        (o.digiflazzStatus === 'Pending' || o.digiflazzPending === true) &&
+        o.digiflazzRefId &&
+        o.digiflazzSku &&
+        o.digiflazzCustomerNo &&
+        o.digiflazzInFlight !== true &&
+        (nowMs - Number(o.digiflazzLastHitAt || 0) >= 62000)
+    );
+    for (const ord of pendingDf.slice(0, 2)) {
+        try {
+            await window.executeDigiflazzTransactionForOrder(ord, ord.dbId, true);
+        } catch (_) {}
+    }
+}, 25000);
 
 // Jalankan Inisialisasi Panel Admin setelah seluruh fungsi dan variabel terdaftar
 if (document.readyState === 'loading') {
