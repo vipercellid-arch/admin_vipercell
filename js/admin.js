@@ -59,6 +59,9 @@ let allSuggestions = [];
 let recentMutationsList = [];
 let digiflazzCatalogList = [];
 let digiflazzDepositsList = [];
+let balanceLogsList = [];
+let currentAdminBalanceSubTab = 'requests';
+let currentAdminTopupOrderFilter = 'ALL';
 let currentDigiflazzSubTab = 'catalog';
 let currentDigiflazzTrxFilter = 'ALL';
 let lastDigiflazzPriceSyncMs = 0;
@@ -853,6 +856,9 @@ window.switchAdminTab = function(tabId, menuEl) {
         if (backdrop) backdrop.classList.remove('active');
     }
 
+    if (tabId === 'tab-balance') {
+        if (typeof window.renderAdminBalanceTab === 'function') window.renderAdminBalanceTab();
+    }
     if (tabId === 'tab-members') {
         window.renderAdminMembers();
     }
@@ -1736,6 +1742,7 @@ function startAdminListeners() {
         window.generateAdminReports();
         window.renderAdminOrders();
         window.renderAdminMembers();
+        if (typeof window.renderAdminBalanceTab === 'function') window.renderAdminBalanceTab();
         if (typeof window.renderDigiflazzTransactionsTable === 'function') window.renderDigiflazzTransactionsTable();
         if (typeof window.updateDigiflazzDashboardStats === 'function') window.updateDigiflazzDashboardStats();
         if (typeof window.renderAdminQrisControlMonitor === 'function') window.renderAdminQrisControlMonitor();
@@ -1852,6 +1859,7 @@ function startAdminListeners() {
         });
         allUsersList.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
         window.renderAdminMembers();
+        if (typeof window.renderAdminBalanceTab === 'function') window.renderAdminBalanceTab();
         window.generateAdminReports();
     });
 
@@ -1874,6 +1882,15 @@ function startAdminListeners() {
         });
         digiflazzDepositsList.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
         window.renderDigiflazzDepositHistory();
+    }, () => {});
+
+    onSnapshot(collection(db, pathBalanceLogs), (snapshot) => {
+        balanceLogsList = [];
+        snapshot.forEach((docSnap) => {
+            balanceLogsList.push({ dbId: docSnap.id, ...docSnap.data() });
+        });
+        balanceLogsList.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        if (typeof window.renderAdminBalanceTab === 'function') window.renderAdminBalanceTab();
     }, () => {});
 }
 
@@ -2709,23 +2726,8 @@ window.renderAdminMembers = function() {
     allUsersList.forEach(u => {
         if (!u.uid) return;
         const isAnon = Boolean(u.isAnonymous || u.isGuest || u.role === 'anonymous');
-        if (u.isDeleted === true || (isAnon && deletedList.includes(u.uid))) return;
+        if (isAnon || u.isDeleted === true) return;
         combinedUsersMap.set(u.uid, { ...u });
-    });
-
-    allLiveChats.forEach(c => {
-        if (c.id && !combinedUsersMap.has(c.id) && !deletedList.includes(c.id)) {
-            combinedUsersMap.set(c.id, {
-                uid: c.id,
-                name: c.userInfo || `Tamu #${c.id.slice(-4).toUpperCase()}`,
-                email: c.userEmail || '',
-                deviceId: c.deviceId || '',
-                role: 'anonymous',
-                isAnonymous: true,
-                isGuest: true,
-                createdAt: c.updatedAt || Date.now()
-            });
-        }
     });
 
     const activeUsersArray = Array.from(combinedUsersMap.values());
@@ -3396,20 +3398,25 @@ window.renderAdminOrders = function() {
     
     let filteredOrders = orders.filter(o => {
         const isMpSub = Boolean(o.isMemberPlusOrder === true || o.orderType === 'MEMBER_PLUS_SUB' || String(o.id || '').toUpperCase().startsWith('MPLUS-'));
-        if (isMpSub) return false;
+        const isTopup = Boolean(o.isTopupOrder === true || o.orderType === 'TOPUP_BALANCE' || String(o.id || '').toUpperCase().startsWith('TOPUP-'));
+        if (isMpSub || isTopup) return false;
+
+        const firstIt = (o.items && o.items[0]) ? o.items[0] : {};
+        const isDfOrder = Boolean(o.digiflazzSku || firstIt.processType === 'digiflazz' || firstIt.processType === 'digiflazz_pasca' || firstIt.processType === 'ewallet_custom' || firstIt.isDigiflazz || firstIt.buyerSkuCode);
+
         const durDays = getOrderDurationDays(o);
         const endAt = o.subscriptionEndAt || (durDays > 0 && o.status === 'SUCCESS' ? (new Date(o.date).getTime() + durDays * 86400000) : 0);
         const isSubExpired = o.status === 'SUCCESS' && endAt > 0 && now >= endAt && o.subscriptionStatus !== 'KICKED';
         const isSubActive = o.status === 'SUCCESS' && endAt > 0 && now < endAt && o.subscriptionStatus !== 'KICKED';
 
+        if (currentOrderFilter === 'LOCAL_ONLY') return !isDfOrder;
+        if (currentOrderFilter === 'DIGIFLAZZ_ONLY') return isDfOrder;
         if (currentOrderFilter === 'NEED_ACTION') {
-            return o.status === 'PENDING' || (o.status === 'SUCCESS' && !o.adminReply) || isSubExpired;
+            return (!isDfOrder && (o.status === 'PENDING' || (o.status === 'SUCCESS' && !o.adminReply))) || isSubExpired;
         }
         if (currentOrderFilter === 'SUB_ACTIVE') return isSubActive;
         if (currentOrderFilter === 'SUB_EXPIRED') return isSubExpired;
-        if (currentOrderFilter === 'CASH_ONLY') return o.paymentMethod === 'cash';
-        if (currentOrderFilter === 'UNPAID') return o.status === 'UNPAID' || o.status === 'PENDING_PAYMENT';
-        if (currentOrderFilter === 'SUCCESS') return o.status === 'SUCCESS' && !!o.adminReply;
+        if (currentOrderFilter === 'SUCCESS') return o.status === 'SUCCESS' && (Boolean(o.adminReply) || Boolean(o.digiflazzSn) || Boolean(o.autoDelivered));
         if (currentOrderFilter === 'FAILED') return o.status === 'FAILED' || o.status === 'EXPIRED' || o.status === 'CANCELLED';
         return true;
     });
@@ -3439,15 +3446,24 @@ window.renderAdminOrders = function() {
         const isSubActive = o.status === 'SUCCESS' && endAt > 0 && now < endAt && o.subscriptionStatus !== 'KICKED';
         const isSubKicked = o.status === 'SUCCESS' && o.subscriptionStatus === 'KICKED';
 
+        const firstItemOrd = (o.items && o.items[0]) ? o.items[0] : {};
+        const isDfOrd = Boolean(o.digiflazzSku || firstItemOrd.processType === 'digiflazz' || firstItemOrd.processType === 'digiflazz_pasca' || firstItemOrd.processType === 'ewallet_custom' || firstItemOrd.isDigiflazz || firstItemOrd.buyerSkuCode);
+
         let sBadge = `<span class="status-badge status-unpaid">MENUNGGU PEMBAYARAN</span>`;
-        if (o.status === 'PENDING') sBadge = `<span class="status-badge status-pending">DIPROSES ADMIN (PENDING)</span>`;
-        else if (o.status === 'FAILED') sBadge = `<span class="status-badge status-failed">GAGAL</span>`;
-        else if (o.status === 'CANCELLED') sBadge = `<span class="status-badge status-failed">DIBATALKAN</span>`;
-        else if (o.status === 'EXPIRED') sBadge = `<span class="status-badge status-failed">WAKTU HABIS</span>`;
-        else if (o.status === 'SUCCESS' && !o.adminReply) sBadge = `<span class="status-badge status-pending">DIPROSES ADMIN (PENDING)</span>`;
-        else if (isSubExpired) sBadge = `<span class="status-badge status-failed">WAJIB KICK</span>`;
-        else if (isSubKicked) sBadge = `<span class="status-badge status-anon">SUDAH DI-KICK</span>`;
-        else if (o.status === 'SUCCESS') sBadge = `<span class="status-badge status-success">TERKIRIM & SELESAI</span>`;
+        if (isDfOrd) {
+            if (o.status === 'SUCCESS') sBadge = `<span class="status-badge status-success"><i class="fa-solid fa-bolt"></i> SUKSES OTOMATIS</span>`;
+            else if (o.status === 'FAILED' || o.status === 'CANCELLED' || o.status === 'EXPIRED') sBadge = `<span class="status-badge status-failed">GAGAL OTOMATIS${o.balanceRefunded ? ' (REFUND)' : ''}</span>`;
+            else sBadge = `<span class="status-badge status-pending"><i class="fa-solid fa-spinner fa-spin"></i> PENDING OTOMATIS</span>`;
+        } else {
+            if (o.status === 'PENDING') sBadge = `<span class="status-badge status-pending">DIPROSES ADMIN (LOKAL)</span>`;
+            else if (o.status === 'FAILED') sBadge = `<span class="status-badge status-failed">GAGAL${o.balanceRefunded ? ' (REFUND)' : ''}</span>`;
+            else if (o.status === 'CANCELLED') sBadge = `<span class="status-badge status-failed">DIBATALKAN${o.balanceRefunded ? ' (REFUND)' : ''}</span>`;
+            else if (o.status === 'EXPIRED') sBadge = `<span class="status-badge status-failed">WAKTU HABIS</span>`;
+            else if (o.status === 'SUCCESS' && !o.adminReply) sBadge = `<span class="status-badge status-pending">DIPROSES ADMIN (LOKAL)</span>`;
+            else if (isSubExpired) sBadge = `<span class="status-badge status-failed">WAJIB KICK</span>`;
+            else if (isSubKicked) sBadge = `<span class="status-badge status-anon">SUDAH DI-KICK</span>`;
+            else if (o.status === 'SUCCESS') sBadge = `<span class="status-badge status-success">TERKIRIM & SELESAI</span>`;
+        }
 
         const emailBadgeHtml = '';
         
@@ -3488,7 +3504,9 @@ window.renderAdminOrders = function() {
         const buyerPhone = o.userPhone || (memberMatch ? (memberMatch.phone || memberMatch.whatsapp || '') : '');
 
         let actionBtn = '';
-        if (isSubExpired) {
+        if (isDfOrd) {
+            actionBtn = `<button class="btn btn-outline btn-sm" onclick="window.promptProcessOrder('${o.dbId}')"><i class="fa-solid fa-eye"></i> Status</button>`;
+        } else if (isSubExpired) {
             actionBtn = `
                 <button class="btn btn-success btn-sm" onclick="window.markSubscriptionKicked('${o.dbId}')">
                     <i class="fa-solid fa-check"></i> Kick Selesai
@@ -3496,10 +3514,10 @@ window.renderAdminOrders = function() {
                 <button class="btn btn-outline btn-sm" onclick="window.promptProcessOrder('${o.dbId}')">
                     <i class="fa-solid fa-sliders"></i>
                 </button>`;
-        } else if (o.status === 'PENDING' || o.status === 'UNPAID' || o.status === 'PENDING_PAYMENT' || o.status === 'EXPIRED' || (o.status === 'SUCCESS' && !o.adminReply)) {
-            actionBtn = `<button class="btn btn-primary btn-sm" onclick="window.promptProcessOrder('${o.dbId}')"><i class="fa-solid fa-bolt"></i> Proses</button>`;
+        } else if (o.status === 'PENDING' || o.status === 'UNPAID' || o.status === 'PENDING_PAYMENT' || (o.status === 'SUCCESS' && !o.adminReply)) {
+            actionBtn = `<button class="btn btn-primary btn-sm" onclick="window.promptProcessOrder('${o.dbId}')"><i class="fa-solid fa-sliders"></i> Proses Lokal</button>`;
         } else {
-            actionBtn = `<button class="btn btn-outline btn-sm" onclick="window.promptProcessOrder('${o.dbId}')"><i class="fa-solid fa-paper-plane"></i> Detail</button>`;
+            actionBtn = `<button class="btn btn-outline btn-sm" onclick="window.promptProcessOrder('${o.dbId}')"><i class="fa-solid fa-receipt"></i> Detail</button>`;
         }
             
         let deleteBtn = `<button aria-label="Hapus Order" class="btn-icon-only text-danger" style="width:34px; height:34px;" onclick="window.promptDeleteOrder('${o.dbId}', '${escapeJsStr(o.id)}')"><i class="fa-solid fa-trash"></i></button>`;
@@ -3681,13 +3699,22 @@ window.promptProcessOrder = function(dbId) {
         subBox.style.display = 'none';
     }
 
-    // Jika pesanan sudah selesai (SUCCESS & memiliki rincian terkirim), kunci seluruh tombol edit & aksi
-    const isCompletedLocked = Boolean(order.status === 'SUCCESS' && (order.adminReply || order.digiflazzSn || order.autoDelivered));
+    const printWrapEl = document.getElementById('proc-print-receipt-wrap');
+    if (printWrapEl) {
+        printWrapEl.style.display = (order.status === 'SUCCESS') ? 'flex' : 'none';
+    }
+
+    // Pesanan Digiflazz 100% otomatis (tidak diproses manual oleh Admin); Pesanan Stok Lokal yang sudah SUCCESS juga terkunci
+    const isCompletedLocked = Boolean(
+        isDfOrder ||
+        (order.status === 'SUCCESS' && (order.adminReply || order.digiflazzSn || order.autoDelivered)) ||
+        order.status === 'FAILED' ||
+        order.status === 'CANCELLED'
+    );
     const replyArea = document.getElementById('proc-admin-reply');
     const replyLbl = document.getElementById('proc-admin-reply-label');
     const pullStockBtn = document.getElementById('btn-proc-pull-stock');
     const actionBtnsWrap = document.getElementById('proc-action-buttons-wrap');
-    const hitDfBtn = document.getElementById('btn-proc-hit-digiflazz');
     const lockedBanner = document.getElementById('proc-completed-locked-banner');
 
     if (isCompletedLocked) {
@@ -3695,19 +3722,19 @@ window.promptProcessOrder = function(dbId) {
             replyArea.readOnly = true;
             if (!replyArea.value && order.digiflazzSn) {
                 replyArea.value = `SN / Token: ${order.digiflazzSn}`;
+            } else if (!replyArea.value && isDfOrder) {
+                replyArea.value = `Status Otomatis Digiflazz: ${order.digiflazzStatus || order.status}`;
             }
         }
-        if (replyLbl) replyLbl.innerText = 'Rincian Pesanan yang Telah Dikirim (Terkunci)';
+        if (replyLbl) replyLbl.innerText = isDfOrder ? 'Rincian Status Otomatis Digiflazz' : 'Rincian Pesanan (Terkunci)';
         if (pullStockBtn) pullStockBtn.style.display = 'none';
         if (actionBtnsWrap) actionBtnsWrap.style.display = 'none';
-        if (hitDfBtn) hitDfBtn.style.display = 'none';
-        if (lockedBanner) lockedBanner.style.display = 'block';
+        if (lockedBanner) lockedBanner.style.display = (order.status === 'SUCCESS') ? 'block' : 'none';
     } else {
         if (replyArea) replyArea.readOnly = false;
-        if (replyLbl) replyLbl.innerText = 'Rincian Akun / Pesanan yang Dikirim';
+        if (replyLbl) replyLbl.innerText = 'Rincian Akun / Stok Lokal yang Dikirim';
         if (pullStockBtn) pullStockBtn.style.display = 'inline-flex';
         if (actionBtnsWrap) actionBtnsWrap.style.display = 'flex';
-        if (hitDfBtn) hitDfBtn.style.display = 'inline-flex';
         if (lockedBanner) lockedBanner.style.display = 'none';
     }
 
@@ -3941,6 +3968,8 @@ window.markOrderComplete = async function(newStatus, pinAlreadyVerified = false)
 
         if (newStatus === 'SUCCESS' && order && (order.isTopupOrder === true || order.orderType === 'TOPUP_BALANCE')) {
             await creditTopupOrderBalanceIfNeeded(order, dbId);
+        } else if ((newStatus === 'FAILED' || newStatus === 'CANCELLED') && order) {
+            await refundFailedOrderBalanceIfNeeded(order, dbId, 'Pesanan Dibatalkan oleh Admin');
         }
 
         if (newStatus === 'SUCCESS' && order) {
@@ -9642,11 +9671,8 @@ window.renderDigiflazzTransactionsTable = function() {
             </td>
             <td>
                 <div class="flex-gap align-center">
-                    <button type="button" class="btn btn-primary btn-sm" onclick="window.executeDigiflazzTransactionForOrder(orders.find(x=>x.dbId==='${escapeJsStr(o.dbId)}'), '${escapeJsStr(o.dbId)}', false)">
-                        <i class="fa-solid fa-rotate"></i> Cek / Hit
-                    </button>
                     <button type="button" class="btn btn-outline btn-sm" onclick="window.promptProcessOrder('${escapeJsStr(o.dbId)}')">
-                        Detail
+                        <i class="fa-solid fa-eye"></i> Detail
                     </button>
                 </div>
             </td>
@@ -10197,7 +10223,49 @@ window.toggleBrandHiddenQuick = async function(brandName) {
     }
 };
 
-// 2. Verifikasi PIN Keamanan Admin (Untuk Pembayaran Tunai & Pesanan Manual)
+// 2. Verifikasi PIN Keamanan Admin (M-Banking 6 Titik + Keypad Interaktif)
+window.syncAdminPinDotsUI = function() {
+    const inp = document.getElementById('admin-pin-verify-input');
+    const row = document.getElementById('admin-pin-dots-row');
+    if (!inp || !row) return;
+    const val = String(inp.value || '').replace(/[^0-9]/g, '').slice(0, 6);
+    if (inp.value !== val) inp.value = val;
+    row.querySelectorAll('.pin-dot').forEach((d, idx) => {
+        d.classList.toggle('filled', idx < val.length);
+    });
+};
+
+window.pressAdminPinKeypad = function(key) {
+    const inp = document.getElementById('admin-pin-verify-input');
+    if (!inp) return;
+    let cur = String(inp.value || '').replace(/[^0-9]/g, '');
+    if (key === 'CLEAR') cur = '';
+    else if (key === 'BACK') cur = cur.slice(0, -1);
+    else if (/^[0-9]$/.test(key) && cur.length < 6) cur += key;
+    inp.value = cur;
+    window.syncAdminPinDotsUI();
+    if (cur.length === 6) {
+        setTimeout(() => window.confirmAdminPinVerification(), 120);
+    }
+};
+
+document.addEventListener('keydown', (e) => {
+    const modal = document.getElementById('modal-admin-pin-verify');
+    if (!modal || !modal.classList.contains('active')) return;
+    if (/^[0-9]$/.test(e.key)) {
+        e.preventDefault();
+        window.pressAdminPinKeypad(e.key);
+    } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        window.pressAdminPinKeypad('BACK');
+    } else if (e.key === 'Escape') {
+        window.closeAdminPinModal();
+    } else if (e.key === 'Enter') {
+        e.preventDefault();
+        window.confirmAdminPinVerification();
+    }
+});
+
 window.requestAdminPinVerification = function(actionTitle, onVerifiedCallback) {
     const savedPin = String(siteSettings.adminSecurityPin || '').trim();
     if (!savedPin || siteSettings.requireAdminPin === false) {
@@ -10207,10 +10275,16 @@ window.requestAdminPinVerification = function(actionTitle, onVerifiedCallback) {
     pendingAdminPinCallback = onVerifiedCallback;
     const descEl = document.getElementById('admin-pin-modal-desc');
     const inpEl = document.getElementById('admin-pin-verify-input');
+    const errEl = document.getElementById('admin-pin-error-helper');
     if (descEl) {
-        descEl.innerHTML = `Masukkan 6 digit PIN Admin untuk melanjutkan:<br><b class="text-primary">${window.escapeHtml(actionTitle || 'Tindakan Admin')}</b>`;
+        descEl.innerHTML = `<b class="text-primary">${window.escapeHtml(actionTitle || 'Konfirmasi Tindakan Admin')}</b>`;
     }
     if (inpEl) inpEl.value = '';
+    if (errEl) {
+        errEl.className = 'text-xs text-muted d-block mb-2';
+        errEl.innerText = 'Gunakan tombol angka di bawah atau keyboard fisik';
+    }
+    window.syncAdminPinDotsUI();
     window.openModal('modal-admin-pin-verify');
     setTimeout(() => inpEl?.focus(), 120);
 };
@@ -10224,13 +10298,364 @@ window.confirmAdminPinVerification = function() {
     const entered = (document.getElementById('admin-pin-verify-input')?.value || '').trim();
     const savedPin = String(siteSettings.adminSecurityPin || '').trim();
     if (!entered || entered !== savedPin) {
-        window.customAlert('PIN Admin Salah', 'PIN Keamanan Admin yang dimasukkan tidak sesuai.', 'error');
+        const inp = document.getElementById('admin-pin-verify-input');
+        const row = document.getElementById('admin-pin-dots-row');
+        const errEl = document.getElementById('admin-pin-error-helper');
+        if (inp) inp.value = '';
+        window.syncAdminPinDotsUI();
+        if (row) {
+            row.classList.remove('pin-error-shake');
+            void row.offsetWidth;
+            row.classList.add('pin-error-shake');
+        }
+        if (errEl) {
+            errEl.className = 'text-xs text-danger fw-bold d-block mb-2';
+            errEl.innerText = 'PIN Admin tidak sesuai! Silakan coba lagi.';
+        }
         return;
     }
     const cb = pendingAdminPinCallback;
     pendingAdminPinCallback = null;
     window.closeModal('modal-admin-pin-verify');
     if (typeof cb === 'function') cb();
+};
+
+// ============================================================================
+// TAB BARU: PANTAU SALDO & TOP UP SALDO MEMBER (#tab-balance)
+// ============================================================================
+window.switchAdminBalanceSubTab = function(subTab = 'requests') {
+    currentAdminBalanceSubTab = subTab;
+    ['requests', 'wallets', 'logs'].forEach(k => {
+        const btn = document.getElementById(`bal-subtab-btn-${k}`);
+        const panel = document.getElementById(`bal-panel-${k}`);
+        if (btn) btn.classList.toggle('active', k === subTab);
+        if (panel) panel.style.display = (k === subTab) ? 'block' : 'none';
+    });
+    window.renderAdminBalanceTab();
+};
+
+window.setAdminTopupOrderFilter = function(filterVal, btnEl) {
+    currentAdminTopupOrderFilter = filterVal || 'ALL';
+    document.querySelectorAll('#bal-topup-filter-pills .filter-pill').forEach(b => b.classList.remove('active'));
+    if (btnEl) btnEl.classList.add('active');
+    window.renderAdminTopupOrdersTable();
+};
+
+window.renderAdminBalanceTab = function() {
+    const membersOnly = allUsersList.filter(u => u && !u.isAnonymous && !u.isGuest && u.role !== 'anonymous');
+    const totalActiveBal = membersOnly.reduce((acc, u) => acc + Math.max(0, Math.round(Number(u.balance || 0))), 0);
+    const membersWithBalCount = membersOnly.filter(u => Number(u.balance || 0) > 0).length;
+
+    const topupOrders = orders.filter(o =>
+        o && (o.isTopupOrder === true || o.orderType === 'TOPUP_BALANCE' || String(o.id || '').toUpperCase().startsWith('TOPUP-'))
+    );
+    const pendingTopups = topupOrders.filter(o => o.status === 'UNPAID' || o.status === 'PENDING' || o.status === 'PENDING_PAYMENT');
+    const pendingTopupSum = pendingTopups.reduce((acc, o) => acc + Number(o.topupAmount || o.baseTotal || o.finalTotal || 0), 0);
+
+    const todayStr = new Date().toLocaleDateString('id-ID');
+    const todaySuccessTopups = topupOrders.filter(o => o.status === 'SUCCESS' && new Date(o.date).toLocaleDateString('id-ID') === todayStr);
+    const todayTopupSum = todaySuccessTopups.reduce((acc, o) => acc + Number(o.topupAmount || o.baseTotal || o.finalTotal || 0), 0);
+
+    const refundLogs = balanceLogsList.filter(l => String(l.type || '').toUpperCase() === 'REFUND');
+
+    const setEl = (id, txt) => {
+        const el = document.getElementById(id);
+        if (el) el.innerText = txt;
+    };
+    setEl('bal-stat-total-active', `Rp${totalActiveBal.toLocaleString('id-ID')}`);
+    setEl('bal-stat-members-with-bal', `${membersWithBalCount} dari ${membersOnly.length} member memiliki saldo`);
+    setEl('bal-stat-pending-topup', String(pendingTopups.length));
+    setEl('bal-stat-pending-topup-rp', `Total Rp${pendingTopupSum.toLocaleString('id-ID')} menunggu`);
+    setEl('bal-stat-today-topup', `Rp${todayTopupSum.toLocaleString('id-ID')}`);
+    setEl('bal-stat-today-topup-cnt', `${todaySuccessTopups.length} top up selesai hari ini`);
+    setEl('bal-stat-refund-total', `${refundLogs.length}x`);
+    setEl('bal-badge-pending-count', String(pendingTopups.length));
+
+    const sideDot = document.getElementById('badge-balance-topup');
+    if (sideDot) sideDot.style.display = pendingTopups.length > 0 ? 'inline-block' : 'none';
+
+    window.renderAdminTopupOrdersTable();
+    window.renderAdminMemberWalletsTable();
+    window.renderAdminBalanceLogsTable();
+};
+
+window.renderAdminTopupOrdersTable = function() {
+    const tbody = document.getElementById('admin-topup-orders-tbody');
+    if (!tbody) return;
+
+    const q = (document.getElementById('admin-search-topup-order')?.value || '').trim().toLowerCase();
+    let list = orders.filter(o =>
+        o && (o.isTopupOrder === true || o.orderType === 'TOPUP_BALANCE' || String(o.id || '').toUpperCase().startsWith('TOPUP-'))
+    ).sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
+
+    if (currentAdminTopupOrderFilter === 'PENDING') {
+        list = list.filter(o => o.status === 'UNPAID' || o.status === 'PENDING' || o.status === 'PENDING_PAYMENT');
+    } else if (currentAdminTopupOrderFilter === 'SUCCESS') {
+        list = list.filter(o => o.status === 'SUCCESS');
+    } else if (currentAdminTopupOrderFilter === 'FAILED') {
+        list = list.filter(o => o.status === 'FAILED' || o.status === 'CANCELLED' || o.status === 'EXPIRED');
+    }
+
+    if (q) {
+        list = list.filter(o =>
+            String(o.id || '').toLowerCase().includes(q) ||
+            String(o.buyerName || '').toLowerCase().includes(q) ||
+            String(o.userEmail || '').toLowerCase().includes(q)
+        );
+    }
+
+    if (list.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted" style="padding: 2rem;">Belum ada permintaan isi saldo pada filter ini.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = list.slice(0, 100).map(o => {
+        const nom = Math.round(Number(o.topupAmount || o.baseTotal || o.finalTotal || 0));
+        const tot = Math.round(Number(o.finalTotal || nom));
+        const pm = String(o.paymentMethod || 'qris').toLowerCase();
+        const pmBadge = pm === 'cash'
+            ? `<span class="status-badge status-pending"><i class="fa-solid fa-barcode"></i> TUNAI KASIR</span>`
+            : `<span class="status-badge status-unpaid"><i class="fa-solid fa-qrcode"></i> QRIS OTOMATIS</span>`;
+
+        let stBadge = `<span class="status-badge status-pending">MENUNGGU PEMBAYARAN</span>`;
+        if (o.status === 'SUCCESS' || o.balanceCredited === true) {
+            stBadge = `<span class="status-badge status-success"><i class="fa-solid fa-circle-check"></i> SALDO MASUK</span>`;
+        } else if (o.status === 'FAILED' || o.status === 'CANCELLED' || o.status === 'EXPIRED') {
+            stBadge = `<span class="status-badge status-failed">${window.escapeHtml(o.status)}</span>`;
+        }
+
+        const canApprove = (o.status !== 'SUCCESS' && !o.balanceCredited && o.status !== 'CANCELLED' && o.status !== 'FAILED');
+        const actionHtml = canApprove
+            ? `<div class="flex-gap align-center flex-wrap-gap">
+                   <button type="button" class="btn btn-success btn-sm" onclick="window.adminApproveTopupOrder('${escapeJsStr(o.dbId)}')">
+                       <i class="fa-solid fa-check"></i> Setujui &amp; Isi Saldo
+                   </button>
+                   <button type="button" class="btn btn-danger btn-sm" onclick="window.adminCancelTopupOrder('${escapeJsStr(o.dbId)}')">
+                       <i class="fa-solid fa-xmark"></i> Batal
+                   </button>
+               </div>`
+            : `<button type="button" class="btn btn-outline btn-sm" onclick="window.promptProcessOrder('${escapeJsStr(o.dbId)}')"><i class="fa-solid fa-receipt"></i> Detail</button>`;
+
+        return `<tr>
+            <td>
+                <strong class="code-mono text-dark">#${window.escapeHtml(o.id)}</strong><br>
+                <small class="text-muted text-xs">${new Date(o.date).toLocaleString('id-ID')}</small>
+            </td>
+            <td>
+                <strong class="text-dark">${window.escapeHtml(o.buyerName || 'Member')}</strong><br>
+                <small class="text-muted text-xs">${window.escapeHtml(o.userEmail || '-')}</small>
+            </td>
+            <td><strong class="text-success">+Rp${nom.toLocaleString('id-ID')}</strong></td>
+            <td><strong class="text-primary">Rp${tot.toLocaleString('id-ID')}</strong></td>
+            <td>${pmBadge}</td>
+            <td>${stBadge}</td>
+            <td>${actionHtml}</td>
+        </tr>`;
+    }).join('');
+};
+
+window.adminApproveTopupOrder = function(orderDbId) {
+    const ord = orders.find(o => o.dbId === orderDbId);
+    if (!ord) return;
+    const nom = Math.round(Number(ord.topupAmount || ord.baseTotal || ord.finalTotal || 0));
+    window.requestAdminPinVerification(`Setujui Isi Saldo #${ord.id} (+Rp${nom.toLocaleString('id-ID')})`, async () => {
+        const ok = await creditTopupOrderBalanceIfNeeded(ord, orderDbId);
+        if (ok) {
+            window.renderAdminBalanceTab();
+        } else {
+            window.customAlert('Gagal', 'Tidak dapat mengkreditkan saldo ke akun member.', 'error');
+        }
+    });
+};
+
+window.adminCancelTopupOrder = function(orderDbId) {
+    const ord = orders.find(o => o.dbId === orderDbId);
+    if (!ord) return;
+    window.openConfirm('Batalkan Permintaan Top Up', `Batalkan tagihan isi saldo <b>#${window.escapeHtml(ord.id)}</b>?`, async (confirmed) => {
+        if (!confirmed) return;
+        await updateDoc(doc(db, pathOrders, orderDbId), {
+            status: 'CANCELLED',
+            cancelledAt: Date.now()
+        }).catch(() => {});
+        window.showToast('Dibatalkan', `Permintaan #${ord.id} telah dibatalkan.`, 'info');
+        window.renderAdminBalanceTab();
+    });
+};
+
+window.renderAdminMemberWalletsTable = function() {
+    const tbody = document.getElementById('admin-member-wallets-tbody');
+    if (!tbody) return;
+
+    const q = (document.getElementById('admin-search-wallet-member')?.value || '').trim().toLowerCase();
+    let list = allUsersList.filter(u => u && !u.isAnonymous && !u.isGuest && u.role !== 'anonymous');
+
+    if (q) {
+        list = list.filter(u =>
+            String(u.name || '').toLowerCase().includes(q) ||
+            String(u.email || '').toLowerCase().includes(q) ||
+            String(u.uid || '').toLowerCase().includes(q)
+        );
+    }
+
+    list.sort((a, b) => Number(b.balance || 0) - Number(a.balance || 0));
+
+    if (list.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted" style="padding: 2rem;">Tidak ada member ditemukan.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = list.slice(0, 120).map(u => {
+        const bal = Math.round(Number(u.balance || 0));
+        const isMp = isAdminUserMemberPlusActive(u);
+        const hasPin = Boolean(u.trxPin && String(u.trxPin).length === 6);
+        const uOrders = orders.filter(o => o.status === 'SUCCESS' && !o.isTopupOrder && (o.userId === u.uid || (u.email && o.userEmail?.toLowerCase() === u.email.toLowerCase())));
+        const spent = uOrders.reduce((s, o) => s + Number(o.finalTotal || 0), 0);
+        const dispName = u.name || (u.email ? u.email.split('@')[0] : 'Member');
+
+        return `<tr>
+            <td>
+                <strong class="text-dark">${window.escapeHtml(dispName)}</strong><br>
+                <small class="text-muted text-xs">${window.escapeHtml(u.email || '-')}</small>
+            </td>
+            <td>
+                ${isMp
+                    ? `<span class="status-badge status-memberplus-gold"><i class="fa-solid fa-crown"></i> MEMBER PLUS</span>`
+                    : `<span class="status-badge status-success">MEMBER</span>`}
+            </td>
+            <td>
+                ${hasPin
+                    ? `<span class="status-badge status-success"><i class="fa-solid fa-lock"></i> PIN AKTIF</span>`
+                    : `<span class="status-badge status-anon">BELUM DISETEL</span>`}
+            </td>
+            <td><strong class="text-success" style="font-size:1rem;">Rp${bal.toLocaleString('id-ID')}</strong></td>
+            <td><span class="text-primary fw-bold">Rp${spent.toLocaleString('id-ID')}</span> <small class="text-muted text-xs">(${uOrders.length}x)</small></td>
+            <td>
+                <button type="button" class="btn btn-primary btn-sm" onclick="window.openAdminAdjustBalanceModal('${escapeJsStr(u.uid)}')">
+                    <i class="fa-solid fa-sliders"></i> Tambah / Kurangi Saldo
+                </button>
+            </td>
+        </tr>`;
+    }).join('');
+};
+
+window.openAdminAdjustBalanceModal = function(uid) {
+    const u = allUsersList.find(x => x.uid === uid);
+    if (!u) return;
+    const dispName = u.name || (u.email ? u.email.split('@')[0] : 'Member');
+    const curBal = Math.round(Number(u.balance || 0));
+
+    document.getElementById('adj-bal-uid').value = uid;
+    document.getElementById('adj-bal-type').value = 'ADD';
+    document.getElementById('adj-bal-amount').value = '';
+    document.getElementById('adj-bal-note').value = '';
+    const infoBox = document.getElementById('adj-bal-user-info');
+    if (infoBox) {
+        infoBox.innerHTML = `
+            <div class="flex-between align-center">
+                <div>
+                    <strong class="text-dark d-block">${window.escapeHtml(dispName)}</strong>
+                    <span class="text-xs text-muted">${window.escapeHtml(u.email || uid)}</span>
+                </div>
+                <div class="text-right">
+                    <span class="text-xs text-muted d-block">SALDO SAAT INI</span>
+                    <strong class="text-success" style="font-size:1.1rem;">Rp${curBal.toLocaleString('id-ID')}</strong>
+                </div>
+            </div>`;
+    }
+    window.openModal('modal-adjust-user-balance');
+};
+
+window.submitAdminBalanceAdjustment = function() {
+    const uid = document.getElementById('adj-bal-uid')?.value || '';
+    const adjType = document.getElementById('adj-bal-type')?.value || 'ADD';
+    const rawAmt = parseInt(document.getElementById('adj-bal-amount')?.value || '0', 10);
+    const note = (document.getElementById('adj-bal-note')?.value || '').trim() || (adjType === 'ADD' ? 'Penambahan Saldo oleh Admin' : 'Pemotongan Saldo oleh Admin');
+
+    if (!uid || isNaN(rawAmt) || rawAmt <= 0) {
+        window.customAlert('Nominal Tidak Valid', 'Masukkan nominal saldo lebih dari Rp0.', 'warning');
+        return;
+    }
+
+    const u = allUsersList.find(x => x.uid === uid);
+    const dispName = u ? (u.name || u.email || uid) : uid;
+    const actionLabel = `${adjType === 'ADD' ? 'Tambah' : 'Potong'} Saldo Rp${rawAmt.toLocaleString('id-ID')} (${dispName})`;
+
+    window.closeModal('modal-adjust-user-balance');
+    window.requestAdminPinVerification(actionLabel, async () => {
+        try {
+            const userRef = doc(db, pathUsers, uid);
+            const nowMs = Date.now();
+            let finalBal = 0;
+
+            await runTransaction(db, async (tx) => {
+                const uSnap = await tx.get(userRef);
+                const curBal = uSnap.exists() ? Math.round(Number(uSnap.data().balance || 0)) : 0;
+                finalBal = adjType === 'ADD' ? (curBal + rawAmt) : Math.max(0, curBal - rawAmt);
+                tx.set(userRef, {
+                    balance: finalBal,
+                    balanceUpdatedAt: nowMs
+                }, { merge: true });
+            });
+
+            await addDoc(collection(db, pathBalanceLogs), {
+                uid: uid,
+                userEmail: u?.email || '',
+                type: adjType === 'ADD' ? 'ADMIN_ADD' : 'ADMIN_DEDUCT',
+                amount: adjType === 'ADD' ? rawAmt : -rawAmt,
+                orderId: 'ADMIN-' + String(nowMs).slice(-6),
+                note: note,
+                createdAt: nowMs
+            }).catch(() => {});
+
+            window.showToast('Saldo Diperbarui', `Saldo ${dispName} kini Rp${finalBal.toLocaleString('id-ID')}.`, 'success');
+            window.renderAdminBalanceTab();
+        } catch (e) {
+            window.customAlert('Gagal', 'Tidak dapat memperbarui saldo member.', 'error');
+        }
+    });
+};
+
+window.renderAdminBalanceLogsTable = function() {
+    const tbody = document.getElementById('admin-balance-logs-tbody');
+    if (!tbody) return;
+
+    const q = (document.getElementById('admin-search-balance-logs')?.value || '').trim().toLowerCase();
+    let list = [...balanceLogsList];
+    if (q) {
+        list = list.filter(l =>
+            String(l.userEmail || '').toLowerCase().includes(q) ||
+            String(l.orderId || '').toLowerCase().includes(q) ||
+            String(l.note || '').toLowerCase().includes(q) ||
+            String(l.type || '').toLowerCase().includes(q)
+        );
+    }
+
+    if (list.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted" style="padding: 2rem;">Belum ada riwayat mutasi saldo tercatat.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = list.slice(0, 120).map(l => {
+        const amt = Math.round(Number(l.amount || 0));
+        const t = String(l.type || 'MUTASI').toUpperCase();
+        let badge = `<span class="status-badge status-anon">${window.escapeHtml(t)}</span>`;
+        if (t === 'TOPUP' || t === 'ADMIN_ADD') badge = `<span class="status-badge status-success">${window.escapeHtml(t)}</span>`;
+        else if (t === 'REFUND') badge = `<span class="status-badge status-pending"><i class="fa-solid fa-rotate-left"></i> AUTO-REFUND</span>`;
+        else if (t === 'PURCHASE' || t === 'MEMBER_PLUS' || t === 'ADMIN_DEDUCT') badge = `<span class="status-badge status-unpaid">${window.escapeHtml(t)}</span>`;
+
+        const amtHtml = amt >= 0
+            ? `<strong class="text-success">+Rp${amt.toLocaleString('id-ID')}</strong>`
+            : `<strong class="text-danger">-Rp${Math.abs(amt).toLocaleString('id-ID')}</strong>`;
+
+        return `<tr>
+            <td><small class="text-xs">${new Date(l.createdAt || Date.now()).toLocaleString('id-ID')}</small></td>
+            <td><strong class="text-dark text-xs">${window.escapeHtml(l.userEmail || l.uid || '-')}</strong></td>
+            <td>${badge}</td>
+            <td>${amtHtml}</td>
+            <td><code class="code-mono text-xs">${window.escapeHtml(l.orderId || '-')}</code></td>
+            <td><span class="text-xs">${window.escapeHtml(l.note || '-')}</span></td>
+        </tr>`;
+    }).join('');
 };
 
 // 3. Panel Laporan Pemasukan, Pengeluaran & Laba Lengkap (Produk Lokal Vipercell vs Digiflazz)
@@ -10907,7 +11332,7 @@ window.autoHideGangguanDigiflazzProducts = async function() {
 };
 
 // Efek Sentuh & Indikator Bekerja pada Seluruh Tombol di Web Admin (Tanpa Merusak innerHTML)
-const ADMIN_INTERACTIVE_BTN_SEL = 'button, .btn, .nav-item, .mobile-nav-item, .cs-subtab-btn, .filter-pill, .btn-icon-only, .neo-tier-btn';
+const ADMIN_INTERACTIVE_BTN_SEL = 'button, .btn, .menu-item, .nav-item, .mobile-nav-item, .cs-subtab-btn, .filter-pill, .btn-icon-only, .neo-tier-btn, .mbanking-key-btn';
 
 document.addEventListener('pointerdown', (e) => {
     const btn = e.target && e.target.closest ? e.target.closest(ADMIN_INTERACTIVE_BTN_SEL) : null;

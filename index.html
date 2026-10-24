@@ -33,7 +33,7 @@
     <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
     
     <!-- Stylesheet Admin -->
-    <link rel="stylesheet" href="css/admin.css?v=28.7">
+    <link rel="stylesheet" href="css/admin.css?v=28.8">
     
     <!-- jsQR & Html5Qrcode untuk Pemindai QRIS & Barcode Kasir -->
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js" defer></script>
@@ -201,7 +201,11 @@
                     <span id="badge-chats" class="notif-dot" style="display:none !important;"></span>
                 </a>
                 
-                <div class="menu-category">PELANGGAN</div>
+                <div class="menu-category">PELANGGAN &amp; SALDO</div>
+                <a class="menu-item" id="nav-tab-balance" onclick="window.switchAdminTab('tab-balance', this)">
+                    <i class="fa-solid fa-wallet"></i> <span>Pantau &amp; Top Up Saldo</span>
+                    <span id="badge-balance-topup" class="notif-dot" style="display:none;"></span>
+                </a>
                 <a class="menu-item" id="nav-tab-members" onclick="window.switchAdminTab('tab-members', this)">
                     <i class="fa-solid fa-users-gear"></i> <span>Data Pengguna</span>
                 </a>
@@ -598,30 +602,27 @@
                 </div>
 
                 <!-- ==========================================
-                     TAB 2: PESANAN MASUK
+                     TAB 2: PESANAN MASUK (STATUS TRANSAKSI & PROSES STOK LOKAL)
                      ========================================== -->
                 <div id="tab-orders" class="admin-tab">
                     <div class="dashboard-panel">
                         <div class="flex-between flex-wrap-gap mb-3 align-center">
                             <div class="order-filter-pills">
-                                <button class="filter-pill active" onclick="window.setAdminOrderFilter('ALL', this)">Semua</button>
-                                <button class="filter-pill" onclick="window.setAdminOrderFilter('NEED_ACTION', this)"><i class="fa-solid fa-fire text-danger"></i> Diproses Admin (Pending)</button>
-                                <button class="filter-pill" onclick="window.setAdminOrderFilter('UNPAID', this)"><i class="fa-regular fa-clock text-primary"></i> Menunggu Pembayaran</button>
+                                <button class="filter-pill active" onclick="window.setAdminOrderFilter('ALL', this)">Semua Pesanan</button>
+                                <button class="filter-pill" onclick="window.setAdminOrderFilter('LOCAL_ONLY', this)"><i class="fa-solid fa-vault text-primary"></i> Stok Lokal</button>
+                                <button class="filter-pill" onclick="window.setAdminOrderFilter('DIGIFLAZZ_ONLY', this)"><i class="fa-solid fa-bolt text-warning"></i> Otomatis Digiflazz</button>
+                                <button class="filter-pill" onclick="window.setAdminOrderFilter('NEED_ACTION', this)"><i class="fa-solid fa-fire text-danger"></i> Perlu Proses Lokal</button>
                                 <button class="filter-pill" onclick="window.setAdminOrderFilter('SUCCESS', this)"><i class="fa-solid fa-circle-check text-success"></i> Terkirim &amp; Selesai</button>
                                 <button class="filter-pill" onclick="window.setAdminOrderFilter('SUB_ACTIVE', this)"><i class="fa-solid fa-hourglass-half text-primary"></i> Durasi Aktif</button>
                                 <button class="filter-pill" onclick="window.setAdminOrderFilter('SUB_EXPIRED', this)"><i class="fa-solid fa-user-slash text-danger"></i> Waktunya Kick</button>
-                                <button class="filter-pill" onclick="window.setAdminOrderFilter('CASH_ONLY', this)"><i class="fa-solid fa-barcode text-warning"></i> Tunai</button>
-                                <button class="filter-pill" onclick="window.setAdminOrderFilter('FAILED', this)">Batal / Habis</button>
+                                <button class="filter-pill" onclick="window.setAdminOrderFilter('FAILED', this)">Gagal / Batal</button>
                             </div>
                             <div class="flex-gap flex-wrap-gap">
-                                <button class="btn btn-warning btn-sm" onclick="window.openBarcodeScannerModal()">
-                                    <i class="fa-solid fa-barcode"></i> Scan Tunai
-                                </button>
                                 <button class="btn btn-outline btn-sm" onclick="window.exportOrdersCSV()">
                                     <i class="fa-solid fa-file-csv text-success"></i> Ekspor CSV
                                 </button>
                                 <button class="btn btn-outline btn-sm text-danger border-danger" onclick="window.cleanExpiredOrders()">
-                                    <i class="fa-solid fa-broom"></i> Hapus Expired
+                                    <i class="fa-solid fa-broom"></i> Hapus Batal/Gagal
                                 </button>
                             </div>
                         </div>
@@ -744,7 +745,171 @@
                 </div>
 
                 <!-- ==========================================
-                     TAB 4: DATA PENGGUNA (TANPA NO HP #3)
+                     TAB BARU: PANTAU SALDO & TOP UP SALDO (KHUSUS MEMBER)
+                     ========================================== -->
+                <div id="tab-balance" class="admin-tab">
+                    <div class="stats-grid" style="margin-bottom: 1.25rem;">
+                        <div class="stat-card">
+                            <div class="stat-icon icon-green"><i class="fa-solid fa-wallet"></i></div>
+                            <div class="stat-info">
+                                <span>Total Saldo Seluruh Member</span>
+                                <h3 id="bal-stat-total-active" class="text-success">Rp0</h3>
+                                <small id="bal-stat-members-with-bal">0 member memiliki saldo</small>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon icon-orange"><i class="fa-solid fa-clock"></i></div>
+                            <div class="stat-info">
+                                <span>Antrean Top Up Menunggu</span>
+                                <h3 id="bal-stat-pending-topup" class="text-warning">0</h3>
+                                <small id="bal-stat-pending-topup-rp">Total Rp0 menunggu verifikasi</small>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon icon-blue"><i class="fa-solid fa-circle-arrow-down"></i></div>
+                            <div class="stat-info">
+                                <span>Top Up Berhasil Hari Ini</span>
+                                <h3 id="bal-stat-today-topup" class="text-primary">Rp0</h3>
+                                <small id="bal-stat-today-topup-cnt">0 pengisian saldo selesai</small>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon icon-purple"><i class="fa-solid fa-rotate-left"></i></div>
+                            <div class="stat-info">
+                                <span>Auto-Refund Transaksi Gagal</span>
+                                <h3 id="bal-stat-refund-total">0x</h3>
+                                <small id="bal-stat-refund-sub">Pengembalian saldo otomatis</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sub-Tab Navigasi di dalam Tab Pantau & Top Up Saldo -->
+                    <div class="cs-subtabs-bar mb-3" style="flex-wrap: wrap;">
+                        <button type="button" id="bal-subtab-btn-requests" class="cs-subtab-btn active" onclick="window.switchAdminBalanceSubTab('requests')">
+                            <i class="fa-solid fa-money-bill-transfer"></i>
+                            <span>1. Permintaan Top Up Saldo</span>
+                            <span id="bal-badge-pending-count" class="cs-subtab-badge badge-amber">0</span>
+                        </button>
+                        <button type="button" id="bal-subtab-btn-wallets" class="cs-subtab-btn" onclick="window.switchAdminBalanceSubTab('wallets')">
+                            <i class="fa-solid fa-users"></i>
+                            <span>2. Pantau &amp; Atur Saldo Member</span>
+                        </button>
+                        <button type="button" id="bal-subtab-btn-logs" class="cs-subtab-btn" onclick="window.switchAdminBalanceSubTab('logs')">
+                            <i class="fa-solid fa-clock-rotate-left"></i>
+                            <span>3. Riwayat Mutasi Saldo</span>
+                        </button>
+                    </div>
+
+                    <!-- SUB-PANEL 1: PERMINTAAN TOP UP SALDO (QRIS & TUNAI KASIR) -->
+                    <div id="bal-panel-requests" class="dashboard-panel">
+                        <div class="panel-header">
+                            <div>
+                                <h3><i class="fa-solid fa-cash-register text-primary"></i> Daftar Permintaan Isi Saldo (Top Up)</h3>
+                            </div>
+                            <div class="flex-gap flex-wrap-gap">
+                                <button type="button" class="btn btn-warning btn-sm" onclick="window.openBarcodeScannerModal()">
+                                    <i class="fa-solid fa-barcode"></i> Scan Kasir Tunai
+                                </button>
+                                <button type="button" class="btn btn-outline btn-sm" onclick="window.renderAdminBalanceTab()">
+                                    <i class="fa-solid fa-rotate"></i> Segarkan
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="flex-between flex-wrap-gap mb-3 align-center">
+                            <div class="order-filter-pills" id="bal-topup-filter-pills">
+                                <button type="button" class="filter-pill active" onclick="window.setAdminTopupOrderFilter('ALL', this)">Semua Top Up</button>
+                                <button type="button" class="filter-pill" onclick="window.setAdminTopupOrderFilter('PENDING', this)"><i class="fa-solid fa-clock text-warning"></i> Menunggu Bayar / Kasir</button>
+                                <button type="button" class="filter-pill" onclick="window.setAdminTopupOrderFilter('SUCCESS', this)"><i class="fa-solid fa-circle-check text-success"></i> Selesai Masuk</button>
+                                <button type="button" class="filter-pill" onclick="window.setAdminTopupOrderFilter('FAILED', this)">Batal / Habis</button>
+                            </div>
+                            <input type="text" id="admin-search-topup-order" class="form-control" style="max-width: 340px;" placeholder="Cari #TOPUP, nama, atau email..." oninput="window.renderAdminTopupOrdersTable()">
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="modern-table">
+                                <thead>
+                                    <tr>
+                                        <th>ID Top Up &amp; Waktu</th>
+                                        <th>Member</th>
+                                        <th>Nominal Saldo</th>
+                                        <th>Total Bayar</th>
+                                        <th>Metode</th>
+                                        <th>Status</th>
+                                        <th>Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="admin-topup-orders-tbody">
+                                    <tr><td colspan="7" class="text-center text-muted" style="padding: 2rem;">Memuat data top up saldo...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- SUB-PANEL 2: PANTAU & ATUR SALDO MEMBER MANUAL -->
+                    <div id="bal-panel-wallets" class="dashboard-panel" style="display: none;">
+                        <div class="panel-header">
+                            <div>
+                                <h3><i class="fa-solid fa-wallet text-success"></i> Daftar Saldo Akun Member</h3>
+                            </div>
+                            <div class="flex-gap flex-wrap-gap">
+                                <button type="button" class="btn btn-warning btn-sm" onclick="window.openBarcodeScannerModal()">
+                                    <i class="fa-solid fa-barcode"></i> Scan Kasir Tunai
+                                </button>
+                                <input type="text" id="admin-search-wallet-member" class="form-control" style="max-width: 300px;" placeholder="Cari nama atau email member..." oninput="window.renderAdminMemberWalletsTable()">
+                            </div>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="modern-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nama Member &amp; Email</th>
+                                        <th>Status Akun</th>
+                                        <th>PIN Transaksi</th>
+                                        <th>Saldo Saat Ini</th>
+                                        <th>Total Belanja</th>
+                                        <th>Aksi Kelola Saldo</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="admin-member-wallets-tbody">
+                                    <tr><td colspan="6" class="text-center text-muted" style="padding: 2rem;">Memuat daftar saldo member...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- SUB-PANEL 3: RIWAYAT LOG MUTASI SALDO (TOPUP, PEMBELIAN, AUTO-REFUND, ADJUSTMENT) -->
+                    <div id="bal-panel-logs" class="dashboard-panel" style="display: none;">
+                        <div class="panel-header">
+                            <div>
+                                <h3><i class="fa-solid fa-list-check text-primary"></i> Riwayat Mutasi Saldo Member</h3>
+                            </div>
+                            <input type="text" id="admin-search-balance-logs" class="form-control" style="max-width: 320px;" placeholder="Cari invoice, email, atau catatan..." oninput="window.renderAdminBalanceLogsTable()">
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="modern-table">
+                                <thead>
+                                    <tr>
+                                        <th>Waktu</th>
+                                        <th>Email Member</th>
+                                        <th>Tipe Mutasi</th>
+                                        <th>Nominal</th>
+                                        <th>Ref / Order ID</th>
+                                        <th>Keterangan</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="admin-balance-logs-tbody">
+                                    <tr><td colspan="6" class="text-center text-muted" style="padding: 2rem;">Belum ada riwayat mutasi saldo.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ==========================================
+                     TAB 4: DATA PENGGUNA (KHUSUS MEMBER & MEMBER PLUS)
                      ========================================== -->
                 <div id="tab-members" class="admin-tab">
                     <div class="stats-grid" style="margin-bottom: 1.25rem;">
@@ -765,14 +930,6 @@
                             </div>
                         </div>
                         <div class="stat-card">
-                            <div class="stat-icon icon-orange"><i class="fa-solid fa-user"></i></div>
-                            <div class="stat-info">
-                                <span>Akun Tamu</span>
-                                <h3 id="member-stat-anon">0</h3>
-                                <small id="member-stat-anon-sub">Pembersihan 6 Jam: Aktif</small>
-                            </div>
-                        </div>
-                        <div class="stat-card">
                             <div class="stat-icon icon-purple"><i class="fa-solid fa-bag-shopping"></i></div>
                             <div class="stat-info">
                                 <span>Pernah Belanja</span>
@@ -785,7 +942,7 @@
                     <!-- Sub-Tab Navigasi di dalam Tab Data Pengguna -->
                     <div class="admin-members-subtabs-bar" style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 1.25rem;">
                         <button type="button" id="admin-members-subtab-btn-users" class="btn btn-primary" onclick="window.switchAdminMembersSubTab('users')">
-                            <i class="fa-solid fa-users-gear"></i> <span>Daftar Akun Pengguna</span>
+                            <i class="fa-solid fa-users-gear"></i> <span>Daftar Akun Member</span>
                         </button>
                         <button type="button" id="admin-members-subtab-btn-mp-orders" class="btn btn-outline" style="border-color: #d97706; color: #b45309; font-weight: 800;" onclick="window.switchAdminMembersSubTab('mp_orders')">
                             <i class="fa-solid fa-crown" style="color: #f59e0b;"></i> <span>Pesanan Langganan Member Plus</span>
@@ -793,23 +950,13 @@
                         </button>
                     </div>
 
-                    <!-- SUB-PANEL 1: DAFTAR AKUN PENGGUNA (MEMBER PLUS EMAS, MEMBER BIASA & TAMU) -->
+                    <!-- SUB-PANEL 1: DAFTAR AKUN MEMBER -->
                     <div id="admin-members-panel-users" class="dashboard-panel">
                         <div class="panel-header">
                             <div>
-                                <h3><i class="fa-solid fa-users-gear text-primary"></i> Daftar Pengguna &amp; Status Member Plus</h3>
-                                <small class="text-muted">Kelola akun member, aktivasi/perpanjangan Member Plus dengan PIN Admin, dan pembersihan tamu.</small>
+                                <h3><i class="fa-solid fa-users-gear text-primary"></i> Daftar Member &amp; Status Member Plus</h3>
                             </div>
                             <div class="flex-gap flex-wrap-gap">
-                                <button class="btn btn-warning btn-sm" onclick="window.autoCleanExpiredAnonAccounts6h(true)">
-                                    <i class="fa-solid fa-hourglass-end"></i> Hapus Tamu &gt; 6 Jam
-                                </button>
-                                <button class="btn btn-outline btn-sm text-danger border-danger" onclick="window.bulkDeleteInactiveGuests()">
-                                    <i class="fa-solid fa-broom"></i> Hapus Tamu 0 Trx
-                                </button>
-                                <button class="btn btn-outline btn-sm" onclick="window.clearStaleDeletedUidsV27()">
-                                    <i class="fa-solid fa-shield-heart text-success"></i> Reset Guard UID
-                                </button>
                                 <button class="btn btn-outline btn-sm" onclick="window.exportMembersCSV()">
                                     <i class="fa-solid fa-file-csv text-success"></i> Ekspor CSV
                                 </button>
@@ -818,10 +965,9 @@
 
                         <div class="flex-between flex-wrap-gap mb-3 align-center">
                             <div class="order-filter-pills">
-                                <button class="filter-pill active" onclick="window.setAdminMemberFilter('ALL', this)">Semua</button>
+                                <button class="filter-pill active" onclick="window.setAdminMemberFilter('ALL', this)">Semua Member</button>
                                 <button class="filter-pill" onclick="window.setAdminMemberFilter('MEMBER_PLUS', this)"><i class="fa-solid fa-crown" style="color:#f59e0b;"></i> Member Plus</button>
                                 <button class="filter-pill" onclick="window.setAdminMemberFilter('MEMBER', this)"><i class="fa-solid fa-circle-check text-success"></i> Member Biasa</button>
-                                <button class="filter-pill" onclick="window.setAdminMemberFilter('ANONYMOUS', this)"><i class="fa-solid fa-user text-warning"></i> Tamu</button>
                             </div>
                             <input type="text" id="admin-search-member" class="form-control" style="max-width: 340px;" placeholder="Cari nama, email, atau UID..." oninput="window.renderAdminMembers()">
                         </div>
@@ -1203,51 +1349,7 @@
                         </div>
                     </div>
 
-                    <!-- Panel Kendali Cepat Mode Lingkungan, Monitor API & Kendali Web User -->
-                    <div class="dashboard-panel mb-3 df-command-bar-panel" id="df-live-command-bar">
-                        <div class="df-command-bar-top">
-                            <div class="df-cmd-mode-block">
-                                <span class="df-cmd-label">MODE TRANSAKSI AKTIF</span>
-                                <div class="df-cmd-mode-pills">
-                                    <button type="button" id="btn-df-quick-mode-dev" class="btn btn-sm df-mode-switch-btn active" onclick="window.quickSwitchDigiflazzEnvMode('development')">
-                                        <i class="fa-solid fa-flask"></i> Development (Testing)
-                                    </button>
-                                    <button type="button" id="btn-df-quick-mode-prod" class="btn btn-sm df-mode-switch-btn" onclick="window.quickSwitchDigiflazzEnvMode('production')">
-                                        <i class="fa-solid fa-bolt"></i> Production (Live)
-                                    </button>
-                                </div>
-                            </div>
 
-                            <div class="df-cmd-health-block">
-                                <span class="df-cmd-label">STATUS KONEKSI &amp; RESPON API</span>
-                                <div class="df-cmd-health-row">
-                                    <span id="df-live-health-badge" class="status-badge status-success"><i class="fa-solid fa-signal"></i> SIAP DIGUNAKAN</span>
-                                    <span id="df-live-latency-badge" class="df-latency-pill"><i class="fa-solid fa-gauge-high"></i> <span id="df-live-latency-ms">- ms</span></span>
-                                    <button type="button" class="btn btn-outline btn-sm" id="btn-df-quick-ping" onclick="window.pingAndMonitorDigiflazzApi()">
-                                        <i class="fa-solid fa-satellite-dish text-primary"></i> Ping &amp; Cek API
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div class="df-cmd-webuser-block">
-                                <span class="df-cmd-label">KENDALI CEPAT WEB USER (REALTIME)</span>
-                                <div class="df-cmd-webuser-toggles">
-                                    <button type="button" id="btn-quick-web-store-status" class="btn btn-sm df-webuser-pill" onclick="window.quickToggleWebUserControl('isStoreClosed')">
-                                        <i class="fa-solid fa-store"></i> <span id="lbl-quick-web-store-status">Toko: Buka</span>
-                                    </button>
-                                    <button type="button" id="btn-quick-web-autohit" class="btn btn-sm df-webuser-pill" onclick="window.quickToggleWebUserControl('digiflazzAutoHitOnPaid')">
-                                        <i class="fa-solid fa-robot"></i> <span id="lbl-quick-web-autohit">Auto-Hit: ON</span>
-                                    </button>
-                                    <button type="button" id="btn-quick-web-balguard" class="btn btn-sm df-webuser-pill" onclick="window.quickToggleWebUserControl('digiflazzBalanceGuard')">
-                                        <i class="fa-solid fa-shield-halved"></i> <span id="lbl-quick-web-balguard">Proteksi Saldo: ON</span>
-                                    </button>
-                                    <button type="button" id="btn-quick-web-memberplus" class="btn btn-sm df-webuser-pill" onclick="window.quickToggleWebUserControl('memberPlusEnabled')">
-                                        <i class="fa-solid fa-crown"></i> <span id="lbl-quick-web-memberplus">Member Plus: ON</span>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
 
                     <!-- Navigasi 4 Sub-Tab Digiflazz -->
                     <div class="cs-subtabs-bar mb-3" style="flex-wrap: wrap;">
@@ -1502,50 +1604,7 @@
                             </div>
                         </div>
 
-                        <!-- Simulator Pengujian Cepat Mode Development & Pantauan Traffic API Digiflazz -->
-                        <div class="grid-2col mb-3">
-                            <div class="dashboard-panel mb-0">
-                                <div class="panel-header" style="margin-bottom: 0.75rem;">
-                                    <div>
-                                        <h3><i class="fa-solid fa-flask-vial text-warning"></i> Uji Cepat Transaksi Development</h3>
-                                        <small class="text-muted">Uji coba skenario nomor resmi Digiflazz (Sukses, Pending, Gagal, dan PLN).</small>
-                                    </div>
-                                    <span class="status-badge status-pending" id="df-sim-dev-badge">SANDBOX TEST</span>
-                                </div>
-                                <div class="grid-2col mb-2" style="gap: 8px;">
-                                    <input type="text" id="df-sim-test-sku" class="form-control code-mono" placeholder="Kode SKU Uji (Cth: xld10 / pulsa10)" value="xld10">
-                                    <select id="df-sim-test-case" class="form-control code-mono" onchange="window.applyAdminDevTestPreset(this.value)">
-                                        <option value="087800001230">087800001230 (Prabayar Langsung Sukses - RC 00)</option>
-                                        <option value="087800001232">087800001232 (Prabayar Langsung Gagal - RC 07)</option>
-                                        <option value="087800001233">087800001233 (Prabayar Pending lalu Sukses - RC 03)</option>
-                                        <option value="087800001234">087800001234 (Prabayar Pending lalu Gagal - RC 03)</option>
-                                        <option value="530000000001">530000000001 (Pelanggan PLN / Tagihan Pascabayar)</option>
-                                    </select>
-                                </div>
-                                <div class="flex-gap flex-wrap-gap">
-                                    <input type="text" id="df-sim-test-custno" class="form-control code-mono" style="flex:1;" value="087800001230" placeholder="Nomor Tujuan Uji">
-                                    <button type="button" class="btn btn-warning btn-sm" id="btn-df-run-dev-test" onclick="window.runAdminDigiflazzDevTest()">
-                                        <i class="fa-solid fa-play"></i> Eksekusi Uji Transaksi
-                                    </button>
-                                </div>
-                                <div id="df-sim-test-result" class="info-box text-xs mt-2" style="display:none;"></div>
-                            </div>
 
-                            <div class="dashboard-panel mb-0">
-                                <div class="panel-header" style="margin-bottom: 0.75rem;">
-                                    <div>
-                                        <h3><i class="fa-solid fa-wave-square text-primary"></i> Monitor Aktivitas API Digiflazz</h3>
-                                        <small class="text-muted">Catatan realtime panggilan endpoint, mode aktif, RC, dan waktu respon.</small>
-                                    </div>
-                                    <button type="button" class="btn btn-outline btn-sm" onclick="window.clearAdminDigiflazzApiLogs()">
-                                        <i class="fa-solid fa-broom"></i> Bersihkan
-                                    </button>
-                                </div>
-                                <div id="df-api-monitor-log-box" class="df-api-log-stream">
-                                    <div class="text-center text-muted text-xs" style="padding: 1.5rem 0.5rem;">Belum ada aktivitas panggilan API pada sesi ini.</div>
-                                </div>
-                            </div>
-                        </div>
 
                         <div class="dashboard-panel">
                             <div class="panel-header">
@@ -2332,15 +2391,10 @@
 
             <div id="proc-digiflazz-box" class="info-box mb-3" style="display: none; border-color: var(--primary); background: var(--surface-elevated);">
                 <div class="flex-between align-center flex-wrap-gap mb-1">
-                    <strong class="text-primary text-xs"><i class="fa-solid fa-microchip"></i> TRANSAKSI OTOMATIS DIGIFLAZZ</strong>
-                    <span id="proc-df-status-badge" class="status-badge status-pending">PENDING</span>
+                    <strong class="text-primary text-xs"><i class="fa-solid fa-microchip"></i> STATUS TRANSAKSI OTOMATIS DIGIFLAZZ</strong>
+                    <span id="proc-df-status-badge" class="status-badge status-pending">OTOMATIS</span>
                 </div>
-                <div id="proc-df-info-text" class="text-xs text-muted mb-2">-</div>
-                <div class="flex-gap flex-wrap-gap">
-                    <button type="button" id="btn-proc-hit-digiflazz" class="btn btn-primary btn-sm flex-1" onclick="window.triggerDigiflazzFromOrderModal()">
-                        <i class="fa-solid fa-bolt"></i> Kirim / Cek Status Digiflazz
-                    </button>
-                </div>
+                <div id="proc-df-info-text" class="text-xs text-muted mb-0">-</div>
             </div>
 
             <div id="proc-subscription-box" class="info-box bg-warning-light border-warning mb-3" style="display: none;">
@@ -2379,7 +2433,7 @@
                 <textarea id="proc-admin-reply" class="form-control code-mono" rows="5" placeholder="Masukkan detail akun atau catatan pengiriman untuk pembeli..."></textarea>
             </div>
 
-            <div class="flex-gap mb-2">
+            <div class="flex-gap mb-2" id="proc-print-receipt-wrap" style="display:none;">
                 <button type="button" class="btn btn-outline w-full" onclick="window.adminPrintOrderBluetooth58mm()">
                     <i class="fa-solid fa-print text-primary"></i> <span>Print Struk Bluetooth 58mm</span>
                 </button>
@@ -2985,20 +3039,41 @@
     </div>
 
     
-    <!-- 11. POP-UP VERIFIKASI PIN KEAMANAN ADMIN -->
+    <!-- 11. POP-UP VERIFIKASI PIN KEAMANAN ADMIN (M-BANKING 6 TITIK + KEYPAD) -->
     <div class="modal-overlay" id="modal-admin-pin-verify">
-        <div class="modal-content" style="max-width: 390px; text-align: center;">
+        <div class="modal-content" style="max-width: 410px; text-align: center;">
             <div class="modal-header">
-                <h2><i class="fa-solid fa-shield-halved text-primary"></i> Verifikasi PIN Admin</h2>
+                <h2><i class="fa-solid fa-shield-halved text-primary"></i> PIN Keamanan Admin</h2>
                 <button class="close-btn" onclick="window.closeAdminPinModal()" aria-label="Tutup">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
-            <p id="admin-pin-modal-desc" class="text-xs text-muted mb-3">
-                Masukkan 6 digit PIN Keamanan Admin untuk memvalidasi tindakan ini.
+            <p id="admin-pin-modal-desc" class="text-xs text-muted mb-2">
+                Masukkan 6 digit PIN Admin untuk melanjutkan.
             </p>
-            <div class="form-group">
-                <input type="password" id="admin-pin-verify-input" class="form-control code-mono text-center fw-900" style="font-size: 1.5rem; letter-spacing: 0.35em;" maxlength="6" inputmode="numeric" placeholder="••••••" onkeypress="if(event.key === 'Enter') window.confirmAdminPinVerification()">
+            <input type="password" id="admin-pin-verify-input" maxlength="6" inputmode="none" autocomplete="off" style="position:absolute; opacity:0; pointer-events:none; width:1px; height:1px;">
+            <div id="admin-pin-dots-row" class="mbanking-pin-dots" onclick="document.getElementById('admin-pin-verify-input')?.focus()">
+                <span class="pin-dot"></span>
+                <span class="pin-dot"></span>
+                <span class="pin-dot"></span>
+                <span class="pin-dot"></span>
+                <span class="pin-dot"></span>
+                <span class="pin-dot"></span>
+            </div>
+            <small id="admin-pin-error-helper" class="text-xs text-muted d-block mb-2">Gunakan tombol angka di bawah atau keyboard fisik</small>
+            <div class="mbanking-keypad-grid mb-3">
+                <button type="button" class="mbanking-key-btn" onclick="window.pressAdminPinKeypad('1')">1</button>
+                <button type="button" class="mbanking-key-btn" onclick="window.pressAdminPinKeypad('2')">2</button>
+                <button type="button" class="mbanking-key-btn" onclick="window.pressAdminPinKeypad('3')">3</button>
+                <button type="button" class="mbanking-key-btn" onclick="window.pressAdminPinKeypad('4')">4</button>
+                <button type="button" class="mbanking-key-btn" onclick="window.pressAdminPinKeypad('5')">5</button>
+                <button type="button" class="mbanking-key-btn" onclick="window.pressAdminPinKeypad('6')">6</button>
+                <button type="button" class="mbanking-key-btn" onclick="window.pressAdminPinKeypad('7')">7</button>
+                <button type="button" class="mbanking-key-btn" onclick="window.pressAdminPinKeypad('8')">8</button>
+                <button type="button" class="mbanking-key-btn" onclick="window.pressAdminPinKeypad('9')">9</button>
+                <button type="button" class="mbanking-key-btn key-fn" onclick="window.pressAdminPinKeypad('CLEAR')">C</button>
+                <button type="button" class="mbanking-key-btn" onclick="window.pressAdminPinKeypad('0')">0</button>
+                <button type="button" class="mbanking-key-btn key-fn" onclick="window.pressAdminPinKeypad('BACK')"><i class="fa-solid fa-delete-left"></i></button>
             </div>
             <div class="flex-gap">
                 <button type="button" class="btn btn-outline flex-1" onclick="window.closeAdminPinModal()">Batal</button>
@@ -3006,6 +3081,40 @@
                     <i class="fa-solid fa-check"></i> Konfirmasi PIN
                 </button>
             </div>
+        </div>
+    </div>
+
+    <!-- 12. POP-UP TAMBAH / KURANGI SALDO MEMBER MANUAL -->
+    <div class="modal-overlay" id="modal-adjust-user-balance">
+        <div class="modal-content" style="max-width: 440px;">
+            <div class="modal-header">
+                <h2><i class="fa-solid fa-wallet text-primary"></i> Kelola Saldo Member</h2>
+                <button class="close-btn" onclick="window.closeModal('modal-adjust-user-balance')" aria-label="Tutup">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <input type="hidden" id="adj-bal-uid">
+            <div id="adj-bal-user-info" class="info-box mb-3"></div>
+            <div class="grid-2col">
+                <div class="form-group">
+                    <label>Jenis Tindakan</label>
+                    <select id="adj-bal-type" class="form-control fw-bold">
+                        <option value="ADD">+ Tambah Saldo Member</option>
+                        <option value="DEDUCT">- Potong / Kurangi Saldo</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Nominal (Rp) <span class="text-danger">*</span></label>
+                    <input type="tel" inputmode="numeric" pattern="[0-9]*" id="adj-bal-amount" class="form-control fw-bold code-mono" placeholder="Contoh: 50000" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Catatan Mutasi</label>
+                <input type="text" id="adj-bal-note" class="form-control" placeholder="Contoh: Top Up Tunai di Kasir Admin">
+            </div>
+            <button type="button" class="btn btn-success w-full" onclick="window.submitAdminBalanceAdjustment()">
+                <i class="fa-solid fa-check-circle"></i> Simpan Perubahan Saldo
+            </button>
         </div>
     </div>
 
@@ -3032,7 +3141,7 @@
     </div>
 
     <!-- Script Utama Admin -->
-    <script type="module" src="js/admin.js?v=28.7" defer></script>
+    <script type="module" src="js/admin.js?v=28.8" defer></script>
 
     <script>
         if ('serviceWorker' in navigator) {

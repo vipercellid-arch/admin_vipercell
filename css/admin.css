@@ -3427,3 +3427,94 @@ button.btn-working-indicator::after,
     gap: 6px;
     flex-shrink: 0;
 }
+
+/* ============================================================================
+ * PEMBARUAN v28.8: M-BANKING 6-DOT PIN PAD ADMIN, TAB PANTAU SALDO,
+ * & EFEK SENTUH TOMBOL UNIVERSAL
+ * ============================================================================ */
+
+.mbanking-pin-dots {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 6px;
+    margin: 4px auto 8px;
+    cursor: pointer;
+}
+
+.mbanking-pin-dots .pin-dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2.5px solid var(--border);
+    background: var(--bg);
+    transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.16s ease, border-color 0.16s ease;
+}
+
+.mbanking-pin-dots .pin-dot.filled {
+    background: var(--primary);
+    border-color: var(--border);
+    transform: scale(1.18);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+}
+
+.mbanking-pin-dots.pin-error-shake {
+    animation: adminPinErrorShake 0.42s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+.mbanking-pin-dots.pin-error-shake .pin-dot {
+    border-color: var(--danger);
+    background: rgba(239, 68, 68, 0.25);
+}
+
+@keyframes adminPinErrorShake {
+    10%, 90% { transform: translate3d(-4px, 0, 0); }
+    20%, 80% { transform: translate3d(6px, 0, 0); }
+    30%, 50%, 70% { transform: translate3d(-8px, 0, 0); }
+    40%, 60% { transform: translate3d(8px, 0, 0); }
+}
+
+.mbanking-keypad-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    max-width: 310px;
+    margin: 0 auto;
+}
+
+.mbanking-key-btn {
+    height: 44px;
+    border-radius: 12px;
+    border: 2px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-family: var(--font-heading);
+    font-size: 1.1rem;
+    font-weight: 900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    user-select: none;
+    box-shadow: 2px 2px 0px var(--border);
+    transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.12s ease;
+}
+
+.mbanking-key-btn:hover {
+    background: var(--surface-hover);
+}
+
+.mbanking-key-btn:active,
+.mbanking-key-btn.btn-tap-pressed {
+    transform: translate(2px, 2px) scale(0.96);
+    box-shadow: 0px 0px 0px var(--border);
+    background: var(--primary);
+    color: #ffffff;
+}
+
+.mbanking-key-btn.key-fn {
+    background: var(--bg);
+    font-size: 0.92rem;
+    color: var(--danger);
+}

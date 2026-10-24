@@ -1,5 +1,5 @@
 /**
- * VIPERCELL - DIGIFLAZZ VPS BRIDGE & WEBHOOK RECEIVER (v28.7)
+ * VIPERCELL - DIGIFLAZZ VPS BRIDGE & WEBHOOK RECEIVER (v28.8)
  */
 
 const http = require("http");
@@ -80,7 +80,10 @@ function normalizeCustomerNo(rawTarget, zoneId = "") {
     if (s.includes(" (")) {
         s = s.split(" (")[0].trim();
     }
-    const cleanS = s.replace(/\s+/g, "");
+    let cleanS = s.replace(/[\s\-]+/g, "");
+    if (/^(\+628|628)[0-9]{6,13}$/.test(cleanS)) {
+        cleanS = "08" + cleanS.replace(/^(\+628|628)/, "");
+    }
     const cleanZ = z.replace(/[\s()]+/g, "");
     if (cleanZ && !cleanS.endsWith(cleanZ)) {
         return `${cleanS}${cleanZ}`;
@@ -317,6 +320,22 @@ async function refundFailedOrderBalanceOnFirestore(orderDoc, reasonStr) {
                 adminReply: { stringValue: refundReply }
             }
         });
+
+        // Catat otomatis ke koleksi balance_logs agar tampil di Tab Pantau Saldo Admin & Riwayat User
+        const orderIdStr = readStr("id") || readStr("orderId") || "-";
+        const userEmailStr = readStr("userEmail") || readStr("buyerEmail") || "";
+        const logUrl = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/balance_logs?key=${FIREBASE_API_KEY}`;
+        await httpsJsonRequest(logUrl, "POST", {}, {
+            fields: {
+                uid: { stringValue: userId },
+                userEmail: { stringValue: userEmailStr },
+                type: { stringValue: "REFUND" },
+                amount: { integerValue: String(refundAmt) },
+                orderId: { stringValue: orderIdStr },
+                note: { stringValue: `Auto-Refund Webhook Digiflazz #${orderIdStr} (${reasonStr})` },
+                createdAt: { integerValue: String(nowMs) }
+            }
+        }).catch(() => {});
         return true;
     } catch (e) {
         return false;
@@ -422,7 +441,7 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({
             ok: true,
-            service: "Vipercell Digiflazz VPS Bridge v28.7",
+            service: "Vipercell Digiflazz VPS Bridge v28.8",
             projectId: FIREBASE_PROJECT_ID,
             username: serverConfig.username || "",
             envMode: serverConfig.envMode,
@@ -836,5 +855,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-    console.log(`Vipercell Digiflazz VPS Bridge v28.7 berjalan di port ${PORT}`);
+    console.log(`Vipercell Digiflazz VPS Bridge v28.8 berjalan di port ${PORT}`);
 });
