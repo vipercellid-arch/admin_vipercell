@@ -1203,6 +1203,52 @@
                         </div>
                     </div>
 
+                    <!-- Panel Kendali Cepat Mode Lingkungan, Monitor API & Kendali Web User -->
+                    <div class="dashboard-panel mb-3 df-command-bar-panel" id="df-live-command-bar">
+                        <div class="df-command-bar-top">
+                            <div class="df-cmd-mode-block">
+                                <span class="df-cmd-label">MODE TRANSAKSI AKTIF</span>
+                                <div class="df-cmd-mode-pills">
+                                    <button type="button" id="btn-df-quick-mode-dev" class="btn btn-sm df-mode-switch-btn active" onclick="window.quickSwitchDigiflazzEnvMode('development')">
+                                        <i class="fa-solid fa-flask"></i> Development (Testing)
+                                    </button>
+                                    <button type="button" id="btn-df-quick-mode-prod" class="btn btn-sm df-mode-switch-btn" onclick="window.quickSwitchDigiflazzEnvMode('production')">
+                                        <i class="fa-solid fa-bolt"></i> Production (Live)
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="df-cmd-health-block">
+                                <span class="df-cmd-label">STATUS KONEKSI &amp; RESPON API</span>
+                                <div class="df-cmd-health-row">
+                                    <span id="df-live-health-badge" class="status-badge status-success"><i class="fa-solid fa-signal"></i> SIAP DIGUNAKAN</span>
+                                    <span id="df-live-latency-badge" class="df-latency-pill"><i class="fa-solid fa-gauge-high"></i> <span id="df-live-latency-ms">- ms</span></span>
+                                    <button type="button" class="btn btn-outline btn-sm" id="btn-df-quick-ping" onclick="window.pingAndMonitorDigiflazzApi()">
+                                        <i class="fa-solid fa-satellite-dish text-primary"></i> Ping &amp; Cek API
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="df-cmd-webuser-block">
+                                <span class="df-cmd-label">KENDALI CEPAT WEB USER (REALTIME)</span>
+                                <div class="df-cmd-webuser-toggles">
+                                    <button type="button" id="btn-quick-web-store-status" class="btn btn-sm df-webuser-pill" onclick="window.quickToggleWebUserControl('isStoreClosed')">
+                                        <i class="fa-solid fa-store"></i> <span id="lbl-quick-web-store-status">Toko: Buka</span>
+                                    </button>
+                                    <button type="button" id="btn-quick-web-autohit" class="btn btn-sm df-webuser-pill" onclick="window.quickToggleWebUserControl('digiflazzAutoHitOnPaid')">
+                                        <i class="fa-solid fa-robot"></i> <span id="lbl-quick-web-autohit">Auto-Hit: ON</span>
+                                    </button>
+                                    <button type="button" id="btn-quick-web-balguard" class="btn btn-sm df-webuser-pill" onclick="window.quickToggleWebUserControl('digiflazzBalanceGuard')">
+                                        <i class="fa-solid fa-shield-halved"></i> <span id="lbl-quick-web-balguard">Proteksi Saldo: ON</span>
+                                    </button>
+                                    <button type="button" id="btn-quick-web-memberplus" class="btn btn-sm df-webuser-pill" onclick="window.quickToggleWebUserControl('memberPlusEnabled')">
+                                        <i class="fa-solid fa-crown"></i> <span id="lbl-quick-web-memberplus">Member Plus: ON</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Navigasi 4 Sub-Tab Digiflazz -->
                     <div class="cs-subtabs-bar mb-3" style="flex-wrap: wrap;">
                         <button type="button" id="df-subtab-btn-catalog" class="cs-subtab-btn active" onclick="window.switchDigiflazzSubTab('catalog')">
@@ -1453,6 +1499,51 @@
                                     <i class="fa-solid fa-file-magnifying-glass"></i> Cek Tagihan Sekarang
                                 </button>
                                 <div id="df-tool-pasca-result" class="info-box text-xs mt-2" style="display:none;"></div>
+                            </div>
+                        </div>
+
+                        <!-- Simulator Pengujian Cepat Mode Development & Pantauan Traffic API Digiflazz -->
+                        <div class="grid-2col mb-3">
+                            <div class="dashboard-panel mb-0">
+                                <div class="panel-header" style="margin-bottom: 0.75rem;">
+                                    <div>
+                                        <h3><i class="fa-solid fa-flask-vial text-warning"></i> Uji Cepat Transaksi Development</h3>
+                                        <small class="text-muted">Uji coba skenario nomor resmi Digiflazz (Sukses, Pending, Gagal, dan PLN).</small>
+                                    </div>
+                                    <span class="status-badge status-pending" id="df-sim-dev-badge">SANDBOX TEST</span>
+                                </div>
+                                <div class="grid-2col mb-2" style="gap: 8px;">
+                                    <input type="text" id="df-sim-test-sku" class="form-control code-mono" placeholder="Kode SKU Uji (Cth: xld10 / pulsa10)" value="xld10">
+                                    <select id="df-sim-test-case" class="form-control code-mono" onchange="window.applyAdminDevTestPreset(this.value)">
+                                        <option value="087800001230">087800001230 (Prabayar Langsung Sukses - RC 00)</option>
+                                        <option value="087800001232">087800001232 (Prabayar Langsung Gagal - RC 07)</option>
+                                        <option value="087800001233">087800001233 (Prabayar Pending lalu Sukses - RC 03)</option>
+                                        <option value="087800001234">087800001234 (Prabayar Pending lalu Gagal - RC 03)</option>
+                                        <option value="530000000001">530000000001 (Pelanggan PLN / Tagihan Pascabayar)</option>
+                                    </select>
+                                </div>
+                                <div class="flex-gap flex-wrap-gap">
+                                    <input type="text" id="df-sim-test-custno" class="form-control code-mono" style="flex:1;" value="087800001230" placeholder="Nomor Tujuan Uji">
+                                    <button type="button" class="btn btn-warning btn-sm" id="btn-df-run-dev-test" onclick="window.runAdminDigiflazzDevTest()">
+                                        <i class="fa-solid fa-play"></i> Eksekusi Uji Transaksi
+                                    </button>
+                                </div>
+                                <div id="df-sim-test-result" class="info-box text-xs mt-2" style="display:none;"></div>
+                            </div>
+
+                            <div class="dashboard-panel mb-0">
+                                <div class="panel-header" style="margin-bottom: 0.75rem;">
+                                    <div>
+                                        <h3><i class="fa-solid fa-wave-square text-primary"></i> Monitor Aktivitas API Digiflazz</h3>
+                                        <small class="text-muted">Catatan realtime panggilan endpoint, mode aktif, RC, dan waktu respon.</small>
+                                    </div>
+                                    <button type="button" class="btn btn-outline btn-sm" onclick="window.clearAdminDigiflazzApiLogs()">
+                                        <i class="fa-solid fa-broom"></i> Bersihkan
+                                    </button>
+                                </div>
+                                <div id="df-api-monitor-log-box" class="df-api-log-stream">
+                                    <div class="text-center text-muted text-xs" style="padding: 1.5rem 0.5rem;">Belum ada aktivitas panggilan API pada sesi ini.</div>
+                                </div>
                             </div>
                         </div>
 

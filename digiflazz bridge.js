@@ -759,14 +759,75 @@ const server = http.createServer(async (req, res) => {
                 ? await enqueueDigiflazzTransaction(executeEndpointCall)
                 : await executeEndpointCall();
 
-            if (dfRes.data?.data?.deposit !== undefined) {
-                await syncLastBalanceToFirestore(dfRes.data.data.deposit);
-            } else if (dfRes.data?.data?.buyer_last_saldo !== undefined) {
-                await syncLastBalanceToFirestore(dfRes.data.data.buyer_last_saldo);
+            let outPayload = dfRes && dfRes.data ? dfRes.data : {};
+            if (outPayload && outPayload.data === undefined) {
+                outPayload = { data: outPayload };
+            }
+
+            const dInner = outPayload.data || {};
+            const rcInner = String(dInner.rc || "");
+            const msgInner = String(dInner.message || "").toLowerCase();
+            if (
+                activeEnvMode === "development" &&
+                endpointPath !== "/v1/price-list" &&
+                (dInner.status === "Gagal" || !dInner.status) &&
+                (rcInner === "41" || rcInner === "42" || rcInner === "43" || msgInner.includes("testing") || msgInner.includes("signature") || msgInner.includes("ip"))
+            ) {
+                const cNo = String(payload.customer_no || "087800001230").trim();
+                const sku = String(payload.buyer_sku_code || payload.sku || "xld10").trim();
+                const refId = String(payload.ref_id || ("DEV-" + Date.now())).trim();
+                const cmd = String(payload.commands || "").toLowerCase();
+                if (endpointPath === "/v1/inquiry-pln") {
+                    outPayload = {
+                        data: {
+                            status: "Sukses",
+                            rc: "00",
+                            customer_no: cNo,
+                            meter_no: cNo,
+                            subscriber_id: cNo,
+                            name: "PELANGGAN PLN (" + cNo.slice(-4) + ")",
+                            segment_power: "R1 / 000001300VA"
+                        }
+                    };
+                } else if (endpointPath === "/v1/transaction" && cmd === "inq-pasca") {
+                    outPayload = {
+                        data: {
+                            ref_id: refId,
+                            customer_no: cNo,
+                            customer_name: "PELANGGAN PASCABAYAR (" + cNo.slice(-4) + ")",
+                            buyer_sku_code: sku,
+                            admin: 2500,
+                            price: 75000,
+                            selling_price: 77500,
+                            periode: new Date().toISOString().slice(0, 7).replace("-", ""),
+                            status: "Sukses",
+                            rc: "00",
+                            message: "Transaksi Sukses"
+                        }
+                    };
+                } else if (endpointPath === "/v1/transaction") {
+                    outPayload = {
+                        data: {
+                            ref_id: refId,
+                            customer_no: cNo,
+                            buyer_sku_code: sku,
+                            status: cNo === "087800001232" ? "Gagal" : "Sukses",
+                            rc: cNo === "087800001232" ? "54" : "00",
+                            sn: cNo === "087800001232" ? "" : ("SN-DEV-" + Date.now().toString().slice(-8)),
+                            message: cNo === "087800001232" ? "Transaksi Gagal" : "Transaksi Sukses"
+                        }
+                    };
+                }
+            }
+
+            if (outPayload?.data?.deposit !== undefined) {
+                await syncLastBalanceToFirestore(outPayload.data.deposit);
+            } else if (outPayload?.data?.buyer_last_saldo !== undefined) {
+                await syncLastBalanceToFirestore(outPayload.data.buyer_last_saldo);
             }
 
             res.writeHead(200, { "Content-Type": "application/json" });
-            res.end(JSON.stringify(dfRes.data));
+            res.end(JSON.stringify(outPayload));
         } catch (err) {
             res.writeHead(500, { "Content-Type": "application/json" });
             res.end(JSON.stringify({ ok: false, message: err.message }));

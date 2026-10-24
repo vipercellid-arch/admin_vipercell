@@ -3229,3 +3229,201 @@ html, body {
     transform: translateY(0) scale(1) !important;
     opacity: 1 !important;
 }
+
+
+/* ============================================================================
+   PEMBARUAN V28.7: EFEK SENTUH & INDIKATOR TOMBOL BEKERJA + PANEL MONITOR API
+   ============================================================================ */
+button,
+.btn,
+.nav-item,
+.mobile-nav-item,
+.cs-subtab-btn,
+.filter-pill,
+.btn-icon-only,
+.neo-tier-btn {
+    position: relative;
+    transition: transform 0.14s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.14s ease, filter 0.14s ease, background-color 0.16s ease, border-color 0.16s ease !important;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+}
+
+button.btn-tap-pressed,
+.btn.btn-tap-pressed,
+.nav-item.btn-tap-pressed,
+.mobile-nav-item.btn-tap-pressed,
+.cs-subtab-btn.btn-tap-pressed,
+.filter-pill.btn-tap-pressed,
+.btn-icon-only.btn-tap-pressed,
+.neo-tier-btn.btn-tap-pressed {
+    transform: translate(2px, 2px) scale(0.97) !important;
+    filter: brightness(0.95);
+}
+
+button.btn-working-indicator,
+.btn.btn-working-indicator,
+.cs-subtab-btn.btn-working-indicator,
+.filter-pill.btn-working-indicator {
+    pointer-events: auto;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.28) !important;
+}
+
+button.btn-working-indicator::after,
+.btn.btn-working-indicator::after {
+    content: '';
+    width: 12px;
+    height: 12px;
+    margin-left: 7px;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 50%;
+    display: inline-block;
+    vertical-align: middle;
+    animation: adminBtnSpinV287 0.55s linear infinite;
+}
+
+@keyframes adminBtnSpinV287 {
+    to { transform: rotate(360deg); }
+}
+
+/* Panel Kendali Cepat Mode Lingkungan & Web User */
+.df-command-bar-panel {
+    padding: 0.95rem 1.15rem !important;
+    background: linear-gradient(135deg, var(--surface-card) 0%, var(--surface-elevated) 100%);
+    border: 2px solid var(--border-color);
+}
+
+.df-command-bar-top {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+    align-items: center;
+}
+
+.df-cmd-label {
+    display: block;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    margin-bottom: 0.42rem;
+    text-transform: uppercase;
+}
+
+.df-cmd-mode-pills {
+    display: inline-flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.df-mode-switch-btn {
+    border: 2px solid var(--border-color);
+    background: var(--surface-card);
+    color: var(--text-main);
+    font-weight: 800;
+    font-size: 0.76rem;
+    padding: 6px 11px;
+    border-radius: 8px;
+}
+
+.df-mode-switch-btn.active#btn-df-quick-mode-dev {
+    background: #fef3c7;
+    color: #b45309;
+    border-color: #f59e0b;
+    box-shadow: 2px 2px 0px rgba(245, 158, 11, 0.35);
+}
+
+.df-mode-switch-btn.active#btn-df-quick-mode-prod {
+    background: #d1fae5;
+    color: #047857;
+    border-color: #10b981;
+    box-shadow: 2px 2px 0px rgba(16, 185, 129, 0.35);
+}
+
+.df-cmd-health-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.df-latency-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.74rem;
+    font-weight: 800;
+    background: var(--surface-card);
+    border: 1.5px solid var(--border-color);
+    color: var(--text-main);
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.df-cmd-webuser-toggles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.df-webuser-pill {
+    font-size: 0.73rem;
+    font-weight: 800;
+    padding: 5px 10px;
+    border-radius: 8px;
+    border: 1.5px solid var(--border-color);
+    background: var(--surface-card);
+    color: var(--text-main);
+}
+
+.df-webuser-pill.pill-on {
+    background: rgba(16, 185, 129, 0.14);
+    color: #059669;
+    border-color: #10b981;
+}
+
+.df-webuser-pill.pill-off {
+    background: rgba(239, 68, 68, 0.12);
+    color: #dc2626;
+    border-color: #ef4444;
+}
+
+/* Stream Monitor API Digiflazz */
+.df-api-log-stream {
+    max-height: 195px;
+    overflow-y: auto;
+    border: 1.5px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--surface-elevated);
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.df-api-log-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 9px;
+    border-radius: 8px;
+    background: var(--surface-card);
+    border: 1px solid var(--border-color);
+    font-size: 0.74rem;
+}
+
+.df-api-log-left {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.df-api-log-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
