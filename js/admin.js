@@ -222,6 +222,12 @@ const DARK_RIPPLE_COLORS = [
 
 function spawnAdminWaterRippleAt(clientX, clientY, isClick = false) {
     if (siteSettings.waterRippleEnabled === false) return;
+    try {
+        const hitEl = document.elementFromPoint(clientX, clientY);
+        if (hitEl && hitEl.closest('footer, .admin-footer-neo, .admin-topbar, .admin-sidebar')) {
+            return;
+        }
+    } catch (_) {}
     const canvas = waterRippleEngine.canvas || document.getElementById('water-ripple-canvas');
     if (!canvas) return;
     if (!waterRippleEngine.ctx) {
@@ -2380,10 +2386,13 @@ window.renderAdminMemberPlusOrders = function() {
                         <span class="text-muted fw-bold">MULAI LANGGANAN:</span>
                         <strong>${window.escapeHtml(startDateStr)}</strong>
                     </div>
-                    <div style="display:flex; justify-content:space-between;">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
                         <span class="text-muted fw-bold">TANGGAL AKHIR:</span>
                         <strong style="color:#15803d;">${window.escapeHtml(endDateStr)}</strong>
                     </div>
+                    <button type="button" class="btn btn-outline btn-sm text-danger border-danger w-full" style="font-size:0.72rem;" onclick="window.adminRevokeMemberPlusUserWithPin('${escapeJsStr(o.userId || '')}', '${escapeJsStr(o.buyerName || o.userEmail || 'Member')}', '${escapeJsStr(o.dbId)}')">
+                        <i class="fa-solid fa-user-slash"></i> Cabut Langganan Member Plus
+                    </button>
                 </div>`;
         } else if (!isCancelled) {
             actionAreaHtml = `
@@ -2455,6 +2464,7 @@ window.adminExecuteMemberPlusActivationDirect = async function(orderDbId) {
                 isMemberPlus: true,
                 memberPlusSince: sinceMs,
                 memberPlusExpiresAt: nextExp,
+                memberPlusRevokedAt: 0,
                 updatedAt: nowMs
             }, { merge: true });
         }
@@ -2610,6 +2620,7 @@ window.adminActivateMemberPlusUserWithPin = function(uid, displayName, durDays =
                     isMemberPlus: true,
                     memberPlusSince: sinceMs,
                     memberPlusExpiresAt: nextExp,
+                    memberPlusRevokedAt: 0,
                     updatedAt: nowMs
                 }, { merge: true });
 
@@ -2627,23 +2638,58 @@ window.adminActivateMemberPlusUserWithPin = function(uid, displayName, durDays =
     );
 };
 
-window.adminRevokeMemberPlusUserWithPin = function(uid, displayName) {
-    if (!uid) return;
-    window.requestAdminPinVerification(
-        `Nonaktifkan Status Member Plus untuk ${displayName}`,
-        async () => {
+window.adminRevokeMemberPlusUserWithPin = function(uid, displayName, specificOrderDbId = '') {
+    if (!uid && !specificOrderDbId) return;
+    window.openConfirm(
+        'Cabut Langganan Member Plus',
+        `Nonaktifkan dan cabut status <b>Member Plus</b> untuk <b>${window.escapeHtml(displayName || 'Member')}</b> secara langsung?`,
+        async (confirmed) => {
+            if (!confirmed) return;
             try {
-                await setDoc(doc(db, pathUsers, uid), {
-                    isMemberPlus: false,
-                    memberPlusExpiresAt: 0,
-                    updatedAt: Date.now()
-                }, { merge: true });
-                window.showToast('Status Dinonaktifkan', `Status Member Plus ${displayName} telah dinonaktifkan.`, 'warning');
+                const nowMs = Date.now();
+                const userObj = allUsersList.find(u => u.uid === uid);
+                const uEmail = (userObj?.email || '').toLowerCase();
+
+                if (uid) {
+                    await setDoc(doc(db, pathUsers, uid), {
+                        isMemberPlus: false,
+                        memberPlusExpiresAt: 0,
+                        memberPlusRevokedAt: nowMs,
+                        updatedAt: nowMs
+                    }, { merge: true });
+                }
+
+                // Tandai seluruh pesanan langganan Member Plus aktif milik user ini sebagai REVOKED agar Web User langsung berubah real-time
+                const relatedMpOrders = orders.filter(o => {
+                    if (!o) return false;
+                    const isMp = Boolean(o.isMemberPlusOrder === true || o.orderType === 'MEMBER_PLUS_SUB' || String(o.id || '').toUpperCase().startsWith('MPLUS-'));
+                    if (!isMp) return false;
+                    if (specificOrderDbId && o.dbId === specificOrderDbId) return true;
+                    if (uid && o.userId === uid) return true;
+                    if (uEmail && String(o.userEmail || '').toLowerCase() === uEmail) return true;
+                    return false;
+                });
+
+                await Promise.all(relatedMpOrders.map(ord => {
+                    if (!ord.dbId) return Promise.resolve();
+                    return updateDoc(doc(db, pathOrders, ord.dbId), {
+                        status: 'CANCELLED',
+                        memberPlusActivated: false,
+                        subscriptionStatus: 'REVOKED',
+                        subscriptionEndAt: 0,
+                        revokedAt: nowMs,
+                        adminReply: '[LANGGANAN MEMBER PLUS DICABUT OLEH ADMIN]'
+                    }).catch(() => {});
+                }));
+
+                window.showToast('Langganan Dicabut', `Status Member Plus ${displayName} berhasil dicabut secara real-time.`, 'warning');
+                window.renderAdminMemberPlusOrders();
                 window.renderAdminMembers();
             } catch (e) {
-                window.customAlert('Gagal', 'Tidak dapat mengubah status Member Plus.', 'error');
+                window.customAlert('Gagal', 'Tidak dapat mencabut status Member Plus.', 'error');
             }
-        }
+        },
+        'delete'
     );
 };
 
@@ -6759,10 +6805,10 @@ window.populateSettingsForm = function() {
     if (dfSecretEl) dfSecretEl.value = siteSettings.digiflazzWebhookSecret || 'VIPERCELL_DF_WEBHOOK_2026';
     if (dfAutoEl) dfAutoEl.checked = siteSettings.digiflazzAutoHitOnPaid !== false;
     if (dfBalGuardEl) dfBalGuardEl.checked = siteSettings.digiflazzBalanceGuard !== false;
-    if (dfMkTypeEl) dfMkTypeEl.value = siteSettings.digiflazzMarkupType || 'nominal';
-    if (dfMkValEl) dfMkValEl.value = siteSettings.digiflazzMarkupValue ?? 1500;
-    if (dfMkRoundEl) dfMkRoundEl.value = siteSettings.digiflazzMarkupRound || '100';
     if (typeof window.onChangeDigiflazzEnvMode === 'function') window.onChangeDigiflazzEnvMode();
+    if (typeof window.onChangeAdminMarkupScope === 'function') {
+        window.onChangeAdminMarkupScope();
+    }
 
     const dfModeBadge = document.getElementById('df-connection-mode-badge');
     if (dfModeBadge) {
@@ -7430,6 +7476,29 @@ window.onChangeDigiflazzEnvMode = function() {
 };
 
 // 4. Hitung Harga Jual Otomatis Berdasarkan Markup (Member Biasa / Member Plus & Semua / Kategori / Brand)
+function getDefaultMarkupRuleForTier(tier = 'regular') {
+    const isMp = (tier === 'member_plus');
+    const baseT1 = Number(siteSettings.digiflazzTier1 || 1200);
+    const baseT2 = Number(siteSettings.digiflazzTier2 || 2000);
+    const baseT3 = Number(siteSettings.digiflazzTier3 || 3500);
+    const baseT4 = Number(siteSettings.digiflazzTier4Pct || 2.5);
+    const baseVal = Number(siteSettings.digiflazzMarkupValue ?? 1500);
+    const baseMin = Number(siteSettings.digiflazzMarkupMinRp ?? 1000);
+    const discPct = Math.min(80, Math.max(5, Number(siteSettings.digiflazzMarkupMemberPlusDisc ?? 35)));
+    const factor = isMp ? (1 - discPct / 100) : 1;
+
+    return {
+        type: siteSettings.digiflazzMarkupType || 'smart_tiered',
+        value: isMp ? Math.max(200, Math.round(baseVal * factor)) : baseVal,
+        minRp: isMp ? Math.max(200, Math.round(baseMin * factor)) : baseMin,
+        round: siteSettings.digiflazzMarkupRound || '100',
+        tier1: isMp ? Math.max(200, Math.round(baseT1 * factor)) : baseT1,
+        tier2: isMp ? Math.max(200, Math.round(baseT2 * factor)) : baseT2,
+        tier3: isMp ? Math.max(200, Math.round(baseT3 * factor)) : baseT3,
+        tier4Pct: isMp ? Number(Math.max(0.5, baseT4 * factor).toFixed(1)) : baseT4
+    };
+}
+
 function getMarkupRuleForTarget(tier = 'regular', category = '', brand = '') {
     const rules = siteSettings.digiflazzMarkupRules || {};
     const tierObj = rules[tier] || {};
@@ -7444,6 +7513,24 @@ function getMarkupRuleForTarget(tier = 'regular', category = '', brand = '') {
     }
     if (tierObj.all) {
         return tierObj.all;
+    }
+    // Jika Member Plus belum punya rule tersendiri tapi Member Biasa punya rule, turunkan otomatis dari Member Biasa
+    if (tier === 'member_plus') {
+        const regRule = getMarkupRuleForTarget('regular', category, brand);
+        if (regRule) {
+            const discPct = Math.min(80, Math.max(5, Number(siteSettings.digiflazzMarkupMemberPlusDisc ?? 35)));
+            const factor = 1 - (discPct / 100);
+            return {
+                type: regRule.type || 'smart_tiered',
+                value: Math.max(200, Math.round(Number(regRule.value || 1500) * factor)),
+                minRp: Math.max(200, Math.round(Number(regRule.minRp || 1000) * factor)),
+                round: regRule.round || '100',
+                tier1: Math.max(200, Math.round(Number(regRule.tier1 || 1200) * factor)),
+                tier2: Math.max(200, Math.round(Number(regRule.tier2 || 2000) * factor)),
+                tier3: Math.max(200, Math.round(Number(regRule.tier3 || 3500) * factor)),
+                tier4Pct: Number(Math.max(0.5, Number(regRule.tier4Pct || 2.5) * factor).toFixed(1))
+            };
+        }
     }
     return null;
 }
@@ -7473,13 +7560,25 @@ window.onChangeAdminMarkupScope = function() {
     if (catWrap) catWrap.style.display = scope === 'CATEGORY' ? 'block' : 'none';
     if (brandWrap) brandWrap.style.display = scope === 'BRAND' ? 'block' : 'none';
 
+    const savedRules = siteSettings.digiflazzMarkupRules || {};
+    const savedCats = [
+        ...Object.keys(savedRules.regular?.categories || {}),
+        ...Object.keys(savedRules.member_plus?.categories || {})
+    ];
+    const savedBrands = [
+        ...Object.keys(savedRules.regular?.brands || {}),
+        ...Object.keys(savedRules.member_plus?.brands || {})
+    ];
+
     const cats = Array.from(new Set([
         ...digiflazzCatalogList.map(i => i.category).filter(Boolean),
-        ...products.map(p => p.type).filter(Boolean)
+        ...products.map(p => p.type).filter(Boolean),
+        ...savedCats
     ])).sort();
     const brands = Array.from(new Set([
         ...digiflazzCatalogList.map(i => i.brand).filter(Boolean),
-        ...products.map(p => p.brand).filter(Boolean)
+        ...products.map(p => p.brand).filter(Boolean),
+        ...savedBrands
     ])).sort();
 
     if (catSel && cats.length > 0) {
@@ -7522,7 +7621,6 @@ window.syncMarkupCalculationTypeInputsUI = function() {
         if (valLabel) valLabel.innerText = 'Persentase Markup (+%)';
         if (minWrap) minWrap.style.display = 'none';
     } else {
-        // nominal (+Rp)
         if (smartBox) smartBox.style.display = 'none';
         if (flatHybridBox) flatHybridBox.style.display = 'grid';
         if (valWrap) valWrap.style.display = 'block';
@@ -7531,6 +7629,9 @@ window.syncMarkupCalculationTypeInputsUI = function() {
     }
 };
 
+window.updateActiveMarkupInfoBanner = function() {};
+
+// Langsung isi tabel utama dengan data markup tersimpan sesuai Target Member & Cakupan yang dipilih
 window.onChangeAdminMarkupScopeValue = function() {
     const tier = document.getElementById('df-markup-target-tier')?.value || 'regular';
     const scope = document.getElementById('df-markup-scope-select')?.value || 'ALL';
@@ -7542,20 +7643,54 @@ window.onChangeAdminMarkupScopeValue = function() {
         scope === 'CATEGORY' ? catVal : '',
         scope === 'BRAND' ? brandVal : ''
     );
+    const activeRule = savedRule || getDefaultMarkupRuleForTier(tier);
 
-    if (savedRule) {
-        if (document.getElementById('df-markup-type') && savedRule.type) document.getElementById('df-markup-type').value = savedRule.type;
-        if (document.getElementById('df-markup-value') && savedRule.value !== undefined) document.getElementById('df-markup-value').value = savedRule.value;
-        if (document.getElementById('df-markup-min-rp') && savedRule.minRp !== undefined) document.getElementById('df-markup-min-rp').value = savedRule.minRp;
-        if (document.getElementById('df-markup-round') && savedRule.round) document.getElementById('df-markup-round').value = savedRule.round;
-        if (document.getElementById('df-tier-1') && savedRule.tier1 !== undefined) document.getElementById('df-tier-1').value = savedRule.tier1;
-        if (document.getElementById('df-tier-2') && savedRule.tier2 !== undefined) document.getElementById('df-tier-2').value = savedRule.tier2;
-        if (document.getElementById('df-tier-3') && savedRule.tier3 !== undefined) document.getElementById('df-tier-3').value = savedRule.tier3;
-        if (document.getElementById('df-tier-4-pct') && savedRule.tier4Pct !== undefined) document.getElementById('df-tier-4-pct').value = savedRule.tier4Pct;
-    }
+    const typeEl = document.getElementById('df-markup-type');
+    const valEl = document.getElementById('df-markup-value');
+    const minEl = document.getElementById('df-markup-min-rp');
+    const roundEl = document.getElementById('df-markup-round');
+    const t1El = document.getElementById('df-tier-1');
+    const t2El = document.getElementById('df-tier-2');
+    const t3El = document.getElementById('df-tier-3');
+    const t4El = document.getElementById('df-tier-4-pct');
+
+    if (typeEl) typeEl.value = activeRule.type || 'smart_tiered';
+    if (valEl) valEl.value = activeRule.value !== undefined ? activeRule.value : (tier === 'member_plus' ? 1000 : 1500);
+    if (minEl) minEl.value = activeRule.minRp !== undefined ? activeRule.minRp : (tier === 'member_plus' ? 700 : 1000);
+    if (roundEl) roundEl.value = activeRule.round || '100';
+    if (t1El) t1El.value = activeRule.tier1 !== undefined ? activeRule.tier1 : (tier === 'member_plus' ? 800 : 1200);
+    if (t2El) t2El.value = activeRule.tier2 !== undefined ? activeRule.tier2 : (tier === 'member_plus' ? 1300 : 2000);
+    if (t3El) t3El.value = activeRule.tier3 !== undefined ? activeRule.tier3 : (tier === 'member_plus' ? 2300 : 3500);
+    if (t4El) t4El.value = activeRule.tier4Pct !== undefined ? activeRule.tier4Pct : (tier === 'member_plus' ? 1.5 : 2.5);
+
     window.syncMarkupCalculationTypeInputsUI();
     window.renderAdminMarkupLiveSimulation();
     window.renderDigiflazzCatalogTable();
+};
+
+window.loadSavedMarkupRuleIntoMainTable = function(tier, scopeType, itemKey = '') {
+    const hidEl = document.getElementById('df-markup-target-tier');
+    const btnReg = document.getElementById('btn-markup-tier-regular');
+    const btnMp = document.getElementById('btn-markup-tier-memberplus');
+    const isMp = (tier === 'member_plus');
+    if (hidEl) hidEl.value = isMp ? 'member_plus' : 'regular';
+    if (btnReg) btnReg.classList.toggle('active', !isMp);
+    if (btnMp) btnMp.classList.toggle('active', isMp);
+
+    const scopeSel = document.getElementById('df-markup-scope-select');
+    if (scopeSel) {
+        scopeSel.value = scopeType === 'categories' ? 'CATEGORY' : (scopeType === 'brands' ? 'BRAND' : 'ALL');
+    }
+    window.onChangeAdminMarkupScope();
+
+    if (scopeType === 'categories' && itemKey) {
+        const catSel = document.getElementById('df-markup-scope-cat');
+        if (catSel) catSel.value = itemKey;
+    } else if (scopeType === 'brands' && itemKey) {
+        const brandSel = document.getElementById('df-markup-scope-brand');
+        if (brandSel) brandSel.value = itemKey;
+    }
+    window.onChangeAdminMarkupScopeValue();
 };
 
 function calculateDigiflazzSellPriceWithMarkup(modalPrice, forMemberPlus = false, itemCategory = '', itemBrand = '') {
@@ -7563,21 +7698,45 @@ function calculateDigiflazzSellPriceWithMarkup(modalPrice, forMemberPlus = false
     if (base <= 0) return 0;
 
     const targetTier = forMemberPlus ? 'member_plus' : 'regular';
-    const specificRule = getMarkupRuleForTarget(targetTier, itemCategory, itemBrand);
+    const currentEditingTier = document.getElementById('df-markup-target-tier')?.value || 'regular';
+    const currentScope = document.getElementById('df-markup-scope-select')?.value || 'ALL';
+    const currentCat = (document.getElementById('df-markup-scope-cat')?.value || '').trim().toUpperCase();
+    const currentBrand = (document.getElementById('df-markup-scope-brand')?.value || '').trim().toUpperCase();
 
-    const mkType = specificRule?.type || document.getElementById('df-markup-type')?.value || siteSettings.digiflazzMarkupType || 'smart_tiered';
-    const mkValRaw = specificRule?.value !== undefined ? specificRule.value : document.getElementById('df-markup-value')?.value;
-    const mkVal = mkValRaw !== undefined && mkValRaw !== '' ? Number(mkValRaw) : Number(siteSettings.digiflazzMarkupValue ?? 1500);
-    const mkMinRaw = specificRule?.minRp !== undefined ? specificRule.minRp : document.getElementById('df-markup-min-rp')?.value;
-    const mkMinRp = mkMinRaw !== undefined && mkMinRaw !== '' ? Number(mkMinRaw) : Number(siteSettings.digiflazzMarkupMinRp ?? 1000);
-    const mkRound = specificRule?.round || document.getElementById('df-markup-round')?.value || siteSettings.digiflazzMarkupRound || '100';
-    const mpDiscRaw = document.getElementById('df-markup-memberplus-disc')?.value;
-    const mpDiscPct = mpDiscRaw !== undefined && mpDiscRaw !== '' ? Number(mpDiscRaw) : Number(siteSettings.digiflazzMarkupMemberPlusDisc ?? 35);
+    const isMatchingLiveScope = (
+        currentScope === 'ALL' ||
+        (currentScope === 'CATEGORY' && String(itemCategory || '').trim().toUpperCase() === currentCat) ||
+        (currentScope === 'BRAND' && String(itemBrand || '').trim().toUpperCase() === currentBrand)
+    );
 
-    const t1 = Number(specificRule?.tier1 || document.getElementById('df-tier-1')?.value || siteSettings.digiflazzTier1 || 1200);
-    const t2 = Number(specificRule?.tier2 || document.getElementById('df-tier-2')?.value || siteSettings.digiflazzTier2 || 2000);
-    const t3 = Number(specificRule?.tier3 || document.getElementById('df-tier-3')?.value || siteSettings.digiflazzTier3 || 3500);
-    const t4Pct = Number(specificRule?.tier4Pct || document.getElementById('df-tier-4-pct')?.value || siteSettings.digiflazzTier4Pct || 2.5);
+    const specificRule = getMarkupRuleForTarget(targetTier, itemCategory, itemBrand) || getDefaultMarkupRuleForTier(targetTier);
+    const useLiveFormInputs = (targetTier === currentEditingTier && isMatchingLiveScope);
+
+    const mkType = useLiveFormInputs
+        ? (document.getElementById('df-markup-type')?.value || specificRule.type || 'smart_tiered')
+        : (specificRule.type || 'smart_tiered');
+    const mkVal = useLiveFormInputs
+        ? Number(document.getElementById('df-markup-value')?.value ?? specificRule.value ?? 1500)
+        : Number(specificRule.value ?? 1500);
+    const mkMinRp = useLiveFormInputs
+        ? Number(document.getElementById('df-markup-min-rp')?.value ?? specificRule.minRp ?? 1000)
+        : Number(specificRule.minRp ?? 1000);
+    const mkRound = useLiveFormInputs
+        ? (document.getElementById('df-markup-round')?.value || specificRule.round || '100')
+        : (specificRule.round || '100');
+
+    const t1 = useLiveFormInputs
+        ? Number(document.getElementById('df-tier-1')?.value ?? specificRule.tier1 ?? 1200)
+        : Number(specificRule.tier1 ?? 1200);
+    const t2 = useLiveFormInputs
+        ? Number(document.getElementById('df-tier-2')?.value ?? specificRule.tier2 ?? 2000)
+        : Number(specificRule.tier2 ?? 2000);
+    const t3 = useLiveFormInputs
+        ? Number(document.getElementById('df-tier-3')?.value ?? specificRule.tier3 ?? 3500)
+        : Number(specificRule.tier3 ?? 3500);
+    const t4Pct = useLiveFormInputs
+        ? Number(document.getElementById('df-tier-4-pct')?.value ?? specificRule.tier4Pct ?? 2.5)
+        : Number(specificRule.tier4Pct ?? 2.5);
 
     let profitMargin = 0;
     if (mkType === 'smart_tiered') {
@@ -7592,11 +7751,6 @@ function calculateDigiflazzSellPriceWithMarkup(modalPrice, forMemberPlus = false
         profitMargin = Math.max(200, Math.round(base * (mkVal / 100)));
     } else {
         profitMargin = Math.round(mkVal);
-    }
-
-    if (forMemberPlus && !specificRule) {
-        const safeDisc = Math.min(80, Math.max(5, mpDiscPct));
-        profitMargin = Math.max(200, Math.round(profitMargin * (1 - safeDisc / 100)));
     }
 
     let sell = base + profitMargin;
@@ -7646,7 +7800,7 @@ window.renderSavedMarkupRulesChips = function() {
 
     const formatRuleDesc = (r) => {
         if (!r) return '';
-        if (r.type === 'smart_tiered') return 'Bertingkat';
+        if (r.type === 'smart_tiered') return `Bertingkat (+Rp${Number(r.tier1||1200).toLocaleString('id-ID')} / +Rp${Number(r.tier2||2000).toLocaleString('id-ID')} / +Rp${Number(r.tier3||3500).toLocaleString('id-ID')} / +${r.tier4Pct||2.5}%)`;
         if (r.type === 'percent') return `+${r.value}%`;
         if (r.type === 'hybrid') return `+${r.value}% (Min Rp${Number(r.minRp || 0).toLocaleString('id-ID')})`;
         return `+Rp${Number(r.value || 0).toLocaleString('id-ID')}`;
@@ -7660,9 +7814,9 @@ window.renderSavedMarkupRulesChips = function() {
             Object.keys(tObj.categories).forEach(catKey => {
                 const r = tObj.categories[catKey];
                 chips.push(`
-                    <span class="${chipClass}">
+                    <span class="${chipClass}" style="cursor:pointer;" onclick="window.loadSavedMarkupRuleIntoMainTable('${tier}', 'categories', '${escapeJsStr(catKey)}')">
                         <span><b>${tierLabel}</b> &bull; Kategori ${window.escapeHtml(catKey)}: ${formatRuleDesc(r)}</span>
-                        <button type="button" title="Hapus aturan ini" onclick="window.deleteSavedMarkupRule('${tier}', 'categories', '${escapeJsStr(catKey)}')">&times;</button>
+                        <button type="button" title="Hapus aturan ini" onclick="event.stopPropagation(); window.deleteSavedMarkupRule('${tier}', 'categories', '${escapeJsStr(catKey)}')">&times;</button>
                     </span>`);
             });
         }
@@ -7670,9 +7824,9 @@ window.renderSavedMarkupRulesChips = function() {
             Object.keys(tObj.brands).forEach(brandKey => {
                 const r = tObj.brands[brandKey];
                 chips.push(`
-                    <span class="${chipClass}">
+                    <span class="${chipClass}" style="cursor:pointer;" onclick="window.loadSavedMarkupRuleIntoMainTable('${tier}', 'brands', '${escapeJsStr(brandKey)}')">
                         <span><b>${tierLabel}</b> &bull; Brand ${window.escapeHtml(brandKey)}: ${formatRuleDesc(r)}</span>
-                        <button type="button" title="Hapus aturan ini" onclick="window.deleteSavedMarkupRule('${tier}', 'brands', '${escapeJsStr(brandKey)}')">&times;</button>
+                        <button type="button" title="Hapus aturan ini" onclick="event.stopPropagation(); window.deleteSavedMarkupRule('${tier}', 'brands', '${escapeJsStr(brandKey)}')">&times;</button>
                     </span>`);
             });
         }
@@ -7940,6 +8094,8 @@ window.fetchDigiflazzPriceList = async function(cmdType = 'prepaid') {
         btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Menarik Data Real...';
     }
 
+    const progId = 'df-pricelist-' + cmdType;
+    window.showProgressToast(progId, 'Menarik Data Digiflazz', `Menghubungi Server Digiflazz (${cmdType.toUpperCase()})...`, 15);
     try {
         const username = (document.getElementById('set-df-username')?.value || siteSettings.digiflazzUsername || '').trim();
         const apiKey = getActiveDigiflazzApiKey();
@@ -7950,6 +8106,7 @@ window.fetchDigiflazzPriceList = async function(cmdType = 'prepaid') {
             username: username,
             sign: sign
         });
+        window.showProgressToast(progId, 'Memproses Data Produk', 'Memvalidasi daftar SKU dari Digiflazz...', 40);
 
         if (res?.data && !Array.isArray(res.data) && typeof res.data === 'object') {
             const rc = String(res.data.rc || '');
@@ -8019,7 +8176,7 @@ window.fetchDigiflazzPriceList = async function(cmdType = 'prepaid') {
             });
         }
 
-        // Simpan pararel per 40 dokumen agar ratusan/ribuan SKU real Digiflazz tersimpan cepat
+        // Simpan pararel per 40 dokumen dengan indikator progres real-time
         const chunkSize = 40;
         for (let i = 0; i < validDocs.length; i += chunkSize) {
             const slice = validDocs.slice(i, i + chunkSize);
@@ -8027,6 +8184,8 @@ window.fetchDigiflazzPriceList = async function(cmdType = 'prepaid') {
                 setDoc(doc(db, pathDigiflazzCatalog, entry.docId), entry.payload, { merge: true }).catch(() => {})
             ));
             savedCount += slice.length;
+            const pct = Math.min(92, 40 + Math.round((savedCount / Math.max(1, validDocs.length)) * 52));
+            window.showProgressToast(progId, 'Menyimpan ke Gudang Digiflazz', `${savedCount} dari ${validDocs.length} SKU tersimpan...`, pct);
         }
 
         // Sinkronkan produk yang sudah diimpor ke Katalog Toko
@@ -8067,12 +8226,14 @@ window.fetchDigiflazzPriceList = async function(cmdType = 'prepaid') {
 
         window.updateDigiflazzDashboardStats();
         window.renderDigiflazzCatalogTable();
-        window.showToast(
+        window.finishProgressToast(
+            progId,
             'Data Digiflazz Ditarik',
-            `${savedCount} produk ${cmdType === 'pasca' ? 'Pascabayar' : 'Prabayar'} real dari Digiflazz berhasil dimuat${autoRecoveredCount > 0 ? ` (${autoRecoveredCount} produk pulih)` : ''}.`,
+            `${savedCount} produk ${cmdType === 'pasca' ? 'Pascabayar' : 'Prabayar'} berhasil dimuat${autoRecoveredCount > 0 ? ` (${autoRecoveredCount} produk katalog diperbarui)` : ''}.`,
             'success'
         );
     } catch (e) {
+        window.finishProgressToast(progId);
         window.customAlert('Gagal Tarik Data Digiflazz', window.escapeHtml(e.message), 'error');
     } finally {
         if (btn) {
@@ -8405,18 +8566,25 @@ window.importFilteredDigiflazzToStoreCatalog = function() {
         `Tarik dan sinkronkan <b>${list.length} variasi produk Digiflazz</b> dari hasil filter ini ke Katalog Toko utama?`,
         async (confirmed) => {
             if (!confirmed) return;
+            const progId = 'df-import-catalog';
+            window.showProgressToast(progId, 'Menarik Produk ke Katalog', `Memproses 0 / ${list.length} variasi...`, 10);
             let okCount = 0;
-            for (const item of list) {
+            for (let i = 0; i < list.length; i++) {
+                const item = list[i];
                 const ok = await window.importSingleDigiflazzSkuToCatalog(item.dbId, true);
                 if (ok) okCount++;
+                const pct = Math.min(98, Math.round(((i + 1) / list.length) * 95));
+                window.showProgressToast(progId, 'Menarik Produk ke Katalog', `Memproses ${i + 1} / ${list.length} variasi...`, pct);
             }
-            window.showToast('Selesai', `${okCount} variasi produk Digiflazz aktif di Katalog Toko.`, 'success');
+            window.finishProgressToast(progId, 'Selesai Ditarik ke Katalog', `${okCount} variasi produk Digiflazz aktif di Katalog Toko.`, 'success');
         },
         'success'
     );
 };
 
 window.applyMarkupToAllCatalogDigiflazzProducts = async function() {
+    const progId = 'df-apply-markup';
+    window.showProgressToast(progId, 'Menerapkan Markup Harga', 'Menyimpan aturan & menghitung ulang harga produk...', 20);
     const targetTier = document.getElementById('df-markup-target-tier')?.value || 'regular';
     const scope = document.getElementById('df-markup-scope-select')?.value || 'ALL';
     const scopeCat = (document.getElementById('df-markup-scope-cat')?.value || '').trim();
@@ -8464,14 +8632,25 @@ window.applyMarkupToAllCatalogDigiflazzProducts = async function() {
     siteSettings.digiflazzMarkupRound = mkRound;
     siteSettings.digiflazzMarkupMemberPlusDisc = mpDiscPct;
 
-    await setDoc(doc(db, pathSettings, 'mainConfig'), {
+    const rootUpdatePayload = {
         digiflazzMarkupType: mkType,
         digiflazzMarkupValue: mkVal,
         digiflazzMarkupMinRp: mkMinRp,
         digiflazzMarkupRound: mkRound,
         digiflazzMarkupMemberPlusDisc: mpDiscPct,
         digiflazzMarkupRules: markupRules
-    }, { merge: true }).catch(() => {});
+    };
+    if (targetTier === 'regular' && scope === 'ALL') {
+        siteSettings.digiflazzTier1 = tier1;
+        siteSettings.digiflazzTier2 = tier2;
+        siteSettings.digiflazzTier3 = tier3;
+        siteSettings.digiflazzTier4Pct = tier4Pct;
+        rootUpdatePayload.digiflazzTier1 = tier1;
+        rootUpdatePayload.digiflazzTier2 = tier2;
+        rootUpdatePayload.digiflazzTier3 = tier3;
+        rootUpdatePayload.digiflazzTier4Pct = tier4Pct;
+    }
+    await setDoc(doc(db, pathSettings, 'mainConfig'), rootUpdatePayload, { merge: true }).catch(() => {});
 
     const matchesScope = (itemCat, itemBrand) => {
         if (scope === 'CATEGORY' && scopeCat) {
@@ -8522,10 +8701,11 @@ window.applyMarkupToAllCatalogDigiflazzProducts = async function() {
         }
     }
 
+    window.updateActiveMarkupInfoBanner();
     window.renderDigiflazzCatalogTable();
     const tierName = targetTier === 'member_plus' ? 'Member Plus' : 'Member Biasa';
     const scopeName = scope === 'CATEGORY' ? `Kategori ${scopeCat}` : (scope === 'BRAND' ? `Brand ${scopeBrand}` : 'Semua Produk');
-    window.showToast('Markup Diterapkan', `Aturan harga ${tierName} (${scopeName}) disimpan & ${updatedCatalog} produk diperbarui.`, 'success');
+    window.finishProgressToast(progId, 'Markup Diterapkan', `Aturan harga ${tierName} (${scopeName}) disimpan & ${updatedCatalog} produk katalog diperbarui.`, 'success');
 };
 
 window.deleteDigiflazzWarehouseItem = async function(dfDocId) {
@@ -8869,6 +9049,18 @@ window.renderDigiflazzTransactionsTable = function() {
             if (currentDigiflazzTrxFilter === 'PENDING') return st === 'PENDING' || o.status === 'PENDING';
             if (currentDigiflazzTrxFilter === 'FAILED') return st === 'GAGAL' || o.status === 'FAILED';
             return true;
+        });
+    }
+
+    const qTrx = (document.getElementById('df-search-trx-input')?.value || '').trim().toLowerCase();
+    if (qTrx) {
+        dfOrders = dfOrders.filter(o => {
+            const it = o.items && o.items[0] ? o.items[0] : {};
+            return String(o.id || '').toLowerCase().includes(qTrx) ||
+                   String(o.digiflazzSku || it.buyerSkuCode || '').toLowerCase().includes(qTrx) ||
+                   String(o.digiflazzCustomerNo || o.targetId || '').toLowerCase().includes(qTrx) ||
+                   String(o.digiflazzSn || '').toLowerCase().includes(qTrx) ||
+                   String(it.name || o.productName || '').toLowerCase().includes(qTrx);
         });
     }
 
@@ -9982,6 +10174,232 @@ setInterval(async () => {
         } catch (_) {}
     }
 }, 25000);
+
+// ============================================================================
+// PEMBARUAN v28.7: PROGRESS TOAST TOP-CENTER, INPUT GAMBAR VIA LINK URL,
+// BULK ACTION GUDANG DIGIFLAZZ, & INDIKATOR LOADING TOMBOL OTOMATIS
+// ============================================================================
+
+window.showProgressToast = function(toastId, title, msg, pct = 15) {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+    const domId = `admin-prog-toast-${toastId}`;
+    let toast = document.getElementById(domId);
+    const safePct = Math.max(5, Math.min(100, Math.round(Number(pct || 0))));
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = domId;
+        toast.className = 'toast-item toast-info show';
+        toast.style.pointerEvents = 'auto';
+        toast.innerHTML = `
+            <div class="toast-icon"><i class="fa-solid fa-spinner fa-spin"></i></div>
+            <div class="toast-content" style="width:100%;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                    <h4 class="prog-toast-title">${window.escapeHtml(title)}</h4>
+                    <span class="prog-toast-pct" style="font-size:0.72rem; font-weight:900; color:var(--primary);">${safePct}%</span>
+                </div>
+                <p class="prog-toast-msg">${window.escapeHtml(msg)}</p>
+                <div style="width:100%; height:5px; background:var(--border-subtle); border-radius:99px; overflow:hidden; margin-top:5px;">
+                    <div class="prog-toast-fill" style="height:100%; width:${safePct}%; background:var(--primary); transition:width 0.22s ease;"></div>
+                </div>
+            </div>
+        `;
+        container.appendChild(toast);
+    } else {
+        const tEl = toast.querySelector('.prog-toast-title');
+        const mEl = toast.querySelector('.prog-toast-msg');
+        const pEl = toast.querySelector('.prog-toast-pct');
+        const fEl = toast.querySelector('.prog-toast-fill');
+        if (tEl) tEl.innerText = title;
+        if (mEl) mEl.innerText = msg;
+        if (pEl) pEl.innerText = `${safePct}%`;
+        if (fEl) fEl.style.width = `${safePct}%`;
+    }
+};
+
+window.finishProgressToast = function(toastId, doneTitle = '', doneMsg = '', type = 'success') {
+    const domId = `admin-prog-toast-${toastId}`;
+    const toast = document.getElementById(domId);
+    if (toast) {
+        const pEl = toast.querySelector('.prog-toast-pct');
+        const fEl = toast.querySelector('.prog-toast-fill');
+        if (pEl) pEl.innerText = '100%';
+        if (fEl) fEl.style.width = '100%';
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 200);
+        }, 260);
+    }
+    if (doneTitle) {
+        window.showToast(doneTitle, doneMsg, type);
+    }
+};
+
+// Poin 11: Input Gambar / Ikon Menggunakan Link URL
+window.applyManageProductImgUrl = function(urlVal) {
+    const clean = String(urlVal || '').trim();
+    if (!clean) return;
+    tempManageImgBase64 = clean;
+    const prev = document.getElementById('preview-manage-img');
+    if (prev) {
+        prev.src = clean;
+        prev.style.display = 'block';
+    }
+};
+
+window.applyStoreLogoUrl = function(urlVal) {
+    const clean = String(urlVal || '').trim();
+    if (!clean) return;
+    tempLogoBase64 = clean;
+    const prev = document.getElementById('preview-logo');
+    if (prev) {
+        prev.src = clean;
+        prev.style.display = 'block';
+    }
+    const delBtn = document.getElementById('btn-del-logo');
+    if (delBtn) delBtn.style.display = 'inline-flex';
+};
+
+window.applyPwaIconUrl = function(urlVal) {
+    const clean = String(urlVal || '').trim();
+    if (!clean) return;
+    tempPwaIconBase64 = clean;
+    const prev = document.getElementById('preview-pwa-icon');
+    if (prev) {
+        prev.src = clean;
+        prev.style.display = 'block';
+    }
+    const delBtn = document.getElementById('btn-del-pwa-icon');
+    if (delBtn) delBtn.style.display = 'inline-flex';
+};
+
+window.addBannerFromUrlInput = function() {
+    const inp = document.getElementById('set-banner-url-input');
+    const clean = String(inp?.value || '').trim();
+    if (!clean || (!clean.startsWith('http://') && !clean.startsWith('https://') && !clean.startsWith('data:image/'))) {
+        window.customAlert('Link URL Tidak Valid', 'Masukkan link URL gambar yang diawali https:// atau http://.', 'warning');
+        return;
+    }
+    siteSettings.banners = [...(siteSettings.banners || []), clean];
+    if (inp) inp.value = '';
+    window.renderAdminBanners();
+    window.showToast('Banner Ditambahkan', 'Gambar banner dari link URL berhasil ditambahkan. Jangan lupa klik Simpan Pengaturan Toko.', 'success');
+};
+
+window.applyNewsImgUrl = function(urlVal) {
+    const clean = String(urlVal || '').trim();
+    if (!clean) return;
+    tempNewsImgBase64 = clean;
+    const prevImg = document.getElementById('preview-news-img');
+    const placeholder = document.getElementById('preview-news-placeholder');
+    const btnRemove = document.getElementById('btn-remove-news-img');
+    const statusLbl = document.getElementById('news-img-status-label');
+
+    if (prevImg) { prevImg.src = clean; prevImg.style.display = 'block'; }
+    if (placeholder) placeholder.style.display = 'none';
+    if (btnRemove) btnRemove.style.display = 'inline-flex';
+    if (statusLbl) statusLbl.innerText = 'Link gambar siap disimpan';
+};
+
+// Poin 15 & 17: Sinkronisasi Massal Harga & Status Katalog Digiflazz + Kelola Produk Gangguan
+window.syncAllDigiflazzCatalogPricesAndStatus = async function() {
+    const dfProds = products.filter(p => p.isDigiflazz || p.processType === 'digiflazz' || p.processType === 'digiflazz_pasca');
+    if (dfProds.length === 0) {
+        window.customAlert('Belum Ada Produk', 'Belum ada produk Digiflazz di Katalog Toko.', 'info');
+        return;
+    }
+    const progId = 'df-sync-all-cat';
+    window.showProgressToast(progId, 'Sinkronisasi Katalog Digiflazz', `Memperbarui 0 / ${dfProds.length} produk...`, 12);
+
+    let updatedCnt = 0;
+    const warehouseMap = new Map();
+    digiflazzCatalogList.forEach(d => {
+        if (d.buyer_sku_code) warehouseMap.set(d.buyer_sku_code, d);
+    });
+
+    for (let i = 0; i < dfProds.length; i++) {
+        const sp = dfProds[i];
+        const wItem = warehouseMap.get(sp.buyerSkuCode);
+        if (sp.dbId && wItem) {
+            const modalVal = Number(wItem.price || wItem.admin || sp.digiflazzModalPrice || 0);
+            const isCheckFree = Boolean(sp.isCheckUsernameProduct === true || Number(sp.priceNum || 0) === 0);
+            const regSell = isCheckFree ? 0 : calculateDigiflazzSellPriceWithMarkup(modalVal, false, sp.type, sp.brand);
+            const mpSell = isCheckFree ? 0 : calculateDigiflazzSellPriceWithMarkup(modalVal, true, sp.type, sp.brand);
+            const isHealthy = wItem.buyer_product_status !== false && wItem.seller_product_status !== false;
+            const hasStock = wItem.unlimited_stock !== false || Number(wItem.stock || 0) > 0;
+
+            await updateDoc(doc(db, pathProducts, sp.dbId), {
+                digiflazzModalPrice: modalVal,
+                priceNum: isCheckFree ? 0 : regSell,
+                memberPlusPriceNum: isCheckFree ? 0 : mpSell,
+                sellerProductStatus: isHealthy,
+                isVariantGangguan: !isHealthy,
+                soldOut: !hasStock
+            }).catch(() => {});
+            updatedCnt++;
+        }
+        const pct = Math.min(98, Math.round(((i + 1) / dfProds.length) * 95));
+        window.showProgressToast(progId, 'Sinkronisasi Katalog Digiflazz', `Memperbarui ${i + 1} / ${dfProds.length} produk...`, pct);
+    }
+
+    window.finishProgressToast(progId, 'Sinkronisasi Selesai', `${updatedCnt} produk Digiflazz di Katalog Toko telah disinkronkan.`, 'success');
+};
+
+window.autoHideGangguanDigiflazzProducts = async function() {
+    const dfProds = products.filter(p => p.isDigiflazz || p.processType === 'digiflazz' || p.processType === 'digiflazz_pasca');
+    if (dfProds.length === 0) {
+        window.customAlert('Belum Ada Produk', 'Belum ada produk Digiflazz di Katalog Toko.', 'info');
+        return;
+    }
+    const progId = 'df-gangguan-manage';
+    window.showProgressToast(progId, 'Memeriksa Status Gangguan', 'Menyesuaikan visibilitas produk gangguan...', 25);
+
+    let hiddenCount = 0;
+    let restoredCount = 0;
+    for (let i = 0; i < dfProds.length; i++) {
+        const p = dfProds[i];
+        if (!p.dbId || p.isCheckUsernameProduct) continue;
+        const isGangguan = Boolean(p.isVariantGangguan || p.sellerProductStatus === false);
+        if (isGangguan && !p.isHidden) {
+            await updateDoc(doc(db, pathProducts, p.dbId), { isHidden: true }).catch(() => {});
+            hiddenCount++;
+        } else if (!isGangguan && p.isHidden && !p.isBrandHidden) {
+            await updateDoc(doc(db, pathProducts, p.dbId), { isHidden: false }).catch(() => {});
+            restoredCount++;
+        }
+    }
+    window.finishProgressToast(
+        progId,
+        'Produk Gangguan Dikelola',
+        `${hiddenCount} produk gangguan disembunyikan & ${restoredCount} produk normal ditampilkan kembali.`,
+        'success'
+    );
+};
+
+// Indikator Loading Otomatis pada Tombol Aksi di Web Admin
+document.addEventListener('click', (e) => {
+    const btn = e.target && e.target.closest ? e.target.closest('button.btn') : null;
+    if (!btn || btn.disabled || btn.dataset.loadingActive === '1') return;
+    const onclickAttr = String(btn.getAttribute('onclick') || '');
+    const isAsyncAction = /saveSiteSettings|saveDigiflazzSettings|testDigiflazzBridgeConnection|importSingleDigiflazzSkuToCatalog|adminInquiryPlnCustomer|adminInquiryPascaBill|syncAllProductsWithStockVaultV27|refreshFirebaseMutationsLogNow|saveManagedPromo|saveManagedNews/.test(onclickAttr);
+    if (!isAsyncAction) return;
+
+    btn.dataset.loadingActive = '1';
+    const prevHtml = btn.innerHTML;
+    btn.style.opacity = '0.85';
+    if (!prevHtml.includes('fa-spin')) {
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ` + prevHtml;
+    }
+    setTimeout(() => {
+        if (btn.dataset.loadingActive === '1') {
+            btn.dataset.loadingActive = '0';
+            btn.style.opacity = '';
+            if (!btn.disabled && btn.innerHTML.includes('fa-spinner')) {
+                btn.innerHTML = prevHtml;
+            }
+        }
+    }, 950);
+}, true);
 
 // Jalankan Inisialisasi Panel Admin setelah seluruh fungsi dan variabel terdaftar
 if (document.readyState === 'loading') {

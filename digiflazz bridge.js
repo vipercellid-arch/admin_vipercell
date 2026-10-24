@@ -1,5 +1,5 @@
 /**
- * VIPERCELL - DIGIFLAZZ VPS BRIDGE & WEBHOOK RECEIVER (v28.6)
+ * VIPERCELL - DIGIFLAZZ VPS BRIDGE & WEBHOOK RECEIVER (v28.7)
  */
 
 const http = require("http");
@@ -88,6 +88,50 @@ function normalizeCustomerNo(rawTarget, zoneId = "") {
     return cleanS;
 }
 
+const keepAliveHttpsAgent = new https.Agent({
+    keepAlive: true,
+    keepAliveMsecs: 30000,
+    maxSockets: 32
+});
+
+// Antrian Eksekusi Transaksi Otomatis (Mencegah Overload Backend saat Trafik Tinggi)
+const txExecutionQueue = [];
+let activeTxWorkers = 0;
+const MAX_CONCURRENT_TX_WORKERS = 3;
+const TX_STAGGER_DELAY_MS = 150;
+let totalQueuedProcessedCount = 0;
+
+function enqueueDigiflazzTransaction(taskFn) {
+    return new Promise((resolve, reject) => {
+        txExecutionQueue.push({ taskFn, resolve, reject });
+        processNextTxQueueItem();
+    });
+}
+
+function processNextTxQueueItem() {
+    if (activeTxWorkers >= MAX_CONCURRENT_TX_WORKERS || txExecutionQueue.length === 0) {
+        return;
+    }
+    const item = txExecutionQueue.shift();
+    if (!item) return;
+    activeTxWorkers++;
+    Promise.resolve()
+        .then(() => item.taskFn())
+        .then((res) => {
+            totalQueuedProcessedCount++;
+            item.resolve(res);
+        })
+        .catch((err) => {
+            item.reject(err);
+        })
+        .finally(() => {
+            setTimeout(() => {
+                activeTxWorkers = Math.max(0, activeTxWorkers - 1);
+                processNextTxQueueItem();
+            }, TX_STAGGER_DELAY_MS);
+        });
+}
+
 function httpsJsonRequest(urlStr, method, headers, bodyObj) {
     return new Promise((resolve, reject) => {
         const u = new URL(urlStr);
@@ -97,12 +141,15 @@ function httpsJsonRequest(urlStr, method, headers, bodyObj) {
             port: u.port || 443,
             path: u.pathname + u.search,
             method: method || "POST",
+            agent: keepAliveHttpsAgent,
             headers: {
                 "Content-Type": "application/json",
                 "Accept": "application/json",
+                "Connection": "keep-alive",
                 "Content-Length": Buffer.byteLength(bodyStr),
                 ...headers
-            }
+            },
+            timeout: 20000
         }, (res) => {
             let raw = "";
             res.on("data", chunk => { raw += chunk; });
@@ -375,7 +422,7 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({
             ok: true,
-            service: "Vipercell Digiflazz VPS Bridge v28.6",
+            service: "Vipercell Digiflazz VPS Bridge v28.7",
             projectId: FIREBASE_PROJECT_ID,
             username: serverConfig.username || "",
             envMode: serverConfig.envMode,
@@ -671,23 +718,46 @@ const server = http.createServer(async (req, res) => {
             const primaryKeyForEndpoint = (endpointPath === "/v1/inquiry-pln" && prodKey) ? prodKey : chosenKey;
             const secondaryKeyForEndpoint = (primaryKeyForEndpoint === prodKey) ? devKey : prodKey;
 
-            computePayloadSign(primaryKeyForEndpoint);
-            let dfRes = await httpsJsonRequest(`https://api.digiflazz.com${endpointPath}`, "POST", {}, payload);
+            const executeEndpointCall = async () => {
+                computePayloadSign(primaryKeyForEndpoint);
+                let resCall = await httpsJsonRequest(`https://api.digiflazz.com${endpointPath}`, "POST", {}, payload);
 
-            if (isSignatureErrorResponse(dfRes.data)) {
-                await hydrateConfigFromFirestoreIfNeeded(true);
-                const freshDev = cleanKey(serverConfig.devApiKey);
-                const freshProd = cleanKey(serverConfig.prodApiKey);
-                const retryCandidates = [secondaryKeyForEndpoint, freshProd, freshDev].filter(k => k && k !== primaryKeyForEndpoint);
-                for (const candKey of retryCandidates) {
-                    computePayloadSign(candKey);
-                    const retryRes = await httpsJsonRequest(`https://api.digiflazz.com${endpointPath}`, "POST", {}, payload);
-                    if (!isSignatureErrorResponse(retryRes.data)) {
-                        dfRes = retryRes;
-                        break;
+                if (isSignatureErrorResponse(resCall.data)) {
+                    await hydrateConfigFromFirestoreIfNeeded(true);
+                    const freshDev = cleanKey(serverConfig.devApiKey);
+                    const freshProd = cleanKey(serverConfig.prodApiKey);
+                    const retryCandidates = [secondaryKeyForEndpoint, freshProd, freshDev].filter(k => k && k !== primaryKeyForEndpoint);
+                    for (const candKey of retryCandidates) {
+                        computePayloadSign(candKey);
+                        const retryRes = await httpsJsonRequest(`https://api.digiflazz.com${endpointPath}`, "POST", {}, payload);
+                        if (!isSignatureErrorResponse(retryRes.data)) {
+                            resCall = retryRes;
+                            break;
+                        }
                     }
                 }
-            }
+
+                // Fast Follow-Up Check (2.2s) jika transaksi prabayar baru saja masuk status Pending (RC 03)
+                const txData = resCall.data && resCall.data.data ? resCall.data.data : null;
+                if (
+                    endpointPath === "/v1/transaction" &&
+                    !payload.commands &&
+                    txData &&
+                    (txData.status === "Pending" || txData.rc === "03") &&
+                    !txData.sn
+                ) {
+                    await new Promise(r => setTimeout(r, 2200));
+                    const fastPollRes = await httpsJsonRequest(`https://api.digiflazz.com${endpointPath}`, "POST", {}, payload).catch(() => null);
+                    if (fastPollRes && fastPollRes.data && fastPollRes.data.data) {
+                        resCall = fastPollRes;
+                    }
+                }
+                return resCall;
+            };
+
+            let dfRes = (endpointPath === "/v1/transaction")
+                ? await enqueueDigiflazzTransaction(executeEndpointCall)
+                : await executeEndpointCall();
 
             if (dfRes.data?.data?.deposit !== undefined) {
                 await syncLastBalanceToFirestore(dfRes.data.data.deposit);
@@ -705,5 +775,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-    console.log(`Vipercell Digiflazz VPS Bridge v28.6 berjalan di port ${PORT}`);
+    console.log(`Vipercell Digiflazz VPS Bridge v28.7 berjalan di port ${PORT}`);
 });
