@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vipercell-admin-v28.7';
+const CACHE_NAME = 'vipercell-admin-v28.9';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

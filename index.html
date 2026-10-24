@@ -33,7 +33,7 @@
     <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
     
     <!-- Stylesheet Admin -->
-    <link rel="stylesheet" href="css/admin.css?v=28.8">
+    <link rel="stylesheet" href="css/admin.css?v=28.9">
     
     <!-- jsQR & Html5Qrcode untuk Pemindai QRIS & Barcode Kasir -->
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js" defer></script>
@@ -394,8 +394,11 @@
                                 <button type="button" class="btn btn-outline btn-sm" onclick="window.exportFinancialReportSheet('csv')">
                                     <i class="fa-solid fa-file-csv text-primary"></i> Unduh CSV
                                 </button>
-                                <button type="button" class="btn btn-danger btn-sm" onclick="window.clearOldRevenueKeepTodayOnly()">
-                                    <i class="fa-solid fa-broom"></i> Hapus Data Lama (Sisakan Hari Ini)
+                                <button type="button" class="btn btn-warning btn-sm" onclick="window.clearOldRevenueKeepTodayOnly()">
+                                    <i class="fa-solid fa-broom"></i> Sisakan Hari Ini
+                                </button>
+                                <button type="button" class="btn btn-danger btn-sm" onclick="window.openAdminPurgeAllTransactionsModal()">
+                                    <i class="fa-solid fa-trash-can"></i> Hapus Semua Data Transaksi
                                 </button>
                                 <button type="button" class="btn btn-outline btn-sm" onclick="window.closeFinancialReportPanel()">
                                     <i class="fa-solid fa-xmark"></i> Tutup Panel
@@ -623,6 +626,9 @@
                                 </button>
                                 <button class="btn btn-outline btn-sm text-danger border-danger" onclick="window.cleanExpiredOrders()">
                                     <i class="fa-solid fa-broom"></i> Hapus Batal/Gagal
+                                </button>
+                                <button class="btn btn-danger btn-sm" onclick="window.openAdminPurgeAllTransactionsModal()">
+                                    <i class="fa-solid fa-trash-can"></i> Bersihkan Semua Transaksi
                                 </button>
                             </div>
                         </div>
@@ -987,8 +993,14 @@
                                 <button type="button" class="btn btn-warning btn-sm" onclick="window.openBarcodeScannerModal()">
                                     <i class="fa-solid fa-barcode"></i> Scan Kasir
                                 </button>
+                                <button type="button" class="btn btn-outline btn-sm text-danger border-danger" onclick="window.adminCleanCancelledMemberPlusOrders()">
+                                    <i class="fa-solid fa-broom"></i> Hapus Pesanan Batal/Gagal
+                                </button>
+                                <button type="button" class="btn btn-danger btn-sm" onclick="window.adminCleanAllMemberPlusOrderHistory()">
+                                    <i class="fa-solid fa-trash-can"></i> Bersihkan Riwayat
+                                </button>
                                 <button type="button" class="btn btn-outline btn-sm" onclick="window.renderAdminMemberPlusOrders()">
-                                    <i class="fa-solid fa-rotate"></i> Segarkan Daftar
+                                    <i class="fa-solid fa-rotate"></i> Segarkan
                                 </button>
                             </div>
                         </div>
@@ -998,6 +1010,7 @@
                                 <button type="button" class="filter-pill active" onclick="window.setAdminMpOrderFilter('ALL', this)">Semua Pesanan</button>
                                 <button type="button" class="filter-pill" onclick="window.setAdminMpOrderFilter('PENDING', this)"><i class="fa-solid fa-clock text-warning"></i> Menunggu Aktivasi Tunai</button>
                                 <button type="button" class="filter-pill" onclick="window.setAdminMpOrderFilter('ACTIVE', this)"><i class="fa-solid fa-crown" style="color:#f59e0b;"></i> Sudah Aktif / Selesai</button>
+                                <button type="button" class="filter-pill" onclick="window.setAdminMpOrderFilter('CANCELLED', this)"><i class="fa-solid fa-ban text-danger"></i> Batal / Kedaluwarsa</button>
                             </div>
                             <input type="text" id="admin-search-mp-orders" class="form-control" style="max-width: 340px;" placeholder="Cari ID #MPLUS, nama, atau email..." oninput="window.renderAdminMemberPlusOrders()">
                         </div>
@@ -1990,25 +2003,30 @@
                             <div class="dashboard-panel mb-0" style="background: var(--surface-elevated); border-color: var(--primary);">
                                 <div class="panel-header" style="margin-bottom: 0.85rem;">
                                     <div>
-                                        <h3><i class="fa-solid fa-user-lock text-primary"></i> PIN Keamanan Admin (Kasir Tunai &amp; Pesanan Manual)</h3>
-                                        <small class="text-muted">PIN ini wajib dimasukkan saat Admin memvalidasi pembayaran tunai atau menyelesaikan pesanan manual.</small>
+                                        <h3><i class="fa-solid fa-user-lock text-primary"></i> PIN Transaksi Admin (6 Digit)</h3>
+                                        <small class="text-muted" id="admin-pin-lock-subtitle">Digunakan untuk konfirmasi transaksi kasir, saldo, dan tindakan penting.</small>
                                     </div>
                                     <span id="admin-pin-status-badge" class="status-badge status-success">AKTIF</span>
                                 </div>
                                 <div class="grid-2col">
                                     <div class="form-group mb-0">
-                                        <label for="set-admin-security-pin">PIN Keamanan Admin (6 Digit Angka)</label>
-                                        <div class="flex-gap">
-                                            <input type="password" id="set-admin-security-pin" class="form-control code-mono fw-bold" maxlength="6" inputmode="numeric" placeholder="Contoh: 123456">
-                                            <button type="button" class="btn btn-outline btn-sm" onclick="window.toggleAdminInputEye('set-admin-security-pin', this)">
+                                        <label for="set-admin-security-pin" id="lbl-set-admin-security-pin">PIN Keamanan Admin (6 Digit Angka)</label>
+                                        <div class="flex-gap" id="admin-pin-initial-input-wrap">
+                                            <input type="password" id="set-admin-security-pin" class="form-control code-mono fw-bold" maxlength="6" inputmode="numeric" placeholder="Masukkan 6 angka PIN">
+                                            <button type="button" id="btn-eye-admin-security-pin" class="btn btn-outline btn-sm" onclick="window.toggleAdminInputEye('set-admin-security-pin', this)">
                                                 <i class="fa-regular fa-eye"></i>
+                                            </button>
+                                        </div>
+                                        <div id="admin-pin-locked-reset-wrap" style="display:none; margin-top:6px;">
+                                            <button type="button" class="btn btn-warning btn-sm w-full" onclick="window.openAdminResetPinModal()">
+                                                <i class="fa-solid fa-key"></i> Reset / Ganti PIN dengan Kata Sandi
                                             </button>
                                         </div>
                                     </div>
                                     <div class="info-box flex-between align-center mb-0">
                                         <div>
                                             <strong class="text-xs d-block">Wajibkan PIN Saat Konfirmasi</strong>
-                                            <span class="text-xs text-muted">Kunci validasi tunai &amp; proses manual dengan PIN.</span>
+                                            <span class="text-xs text-muted">Kunci validasi tunai, saldo &amp; proses manual.</span>
                                         </div>
                                         <label class="switch">
                                             <input type="checkbox" id="set-require-admin-pin" checked>
@@ -3118,6 +3136,88 @@
         </div>
     </div>
 
+    <!-- 13. POP-UP RESET PIN KEAMANAN ADMIN DENGAN KATA SANDI LOGIN -->
+    <div class="modal-overlay" id="modal-admin-reset-pin">
+        <div class="modal-content" style="max-width: 420px;">
+            <div class="modal-header">
+                <h2><i class="fa-solid fa-key text-warning"></i> Reset PIN Transaksi Admin</h2>
+                <button class="close-btn" onclick="window.closeModal('modal-admin-reset-pin')" aria-label="Tutup">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="info-box mb-3" style="border-color: var(--warning);">
+                <span class="text-xs">PIN Admin yang sudah disetel hanya dapat diganti dengan memverifikasi <b>Kata Sandi Login Akun Admin</b> Anda.</span>
+            </div>
+            <div class="form-group">
+                <label for="admin-reset-pin-password">Kata Sandi Akun Admin <span class="text-danger">*</span></label>
+                <input type="password" id="admin-reset-pin-password" class="form-control" placeholder="Masukkan kata sandi login Admin">
+            </div>
+            <div class="grid-2col">
+                <div class="form-group">
+                    <label for="admin-reset-pin-new">PIN Baru (6 Angka) <span class="text-danger">*</span></label>
+                    <input type="password" id="admin-reset-pin-new" class="form-control code-mono fw-bold" maxlength="6" inputmode="numeric" placeholder="6 digit angka" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+                </div>
+                <div class="form-group">
+                    <label for="admin-reset-pin-confirm">Ulangi PIN Baru <span class="text-danger">*</span></label>
+                    <input type="password" id="admin-reset-pin-confirm" class="form-control code-mono fw-bold" maxlength="6" inputmode="numeric" placeholder="Ulangi 6 digit" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+                </div>
+            </div>
+            <div class="flex-gap">
+                <button type="button" class="btn btn-outline flex-1" onclick="window.closeModal('modal-admin-reset-pin')">Batal</button>
+                <button type="button" id="btn-submit-admin-reset-pin" class="btn btn-primary flex-1" onclick="window.submitAdminResetPinWithPassword()">
+                    <i class="fa-solid fa-check-circle"></i> Simpan PIN Baru
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 14. POP-UP HAPUS SEMUA DATA TRANSAKSI / PEMBELIAN DENGAN KATA SANDI ADMIN (HEMAT MEMORI FIREBASE) -->
+    <div class="modal-overlay" id="modal-admin-purge-transactions">
+        <div class="modal-content" style="max-width: 480px;">
+            <div class="modal-header">
+                <h2><i class="fa-solid fa-database text-danger"></i> Bersihkan Data Transaksi &amp; Struk</h2>
+                <button class="close-btn" onclick="window.closeModal('modal-admin-purge-transactions')" aria-label="Tutup">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="info-box mb-3" style="border-color: var(--success); background: rgba(16, 185, 129, 0.08);">
+                <strong class="text-xs text-success d-block mb-1"><i class="fa-solid fa-shield-check"></i> Data Penting yang Tetap Tersimpan Aman:</strong>
+                <ul class="text-xs m-0" style="padding-left: 1.1rem; line-height: 1.5;">
+                    <li><b>Saldo Akun &amp; Akun Member</b> tetap utuh dan tidak berubah.</li>
+                    <li><b>Total Pesanan &amp; Total Belanja User</b> tetap tersimpan di profil masing-masing pengguna.</li>
+                    <li><b>Data Penjualan, Omzet, Modal &amp; Laba Admin</b> tetap tersimpan di ringkasan keuangan toko.</li>
+                </ul>
+            </div>
+
+            <div class="info-box mb-3" style="border-color: var(--danger); background: rgba(239, 68, 68, 0.08);">
+                <strong class="text-xs text-danger d-block mb-1"><i class="fa-solid fa-trash-can"></i> Data yang Akan Dihapus dari Firebase:</strong>
+                <div id="admin-purge-summary-stats" class="text-xs">
+                    Seluruh dokumen struk/pesanan lama dan log mutasi QRIS akan dihapus agar kuota penyimpanan Firebase kembali lega.
+                </div>
+            </div>
+
+            <div class="form-group mb-2">
+                <label class="text-xs fw-bold" style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                    <input type="checkbox" id="admin-purge-include-bal-logs" checked>
+                    <span>Bersihkan juga riwayat log mutasi saldo lama (Saldo akun tetap utuh)</span>
+                </label>
+            </div>
+
+            <div class="form-group">
+                <label for="admin-purge-password-input">Masukkan Kata Sandi Login Admin <span class="text-danger">*</span></label>
+                <input type="password" id="admin-purge-password-input" class="form-control" placeholder="Ketik kata sandi akun Admin untuk konfirmasi hapus">
+            </div>
+
+            <div class="flex-gap">
+                <button type="button" class="btn btn-outline flex-1" onclick="window.closeModal('modal-admin-purge-transactions')">Batal</button>
+                <button type="button" id="btn-confirm-admin-purge-trx" class="btn btn-danger flex-1" onclick="window.executeAdminPurgeAllTransactionsWithPassword()">
+                    <i class="fa-solid fa-trash-can"></i> Hapus Sekarang
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- POP-UP ALERT & KONFIRMASI -->
     <div class="msg-overlay" id="custom-alert">
         <div class="msg-box">
@@ -3141,7 +3241,7 @@
     </div>
 
     <!-- Script Utama Admin -->
-    <script type="module" src="js/admin.js?v=28.8" defer></script>
+    <script type="module" src="js/admin.js?v=28.9" defer></script>
 
     <script>
         if ('serviceWorker' in navigator) {

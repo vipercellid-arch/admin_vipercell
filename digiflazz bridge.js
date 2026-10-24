@@ -1,5 +1,5 @@
 /**
- * VIPERCELL - DIGIFLAZZ VPS BRIDGE & WEBHOOK RECEIVER (v28.8)
+ * VIPERCELL - DIGIFLAZZ VPS BRIDGE & WEBHOOK RECEIVER (v28.9)
  */
 
 const http = require("http");
@@ -441,7 +441,7 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({
             ok: true,
-            service: "Vipercell Digiflazz VPS Bridge v28.8",
+            service: "Vipercell Digiflazz VPS Bridge v28.9",
             projectId: FIREBASE_PROJECT_ID,
             username: serverConfig.username || "",
             envMode: serverConfig.envMode,
@@ -471,12 +471,17 @@ const server = http.createServer(async (req, res) => {
                 }
 
                 const parsed = JSON.parse(rawBody || "{}");
-                if (eventName === "create" || eventName === "update") {
+                if (parsed && parsed.sed && parsed.hook_id) {
+                    res.writeHead(200, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify({ ok: true, event: "ping", hook_id: parsed.hook_id, sed: parsed.sed }));
+                    return;
+                }
+                if (eventName === "create" || eventName === "update" || (parsed && parsed.data && parsed.data.ref_id)) {
                     await updateOrderFromDigiflazzWebhook(parsed);
                 }
 
                 res.writeHead(200, { "Content-Type": "application/json" });
-                res.end(JSON.stringify({ ok: true, event: eventName }));
+                res.end(JSON.stringify({ ok: true, event: eventName || "webhook" }));
                 return;
             }
 
@@ -756,21 +761,8 @@ const server = http.createServer(async (req, res) => {
                     }
                 }
 
-                // Fast Follow-Up Check (2.2s) jika transaksi prabayar baru saja masuk status Pending (RC 03)
-                const txData = resCall.data && resCall.data.data ? resCall.data.data : null;
-                if (
-                    endpointPath === "/v1/transaction" &&
-                    !payload.commands &&
-                    txData &&
-                    (txData.status === "Pending" || txData.rc === "03") &&
-                    !txData.sn
-                ) {
-                    await new Promise(r => setTimeout(r, 2200));
-                    const fastPollRes = await httpsJsonRequest(`https://api.digiflazz.com${endpointPath}`, "POST", {}, payload).catch(() => null);
-                    if (fastPollRes && fastPollRes.data && fastPollRes.data.data) {
-                        resCall = fastPollRes;
-                    }
-                }
+                // Sesuai dokumentasi resmi Digiflazz (Cek Status), pemanggilan ulang untuk ref_id yang sama
+                // wajib menunggu minimal 1 menit (atau melalui Webhook) untuk mencegah race condition / RC 85.
                 return resCall;
             };
 
@@ -855,5 +847,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-    console.log(`Vipercell Digiflazz VPS Bridge v28.8 berjalan di port ${PORT}`);
+    console.log(`Vipercell Digiflazz VPS Bridge v28.9 berjalan di port ${PORT}`);
 });

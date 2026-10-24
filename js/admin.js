@@ -2345,9 +2345,11 @@ window.renderAdminMemberPlusOrders = function() {
 
     let filtered = mpOrders.filter(o => {
         const isDone = Boolean(o.status === 'SUCCESS' || o.memberPlusActivated === true);
-        const isPending = Boolean(!isDone && o.status !== 'CANCELLED' && o.status !== 'FAILED' && o.status !== 'EXPIRED');
+        const isCancelledOrder = Boolean(o.status === 'CANCELLED' || o.status === 'FAILED' || o.status === 'EXPIRED');
+        const isPending = Boolean(!isDone && !isCancelledOrder);
         if (currentAdminMpOrderFilter === 'PENDING') return isPending;
         if (currentAdminMpOrderFilter === 'ACTIVE') return isDone;
+        if (currentAdminMpOrderFilter === 'CANCELLED') return isCancelledOrder;
         return true;
     });
 
@@ -2407,9 +2409,14 @@ window.renderAdminMemberPlusOrders = function() {
                         <span class="text-muted fw-bold">TANGGAL AKHIR:</span>
                         <strong style="color:#15803d;">${window.escapeHtml(endDateStr)}</strong>
                     </div>
-                    <button type="button" class="btn btn-outline btn-sm text-danger border-danger w-full" style="font-size:0.72rem;" onclick="window.adminRevokeMemberPlusUserWithPin('${escapeJsStr(o.userId || '')}', '${escapeJsStr(o.buyerName || o.userEmail || 'Member')}', '${escapeJsStr(o.dbId)}')">
-                        <i class="fa-solid fa-user-slash"></i> Cabut Langganan Member Plus
-                    </button>
+                    <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                        <button type="button" class="btn btn-outline btn-sm text-danger border-danger flex-1" style="font-size:0.72rem;" onclick="window.adminRevokeMemberPlusUserWithPin('${escapeJsStr(o.userId || '')}', '${escapeJsStr(o.buyerName || o.userEmail || 'Member')}', '${escapeJsStr(o.dbId)}')">
+                            <i class="fa-solid fa-user-slash"></i> Cabut Langganan
+                        </button>
+                        <button type="button" class="btn btn-danger btn-sm" style="font-size:0.72rem;" title="Hapus Data Pesanan Langganan Ini" onclick="window.adminDeleteSingleMemberPlusOrder('${escapeJsStr(o.dbId)}')">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
                 </div>`;
         } else if (!isCancelled) {
             actionAreaHtml = `
@@ -2419,6 +2426,16 @@ window.renderAdminMemberPlusOrders = function() {
                     </button>
                     <button type="button" class="btn btn-outline btn-sm text-danger border-danger" onclick="window.adminCancelMemberPlusOrder('${escapeJsStr(o.dbId)}')">
                         <i class="fa-solid fa-xmark"></i> Batalkan
+                    </button>
+                    <button type="button" class="btn btn-danger btn-sm" title="Hapus Data Pesanan" onclick="window.adminDeleteSingleMemberPlusOrder('${escapeJsStr(o.dbId)}')">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                </div>`;
+        } else {
+            actionAreaHtml = `
+                <div style="margin-top: 12px; display: flex; justify-content: flex-end;">
+                    <button type="button" class="btn btn-danger btn-sm w-full" onclick="window.adminDeleteSingleMemberPlusOrder('${escapeJsStr(o.dbId)}')">
+                        <i class="fa-solid fa-trash-can"></i> Hapus Data Pesanan Ini
                     </button>
                 </div>`;
         }
@@ -2736,8 +2753,11 @@ window.renderAdminMembers = function() {
         const isAnon = Boolean(u.isAnonymous || u.isGuest || u.role === 'anonymous');
         const uEmail = (u.email || '').toLowerCase();
         const userOrders = orders.filter(o => o.userId === u.uid || (!isAnon && uEmail && o.userEmail?.toLowerCase() === uEmail));
-        const successOrders = userOrders.filter(o => o.status === 'SUCCESS');
-        const totalSpent = successOrders.reduce((sum, o) => sum + (o.finalTotal || 0), 0);
+        const successOrders = userOrders.filter(o => o.status === 'SUCCESS' && !o.isTopupOrder && o.orderType !== 'TOPUP_BALANCE');
+        const liveSpent = successOrders.reduce((sum, o) => sum + (o.finalTotal || 0), 0);
+        const preservedCnt = Math.max(0, Math.round(Number(u.preservedSuccessOrders || 0)));
+        const preservedSpent = Math.max(0, Math.round(Number(u.preservedTotalSpent || 0)));
+        const totalSpent = preservedSpent + liveSpent;
 
         const orderWithPhone = userOrders.find(o => o.userPhone && o.userPhone.trim() !== '');
         const resolvedPhone = u.phone || u.whatsapp || (orderWithPhone ? orderWithPhone.userPhone : '');
@@ -2755,8 +2775,8 @@ window.renderAdminMembers = function() {
             isBlocked,
             deviceId: resolvedDevice,
             resolvedPhone,
-            totalTrx: userOrders.length,
-            successTrx: successOrders.length,
+            totalTrx: preservedCnt + userOrders.length,
+            successTrx: preservedCnt + successOrders.length,
             totalSpent
         };
     });
@@ -3208,10 +3228,13 @@ window.generateAdminReports = function() {
     });
     
     const todayStr = new Date().toLocaleDateString('id-ID');
-    let totalRevenue = 0;
+    const archFin = (siteSettings.archivedFinancialSummary && typeof siteSettings.archivedFinancialSummary === 'object')
+        ? siteSettings.archivedFinancialSummary
+        : {};
+    let totalRevenue = Math.max(0, Math.round(Number(archFin.totalIncome || 0)));
     let todayRevenue = 0;
     let todayCount = 0;
-    let totalSales = successOrders.length;
+    let totalSales = Math.max(0, Math.round(Number(archFin.totalCount || 0))) + successOrders.length;
     let productCountMap = {};
     
     successOrders.forEach(o => {
@@ -6849,12 +6872,28 @@ window.populateSettingsForm = function() {
     const adminPinEl = document.getElementById('set-admin-security-pin');
     const reqAdminPinEl = document.getElementById('set-require-admin-pin');
     const adminPinBadge = document.getElementById('admin-pin-status-badge');
-    if (adminPinEl) adminPinEl.value = siteSettings.adminSecurityPin || '';
+    const adminPinResetWrap = document.getElementById('admin-pin-locked-reset-wrap');
+    const adminPinEyeBtn = document.getElementById('btn-eye-admin-security-pin');
+    const adminPinLbl = document.getElementById('lbl-set-admin-security-pin');
+    const hasPin = Boolean((siteSettings.adminSecurityPin || '').trim().length === 6);
+    if (adminPinEl) {
+        adminPinEl.value = hasPin ? '••••••' : (siteSettings.adminSecurityPin || '');
+        adminPinEl.disabled = hasPin;
+        adminPinEl.readOnly = hasPin;
+        adminPinEl.style.opacity = hasPin ? '0.75' : '1';
+        adminPinEl.style.cursor = hasPin ? 'not-allowed' : 'text';
+    }
+    if (adminPinEyeBtn) adminPinEyeBtn.style.display = hasPin ? 'none' : 'inline-flex';
+    if (adminPinResetWrap) adminPinResetWrap.style.display = hasPin ? 'block' : 'none';
+    if (adminPinLbl) {
+        adminPinLbl.innerText = hasPin
+            ? 'PIN Transaksi Admin (Terkunci • Reset via Kata Sandi)'
+            : 'Atur PIN Transaksi Admin Pertama Kali (6 Angka)';
+    }
     if (reqAdminPinEl) reqAdminPinEl.checked = siteSettings.requireAdminPin !== false;
     if (adminPinBadge) {
-        const hasPin = Boolean((siteSettings.adminSecurityPin || '').trim());
         adminPinBadge.className = `status-badge ${hasPin ? 'status-success' : 'status-pending'}`;
-        adminPinBadge.innerText = hasPin ? 'PIN TERPASANG' : 'BELUM DISETEL';
+        adminPinBadge.innerText = hasPin ? 'TERKUNCI & AKTIF' : 'BELUM DISETEL';
     }
 
     const mpEnabledEl = document.getElementById('set-memberplus-enabled');
@@ -7072,7 +7111,9 @@ window.saveSiteSettings = async function() {
         logoImgBase64: tempLogoBase64,
         pwaIconBase64: tempPwaIconBase64,
         banners: siteSettings.banners || [],
-        adminSecurityPin: (document.getElementById('set-admin-security-pin')?.value || '').replace(/[^0-9]/g, '').slice(0, 6),
+        adminSecurityPin: (siteSettings.adminSecurityPin && String(siteSettings.adminSecurityPin).trim().length === 6)
+            ? String(siteSettings.adminSecurityPin).trim()
+            : (document.getElementById('set-admin-security-pin')?.value || '').replace(/[^0-9]/g, '').slice(0, 6),
         requireAdminPin: document.getElementById('set-require-admin-pin') ? document.getElementById('set-require-admin-pin').checked : true,
         memberPlusEnabled: document.getElementById('set-memberplus-enabled') ? document.getElementById('set-memberplus-enabled').checked : true,
         memberPlusMonthlyPrice: Math.max(1000, parseInt(document.getElementById('set-memberplus-price')?.value || '25000', 10) || 25000),
@@ -9457,6 +9498,7 @@ window.executeDigiflazzTransactionForOrder = async function(orderData, orderDbId
     const isTesting = (siteSettings.digiflazzEnvMode || 'development') === 'development';
     const isPasca = (item.processType === 'digiflazz_pasca' || orderData.digiflazzCommand === 'pay-pasca');
 
+    const sellBudget = Math.round(Number(orderData.baseTotal || orderData.finalTotal || 0));
     const reqPayload = {
         username: username,
         buyer_sku_code: sku,
@@ -9467,6 +9509,9 @@ window.executeDigiflazzTransactionForOrder = async function(orderData, orderDbId
     if (isTesting) reqPayload.testing = true;
     if (isPasca) {
         reqPayload.commands = (orderData.digiflazzStatus === 'Pending' && lastHit > 0) ? 'status-pasca' : 'pay-pasca';
+    } else {
+        if (sellBudget > 0) reqPayload.max_price = sellBudget;
+        if (customerNo.includes('.')) reqPayload.allow_dot = true;
     }
 
     const nowMs = Date.now();
@@ -10509,7 +10554,8 @@ window.renderAdminMemberWalletsTable = function() {
         const isMp = isAdminUserMemberPlusActive(u);
         const hasPin = Boolean(u.trxPin && String(u.trxPin).length === 6);
         const uOrders = orders.filter(o => o.status === 'SUCCESS' && !o.isTopupOrder && (o.userId === u.uid || (u.email && o.userEmail?.toLowerCase() === u.email.toLowerCase())));
-        const spent = uOrders.reduce((s, o) => s + Number(o.finalTotal || 0), 0);
+        const spent = Math.max(0, Math.round(Number(u.preservedTotalSpent || 0))) + uOrders.reduce((s, o) => s + Number(o.finalTotal || 0), 0);
+        const totalCnt = Math.max(0, Math.round(Number(u.preservedSuccessOrders || 0))) + uOrders.length;
         const dispName = u.name || (u.email ? u.email.split('@')[0] : 'Member');
 
         return `<tr>
@@ -10528,7 +10574,7 @@ window.renderAdminMemberWalletsTable = function() {
                     : `<span class="status-badge status-anon">BELUM DISETEL</span>`}
             </td>
             <td><strong class="text-success" style="font-size:1rem;">Rp${bal.toLocaleString('id-ID')}</strong></td>
-            <td><span class="text-primary fw-bold">Rp${spent.toLocaleString('id-ID')}</span> <small class="text-muted text-xs">(${uOrders.length}x)</small></td>
+            <td><span class="text-primary fw-bold">Rp${spent.toLocaleString('id-ID')}</span> <small class="text-muted text-xs">(${totalCnt}x)</small></td>
             <td>
                 <button type="button" class="btn btn-primary btn-sm" onclick="window.openAdminAdjustBalanceModal('${escapeJsStr(u.uid)}')">
                     <i class="fa-solid fa-sliders"></i> Tambah / Kurangi Saldo
@@ -10784,12 +10830,24 @@ window.renderFinancialReportPanel = function() {
     const rows = getFilteredFinancialRows();
     const todayStr = new Date().toLocaleDateString('id-ID');
 
-    let totalIncome = 0;
-    let totalExpense = 0;
-    let totalNet = 0;
-    let vipercellIncome = 0;
-    let digiflazzIncome = 0;
+    const archFin = (currentFinancialPeriodFilter === 'ALL' && siteSettings.archivedFinancialSummary && typeof siteSettings.archivedFinancialSummary === 'object')
+        ? siteSettings.archivedFinancialSummary
+        : {};
+    let totalIncome = currentFinancialSourceFilter === 'ALL'
+        ? Math.max(0, Math.round(Number(archFin.totalIncome || 0)))
+        : (currentFinancialSourceFilter === 'DIGIFLAZZ'
+            ? Math.max(0, Math.round(Number(archFin.digiflazzIncome || 0)))
+            : (currentFinancialSourceFilter === 'VIPERCELL' ? Math.max(0, Math.round(Number(archFin.vipercellIncome || 0))) : 0));
+    let totalExpense = currentFinancialSourceFilter === 'ALL'
+        ? Math.max(0, Math.round(Number(archFin.totalExpense || 0)))
+        : (currentFinancialSourceFilter === 'DIGIFLAZZ' ? Math.max(0, Math.round(Number(archFin.digiflazzExpense || 0))) : 0);
+    let totalNet = currentFinancialSourceFilter === 'ALL'
+        ? Math.max(0, Math.round(Number(archFin.totalNetProfit || 0)))
+        : Math.max(0, totalIncome - totalExpense);
+    let vipercellIncome = Math.max(0, Math.round(Number(archFin.vipercellIncome || 0)));
+    let digiflazzIncome = Math.max(0, Math.round(Number(archFin.digiflazzIncome || 0)));
     let todaySaldoIncome = 0;
+    const archivedCount = currentFinancialPeriodFilter === 'ALL' ? Math.max(0, Math.round(Number(archFin.totalCount || 0))) : 0;
 
     orders.filter(o => o.status === 'SUCCESS').forEach(o => {
         const row = classifyOrderFinancialRow(o);
@@ -10812,7 +10870,7 @@ window.renderFinancialReportPanel = function() {
     };
 
     setTxt('fin-stat-income', `Rp${totalIncome.toLocaleString('id-ID')}`);
-    setTxt('fin-stat-income-sub', `${rows.length} transaksi selesai`);
+    setTxt('fin-stat-income-sub', `${archivedCount + rows.length} transaksi selesai`);
     setTxt('fin-stat-expense', `Rp${totalExpense.toLocaleString('id-ID')}`);
     setTxt('fin-stat-netprofit', `Rp${totalNet.toLocaleString('id-ID')}`);
     const marginPct = totalIncome > 0 ? ((totalNet / totalIncome) * 100).toFixed(1) : '0.0';
@@ -11351,6 +11409,337 @@ document.addEventListener('click', (e) => {
         btn.classList.remove('btn-working-indicator');
     }, 480);
 }, true);
+
+// ============================================================================
+// PEMBARUAN v28.9: RESET PIN ADMIN VIA KATA SANDI, PEMBERSIHAN TRANSAKSI MASSAL
+// DENGAN SIMPAN STATISTIK USER & KEUANGAN, SERTA KELOLA RIWAYAT MEMBER PLUS
+// ============================================================================
+
+window.openAdminResetPinModal = function() {
+    const passInp = document.getElementById('admin-reset-pin-password');
+    const newInp = document.getElementById('admin-reset-pin-new');
+    const confInp = document.getElementById('admin-reset-pin-confirm');
+    if (passInp) passInp.value = '';
+    if (newInp) newInp.value = '';
+    if (confInp) confInp.value = '';
+    window.openModal('modal-admin-reset-pin');
+    setTimeout(() => passInp?.focus(), 100);
+};
+
+window.submitAdminResetPinWithPassword = async function() {
+    if (!currentAdminUser || !currentAdminUser.email) {
+        window.customAlert('Sesi Tidak Valid', 'Silakan login ulang sebagai Admin.', 'error');
+        return;
+    }
+    const passVal = (document.getElementById('admin-reset-pin-password')?.value || '').trim();
+    const newPin = (document.getElementById('admin-reset-pin-new')?.value || '').replace(/[^0-9]/g, '');
+    const confPin = (document.getElementById('admin-reset-pin-confirm')?.value || '').replace(/[^0-9]/g, '');
+
+    if (!passVal) {
+        window.customAlert('Kata Sandi Kosong', 'Masukkan kata sandi login akun Admin Anda.', 'warning');
+        return;
+    }
+    if (newPin.length !== 6) {
+        window.customAlert('Format PIN Harus 6 Angka', 'PIN Transaksi Admin wajib terdiri dari 6 digit angka.', 'warning');
+        return;
+    }
+    if (newPin !== confPin) {
+        window.customAlert('Konfirmasi PIN Berbeda', 'Ketik ulang 6 digit PIN baru yang sama pada kolom konfirmasi.', 'warning');
+        return;
+    }
+
+    const btn = document.getElementById('btn-submit-admin-reset-pin');
+    const ogHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Memverifikasi...';
+    }
+
+    try {
+        await signInWithEmailAndPassword(auth, currentAdminUser.email, passVal);
+        await setDoc(doc(db, pathSettings, 'mainConfig'), {
+            adminSecurityPin: newPin,
+            adminPinUpdatedAt: Date.now()
+        }, { merge: true });
+        siteSettings.adminSecurityPin = newPin;
+        window.closeModal('modal-admin-reset-pin');
+        window.populateSettingsForm();
+        window.showToast('PIN Admin Diperbarui', 'PIN Transaksi Admin 6 digit baru berhasil diaktifkan.', 'success');
+    } catch (err) {
+        window.customAlert('Kata Sandi Salah', 'Kata sandi akun Admin yang Anda masukkan tidak sesuai.', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = ogHtml;
+        }
+    }
+};
+
+window.adminDeleteSingleMemberPlusOrder = function(orderDbId) {
+    const ord = orders.find(o => o.dbId === orderDbId);
+    if (!ord) return;
+    window.openConfirm(
+        'Hapus Data Pesanan Langganan',
+        `Hapus dokumen pesanan langganan <b>#${window.escapeHtml(ord.id)}</b> dari database? (Status Member Plus aktif pada akun pengguna tidak akan tercabut).`,
+        async (confirmed) => {
+            if (!confirmed) return;
+            try {
+                await deleteDoc(doc(db, pathOrders, orderDbId));
+                window.showToast('Dihapus', `Data pesanan #${ord.id} berhasil dihapus.`, 'success');
+                window.renderAdminMemberPlusOrders();
+            } catch (e) {
+                window.customAlert('Gagal', 'Tidak dapat menghapus data pesanan langganan.', 'error');
+            }
+        },
+        'delete'
+    );
+};
+
+window.adminCleanCancelledMemberPlusOrders = function() {
+    const cancelledMp = orders.filter(o => {
+        if (!o || !o.dbId) return false;
+        const isMp = Boolean(o.isMemberPlusOrder === true || o.orderType === 'MEMBER_PLUS_SUB' || String(o.id || '').toUpperCase().startsWith('MPLUS-'));
+        if (!isMp) return false;
+        return o.status === 'CANCELLED' || o.status === 'FAILED' || o.status === 'EXPIRED' || o.status === 'UNPAID';
+    });
+
+    if (cancelledMp.length === 0) {
+        window.customAlert('Sudah Bersih', 'Tidak ada data pesanan langganan Member Plus yang batal, gagal, atau kedaluwarsa.', 'info');
+        return;
+    }
+
+    window.openConfirm(
+        'Hapus Pesanan Member Plus Batal/Gagal',
+        `Ditemukan <b>${cancelledMp.length} pesanan langganan Member Plus</b> berstatus Batal / Gagal / Kedaluwarsa. Hapus semuanya agar tidak memakan memori?`,
+        async (confirmed) => {
+            if (!confirmed) return;
+            const progId = 'clean-mp-cancelled';
+            window.showProgressToast(progId, 'Membersihkan Pesanan Batal', `Menghapus 0 / ${cancelledMp.length} data...`, 15);
+            let delCount = 0;
+            for (let i = 0; i < cancelledMp.length; i++) {
+                await deleteDoc(doc(db, pathOrders, cancelledMp[i].dbId)).catch(() => {});
+                delCount++;
+                const pct = Math.min(98, Math.round(((i + 1) / cancelledMp.length) * 95));
+                window.showProgressToast(progId, 'Membersihkan Pesanan Batal', `Menghapus ${delCount} / ${cancelledMp.length} data...`, pct);
+            }
+            window.finishProgressToast(progId, 'Berhasil Dibersihkan', `${delCount} data pesanan Member Plus batal/gagal dihapus.`, 'success');
+            window.renderAdminMemberPlusOrders();
+        },
+        'delete'
+    );
+};
+
+window.adminCleanAllMemberPlusOrderHistory = function() {
+    const allMp = orders.filter(o => {
+        if (!o || !o.dbId) return false;
+        return Boolean(o.isMemberPlusOrder === true || o.orderType === 'MEMBER_PLUS_SUB' || String(o.id || '').toUpperCase().startsWith('MPLUS-'));
+    });
+
+    if (allMp.length === 0) {
+        window.customAlert('Sudah Bersih', 'Belum ada riwayat pesanan langganan Member Plus untuk dibersihkan.', 'info');
+        return;
+    }
+
+    window.openConfirm(
+        'Bersihkan Seluruh Riwayat Pesanan Member Plus',
+        `Hapus seluruh <b>${allMp.length} dokumen riwayat pesanan Member Plus</b>? (Masa aktif Member Plus yang sudah menempel di profil akun member tetap aman dan tidak berubah).`,
+        async (confirmed) => {
+            if (!confirmed) return;
+            window.requestAdminPinVerification('Bersihkan Riwayat Pesanan Member Plus', async () => {
+                const progId = 'clean-mp-all';
+                window.showProgressToast(progId, 'Membersihkan Riwayat Member Plus', `Menghapus 0 / ${allMp.length} dokumen...`, 15);
+                let delCount = 0;
+                for (let i = 0; i < allMp.length; i++) {
+                    await deleteDoc(doc(db, pathOrders, allMp[i].dbId)).catch(() => {});
+                    delCount++;
+                    const pct = Math.min(98, Math.round(((i + 1) / allMp.length) * 95));
+                    window.showProgressToast(progId, 'Membersihkan Riwayat Member Plus', `Menghapus ${delCount} / ${allMp.length} dokumen...`, pct);
+                }
+                window.finishProgressToast(progId, 'Riwayat Dibersihkan', `${delCount} dokumen riwayat pesanan Member Plus telah dihapus.`, 'success');
+                window.renderAdminMemberPlusOrders();
+            });
+        },
+        'delete'
+    );
+};
+
+window.openAdminPurgeAllTransactionsModal = function() {
+    const passInp = document.getElementById('admin-purge-password-input');
+    const summaryEl = document.getElementById('admin-purge-summary-stats');
+    if (passInp) passInp.value = '';
+    if (summaryEl) {
+        const totalOrd = orders.length;
+        const totalMut = recentMutationsList.length;
+        const totalBalLogs = balanceLogsList.length;
+        summaryEl.innerHTML = `
+            <div>&bull; <b>${totalOrd} Dokumen Pesanan &amp; Struk</b> di koleksi <code>orders</code></div>
+            <div>&bull; <b>${totalMut} Log Mutasi Pembayaran QRIS</b> di koleksi <code>payment_mutations</code></div>
+            <div>&bull; <b>${totalBalLogs} Log Riwayat Mutasi Saldo</b> di koleksi <code>balance_logs</code></div>
+        `;
+    }
+    window.openModal('modal-admin-purge-transactions');
+    setTimeout(() => passInp?.focus(), 100);
+};
+
+window.executeAdminPurgeAllTransactionsWithPassword = async function() {
+    if (!currentAdminUser || !currentAdminUser.email) {
+        window.customAlert('Sesi Admin Tidak Valid', 'Silakan masuk ulang ke akun Admin.', 'error');
+        return;
+    }
+    const passVal = (document.getElementById('admin-purge-password-input')?.value || '').trim();
+    const includeBalLogs = Boolean(document.getElementById('admin-purge-include-bal-logs')?.checked);
+
+    if (!passVal) {
+        window.customAlert('Kata Sandi Diperlukan', 'Masukkan kata sandi login akun Admin Anda untuk menghapus seluruh data transaksi.', 'warning');
+        return;
+    }
+
+    const btn = document.getElementById('btn-confirm-admin-purge-trx');
+    const ogHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Memverifikasi...';
+    }
+
+    try {
+        // 1. Verifikasi Kata Sandi Login Admin ke Firebase Auth
+        await signInWithEmailAndPassword(auth, currentAdminUser.email, passVal);
+        window.closeModal('modal-admin-purge-transactions');
+
+        const progId = 'admin-purge-all-trx';
+        window.showProgressToast(progId, 'Menyimpan Statistik & Rekap', 'Mengamankan total belanja user & rekap penjualan Admin...', 12);
+
+        // 2. Hitung & Akumulasikan Total Pesanan + Total Belanja ke masing-masing akun Member (users/{uid})
+        const successOrders = orders.filter(o => o && o.status === 'SUCCESS');
+        const userStatsDelta = new Map();
+
+        let addIncome = 0;
+        let addExpense = 0;
+        let addNetProfit = 0;
+        let addVipercellIncome = 0;
+        let addDigiflazzIncome = 0;
+        let addDigiflazzExpense = 0;
+        let addSuccessCount = 0;
+
+        successOrders.forEach(o => {
+            const finRow = classifyOrderFinancialRow(o);
+            addIncome += finRow.income;
+            addExpense += finRow.expense;
+            addNetProfit += finRow.netProfit;
+            addSuccessCount += 1;
+            if (finRow.sourceCode === 'DIGIFLAZZ') {
+                addDigiflazzIncome += finRow.income;
+                addDigiflazzExpense += finRow.expense;
+            } else {
+                addVipercellIncome += finRow.income;
+            }
+
+            const isTopup = Boolean(o.isTopupOrder === true || o.orderType === 'TOPUP_BALANCE');
+            if (!isTopup) {
+                let targetUid = o.userId || '';
+                if (!targetUid && o.userEmail) {
+                    const matchedUser = allUsersList.find(u => u.email && u.email.toLowerCase() === String(o.userEmail).toLowerCase());
+                    if (matchedUser) targetUid = matchedUser.uid;
+                }
+                if (targetUid) {
+                    const prev = userStatsDelta.get(targetUid) || { count: 0, spent: 0 };
+                    prev.count += 1;
+                    prev.spent += Math.round(Number(o.finalTotal || o.baseTotal || 0));
+                    userStatsDelta.set(targetUid, prev);
+                }
+            }
+        });
+
+        // Simpan akumulasi statistik belanja ke setiap dokumen Member
+        const userEntries = Array.from(userStatsDelta.entries());
+        for (let i = 0; i < userEntries.length; i += 25) {
+            const slice = userEntries.slice(i, i + 25);
+            await Promise.all(slice.map(([uid, delta]) => {
+                const uObj = allUsersList.find(u => u.uid === uid);
+                if (!uObj || uObj.isAnonymous || uObj.isGuest) return Promise.resolve();
+                const nextCnt = Math.max(0, Math.round(Number(uObj.preservedSuccessOrders || 0))) + delta.count;
+                const nextSpent = Math.max(0, Math.round(Number(uObj.preservedTotalSpent || 0))) + delta.spent;
+                uObj.preservedSuccessOrders = nextCnt;
+                uObj.preservedTotalSpent = nextSpent;
+                return setDoc(doc(db, pathUsers, uid), {
+                    preservedSuccessOrders: nextCnt,
+                    preservedTotalSpent: nextSpent,
+                    updatedAt: Date.now()
+                }, { merge: true }).catch(() => {});
+            }));
+        }
+
+        // 3. Simpan akumulasi rekap keuangan ke settings/mainConfig agar laporan penjualan Admin tetap utuh
+        const curArch = (siteSettings.archivedFinancialSummary && typeof siteSettings.archivedFinancialSummary === 'object')
+            ? siteSettings.archivedFinancialSummary
+            : {};
+        const updatedArchivedSummary = {
+            totalIncome: Math.max(0, Math.round(Number(curArch.totalIncome || 0))) + addIncome,
+            totalExpense: Math.max(0, Math.round(Number(curArch.totalExpense || 0))) + addExpense,
+            totalNetProfit: Math.max(0, Math.round(Number(curArch.totalNetProfit || 0))) + addNetProfit,
+            vipercellIncome: Math.max(0, Math.round(Number(curArch.vipercellIncome || 0))) + addVipercellIncome,
+            digiflazzIncome: Math.max(0, Math.round(Number(curArch.digiflazzIncome || 0))) + addDigiflazzIncome,
+            digiflazzExpense: Math.max(0, Math.round(Number(curArch.digiflazzExpense || 0))) + addDigiflazzExpense,
+            totalCount: Math.max(0, Math.round(Number(curArch.totalCount || 0))) + addSuccessCount,
+            lastPurgedAt: Date.now()
+        };
+        await setDoc(doc(db, pathSettings, 'mainConfig'), {
+            archivedFinancialSummary: updatedArchivedSummary
+        }, { merge: true }).catch(() => {});
+        siteSettings.archivedFinancialSummary = updatedArchivedSummary;
+
+        // 4. Hapus seluruh dokumen pesanan/struk di koleksi orders
+        const orderDocsToDelete = [...orders].filter(o => o && o.dbId);
+        let deletedOrders = 0;
+        for (let i = 0; i < orderDocsToDelete.length; i += 35) {
+            const slice = orderDocsToDelete.slice(i, i + 35);
+            await Promise.all(slice.map(o => deleteDoc(doc(db, pathOrders, o.dbId)).catch(() => {})));
+            deletedOrders += slice.length;
+            const pct = Math.min(80, 25 + Math.round((deletedOrders / Math.max(1, orderDocsToDelete.length)) * 55));
+            window.showProgressToast(progId, 'Menghapus Data Pesanan & Struk', `${deletedOrders} / ${orderDocsToDelete.length} pesanan dihapus...`, pct);
+        }
+
+        // 5. Hapus seluruh dokumen mutasi QRIS di koleksi payment_mutations
+        const mutSnap = await getDocs(collection(db, pathPaymentMutations)).catch(() => null);
+        if (mutSnap && !mutSnap.empty) {
+            const mutDocs = [];
+            mutSnap.forEach(d => mutDocs.push(d.id));
+            for (let i = 0; i < mutDocs.length; i += 35) {
+                const slice = mutDocs.slice(i, i + 35);
+                await Promise.all(slice.map(id => deleteDoc(doc(db, pathPaymentMutations, id)).catch(() => {})));
+            }
+        }
+
+        // 6. Opsional: Hapus log mutasi saldo lama jika dicentang (Saldo akun di users/{uid} tetap utuh)
+        if (includeBalLogs) {
+            window.showProgressToast(progId, 'Membersihkan Log Mutasi', 'Menghapus riwayat log mutasi saldo lama...', 90);
+            const balDocs = [...balanceLogsList].filter(l => l && l.dbId);
+            for (let i = 0; i < balDocs.length; i += 35) {
+                const slice = balDocs.slice(i, i + 35);
+                await Promise.all(slice.map(l => deleteDoc(doc(db, pathBalanceLogs, l.dbId)).catch(() => {})));
+            }
+        }
+
+        window.generateAdminReports();
+        window.renderAdminOrders();
+        window.renderAdminMembers();
+        window.renderAdminBalanceTab();
+        window.renderFinancialReportPanel();
+        window.finishProgressToast(
+            progId,
+            'Database Transaksi Dibersihkan',
+            `${deletedOrders} data pesanan & struk dihapus. Saldo akun, statistik belanja user, dan rekap penjualan Admin tetap tersimpan aman.`,
+            'success'
+        );
+    } catch (err) {
+        window.customAlert('Kata Sandi Salah / Gagal', 'Kata sandi akun Admin tidak sesuai atau terjadi gangguan jaringan.', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = ogHtml;
+        }
+    }
+};
 
 // Jalankan Inisialisasi Panel Admin setelah seluruh fungsi dan variabel terdaftar
 if (document.readyState === 'loading') {
