@@ -33,7 +33,7 @@
     <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
     
     <!-- Stylesheet Admin -->
-    <link rel="stylesheet" href="css/admin.css?v=28.9">
+    <link rel="stylesheet" href="css/admin.css?v=30.0">
     
     <!-- jsQR & Html5Qrcode untuk Pemindai QRIS & Barcode Kasir -->
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js" defer></script>
@@ -2311,6 +2311,11 @@
                             <div id="admin-banner-list" class="banner-admin-grid"></div>
                         </div>
 
+                        <div class="form-group mt-3">
+                            <label for="set-category-banner-game"><i class="fa-solid fa-gamepad text-primary"></i> Banner Khusus Katalog Game (Link URL Gambar Opsional)</label>
+                            <input type="url" id="set-category-banner-game" class="form-control text-xs" placeholder="Contoh: https://.../banner-game.jpg (Kosongkan untuk memakai banner default Neo-Brutalism)">
+                        </div>
+
                         <button id="btn-save-settings" class="btn btn-primary w-full mt-4" style="padding: 13px;" onclick="window.saveSiteSettings()">
                             <i class="fa-solid fa-floppy-disk"></i> <span>Simpan Pengaturan Toko</span>
                         </button>
@@ -3069,30 +3074,18 @@
             <p id="admin-pin-modal-desc" class="text-xs text-muted mb-2">
                 Masukkan 6 digit PIN Admin untuk melanjutkan.
             </p>
-            <input type="password" id="admin-pin-verify-input" maxlength="6" inputmode="none" autocomplete="off" style="position:absolute; opacity:0; pointer-events:none; width:1px; height:1px;">
-            <div id="admin-pin-dots-row" class="mbanking-pin-dots" onclick="document.getElementById('admin-pin-verify-input')?.focus()">
-                <span class="pin-dot"></span>
-                <span class="pin-dot"></span>
-                <span class="pin-dot"></span>
-                <span class="pin-dot"></span>
-                <span class="pin-dot"></span>
-                <span class="pin-dot"></span>
+            <div class="v30-admin-pin-box-wrap" onclick="document.getElementById('admin-pin-verify-input')?.focus()">
+                <input type="tel" id="admin-pin-verify-input" class="v30-admin-native-pin-input" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="off" oninput="window.onNativeAdminPinInput(this)">
+                <div id="admin-pin-dots-row" class="mbanking-pin-dots v30-admin-pin-boxes">
+                    <span class="pin-dot v30-admin-pin-slot"></span>
+                    <span class="pin-dot v30-admin-pin-slot"></span>
+                    <span class="pin-dot v30-admin-pin-slot"></span>
+                    <span class="pin-dot v30-admin-pin-slot"></span>
+                    <span class="pin-dot v30-admin-pin-slot"></span>
+                    <span class="pin-dot v30-admin-pin-slot"></span>
+                </div>
             </div>
-            <small id="admin-pin-error-helper" class="text-xs text-muted d-block mb-2">Gunakan tombol angka di bawah atau keyboard fisik</small>
-            <div class="mbanking-keypad-grid mb-3">
-                <button type="button" class="mbanking-key-btn" onclick="window.pressAdminPinKeypad('1')">1</button>
-                <button type="button" class="mbanking-key-btn" onclick="window.pressAdminPinKeypad('2')">2</button>
-                <button type="button" class="mbanking-key-btn" onclick="window.pressAdminPinKeypad('3')">3</button>
-                <button type="button" class="mbanking-key-btn" onclick="window.pressAdminPinKeypad('4')">4</button>
-                <button type="button" class="mbanking-key-btn" onclick="window.pressAdminPinKeypad('5')">5</button>
-                <button type="button" class="mbanking-key-btn" onclick="window.pressAdminPinKeypad('6')">6</button>
-                <button type="button" class="mbanking-key-btn" onclick="window.pressAdminPinKeypad('7')">7</button>
-                <button type="button" class="mbanking-key-btn" onclick="window.pressAdminPinKeypad('8')">8</button>
-                <button type="button" class="mbanking-key-btn" onclick="window.pressAdminPinKeypad('9')">9</button>
-                <button type="button" class="mbanking-key-btn key-fn" onclick="window.pressAdminPinKeypad('CLEAR')">C</button>
-                <button type="button" class="mbanking-key-btn" onclick="window.pressAdminPinKeypad('0')">0</button>
-                <button type="button" class="mbanking-key-btn key-fn" onclick="window.pressAdminPinKeypad('BACK')"><i class="fa-solid fa-delete-left"></i></button>
-            </div>
+            <small id="admin-pin-error-helper" class="text-xs text-muted d-block mb-3">Sentuh kotak PIN di atas untuk mengetik 6 angka PIN</small>
             <div class="flex-gap">
                 <button type="button" class="btn btn-outline flex-1" onclick="window.closeAdminPinModal()">Batal</button>
                 <button type="button" class="btn btn-primary flex-1" onclick="window.confirmAdminPinVerification()">
@@ -3241,7 +3234,7 @@
     </div>
 
     <!-- Script Utama Admin -->
-    <script type="module" src="js/admin.js?v=28.9" defer></script>
+    <script type="module" src="js/admin.js?v=30.0" defer></script>
 
     <script>
         if ('serviceWorker' in navigator) {

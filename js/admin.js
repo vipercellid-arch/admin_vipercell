@@ -1310,11 +1310,21 @@ async function attemptAutoStockDelivery(orderData, orderDbId) {
         processingAutoOrderIds.add(orderDbId);
         try {
             const nowMs = Date.now();
-            const expMs = nowMs + (30 * 86400000);
+            const durDaysMp = parseInt(orderData.durationDays || 30, 10) || 30;
+            let expMs = nowMs + (durDaysMp * 86400000);
+            let sinceMs = nowMs;
             if (orderData.userId) {
-                await setDoc(doc(db, pathUsers, orderData.userId), {
+                const uRef = doc(db, pathUsers, orderData.userId);
+                const uSnap = await getDoc(uRef).catch(() => null);
+                if (uSnap && uSnap.exists()) {
+                    const curExp = Number(uSnap.data().memberPlusExpiresAt || 0);
+                    const baseStart = curExp > nowMs ? curExp : nowMs;
+                    expMs = baseStart + (durDaysMp * 86400000);
+                    sinceMs = uSnap.data().memberPlusSince || nowMs;
+                }
+                await setDoc(uRef, {
                     isMemberPlus: true,
-                    memberPlusSince: nowMs,
+                    memberPlusSince: sinceMs,
                     memberPlusExpiresAt: expMs,
                     updatedAt: nowMs
                 }, { merge: true }).catch(() => {});
@@ -2009,12 +2019,12 @@ async function autoMatchIncomingPaymentAmount(detectedAmount, rawNotifText = '',
         if (o.status !== 'UNPAID' && o.status !== 'PENDING_PAYMENT') return false;
         const fTotal = Math.round(Number(o.finalTotal) || 0);
         const uTotal = Math.round(Number(o.uniqueTotal) || 0);
-        const bTotal = Math.round(Number(o.baseTotal) || 0);
-        if (numAmt > 0 && (fTotal === numAmt || uTotal === numAmt || (bTotal > 0 && bTotal === numAmt))) return true;
+        if (numAmt > 0 && (fTotal === numAmt || uTotal === numAmt)) return true;
         if (rawNotifText && fTotal > 0) {
-            const dotStr = fTotal.toLocaleString('id-ID');
-            const commaStr = dotStr.replace(/\./g, ',');
-            if (rawNotifText.includes(dotStr) || rawNotifText.includes(commaStr) || rawNotifText.includes(String(fTotal))) {
+            const dotStr = fTotal.toLocaleString('id-ID').replace(/\./g, '\\.');
+            const commaStr = fTotal.toLocaleString('id-ID').replace(/\./g, ',');
+            const exactRegex = new RegExp(`(?:^|[^0-9.,])(?:${dotStr}|${commaStr}|${String(fTotal)})(?![0-9])`);
+            if (exactRegex.test(rawNotifText)) {
                 return true;
             }
         }
@@ -6922,6 +6932,8 @@ window.populateSettingsForm = function() {
     window.renderMarqueeStudioSlots();
     window.refreshAdminControlCenterUI();
     window.renderAdminBanners();
+    const catGameBannerEl = document.getElementById('set-category-banner-game');
+    if (catGameBannerEl) catGameBannerEl.value = siteSettings.categoryBannerGame || '';
 };
 
 function compressImageToBase64(file, maxWidth = 600, quality = 0.78) {
@@ -7111,6 +7123,7 @@ window.saveSiteSettings = async function() {
         logoImgBase64: tempLogoBase64,
         pwaIconBase64: tempPwaIconBase64,
         banners: siteSettings.banners || [],
+        categoryBannerGame: (document.getElementById('set-category-banner-game')?.value || '').trim(),
         adminSecurityPin: (siteSettings.adminSecurityPin && String(siteSettings.adminSecurityPin).trim().length === 6)
             ? String(siteSettings.adminSecurityPin).trim()
             : (document.getElementById('set-admin-security-pin')?.value || '').replace(/[^0-9]/g, '').slice(0, 6),
@@ -9409,7 +9422,8 @@ function cleanDigiflazzCustomerNo(rawTarget, inputType = '') {
 async function refundFailedOrderBalanceIfNeeded(orderData, orderDbId, reasonStr = 'Transaksi Digiflazz Gagal') {
     if (!orderData || !orderDbId) return false;
     const pm = String(orderData.paymentMethod || '').toLowerCase();
-    if ((pm !== 'balance' && pm !== 'saldo') || !orderData.userId || orderData.balanceRefunded === true) return false;
+    const isPaidQrisMember = (pm === 'qris' && orderData.paymentVerified === true && !orderData.isAnonymousOrder && Boolean(orderData.userId));
+    if ((pm !== 'balance' && pm !== 'saldo' && !isPaidQrisMember) || !orderData.userId || orderData.balanceRefunded === true) return false;
     const refundAmt = Math.round(Number(orderData.finalTotal || orderData.baseTotal || 0));
     if (refundAmt <= 0) return false;
 
@@ -9515,17 +9529,58 @@ window.executeDigiflazzTransactionForOrder = async function(orderData, orderDbId
     }
 
     const nowMs = Date.now();
-    await updateDoc(doc(db, pathOrders, orderDbId), {
-        digiflazzRefId: refId,
-        digiflazzSku: sku,
-        digiflazzCustomerNo: customerNo,
-        digiflazzLastHitAt: nowMs,
-        digiflazzInFlight: true
-    }).catch(() => {});
+    const orderRefLock = doc(db, pathOrders, orderDbId);
+    let lockAcquired = false;
+    try {
+        await runTransaction(db, async (tx) => {
+            const snap = await tx.get(orderRefLock);
+            if (!snap.exists()) return;
+            const cur = snap.data();
+            if (cur.digiflazzStatus === 'Sukses' || (cur.status === 'SUCCESS' && cur.adminReply)) return;
+            const prevHit = Number(cur.digiflazzLastHitAt || 0);
+            if (cur.digiflazzInFlight === true && (nowMs - prevHit < 25000)) return;
+            if (isAutoTrigger && prevHit > 0 && (nowMs - prevHit < 60000)) return;
+            tx.update(orderRefLock, {
+                digiflazzRefId: refId,
+                digiflazzSku: sku,
+                digiflazzCustomerNo: customerNo,
+                digiflazzLastHitAt: nowMs,
+                digiflazzInFlight: true
+            });
+            lockAcquired = true;
+        });
+    } catch (_) {
+        return false;
+    }
+    if (!lockAcquired) return false;
 
     try {
-        const res = await callDigiflazzApi('/v1/transaction', reqPayload);
-        const d = res?.data || {};
+        let res = await callDigiflazzApi('/v1/transaction', reqPayload);
+        let d = res?.data || {};
+        // LOGIKA #1 (v30.0): Smart Auto-Failover Multi-Seller SKU Router (RC 53, 55, 62, 68, 69)
+        const failoverRcs = ['53', '55', '62', '68', '69'];
+        if (!isPasca && String(d.status || '') === 'Gagal' && failoverRcs.includes(String(d.rc || '')) && !orderData.digiflazzFailoverTried) {
+            let backupSku = String(item.digiflazzBackupSku || '').trim();
+            if (!backupSku && Array.isArray(products)) {
+                const brandDoc = products.find(b => b.id === item.brandId || (b.brandName || '').toLowerCase() === (orderData.productName || '').toLowerCase());
+                if (brandDoc && Array.isArray(brandDoc.variants)) {
+                    const sellBudgetAdmin = Math.round(Number(orderData.baseTotal || orderData.finalTotal || 0));
+                    const altVar = brandDoc.variants.find(v => v.digiflazzSku && v.digiflazzSku !== sku && v.digiflazzSellerStatus !== false && v.digiflazzBuyerStatus !== false && (v.name === item.name || Math.abs(Number(v.price || 0) - Number(item.price || 0)) <= 500) && (!sellBudgetAdmin || Number(v.digiflazzModalPrice || v.baseCost || 0) <= sellBudgetAdmin));
+                    if (altVar) backupSku = String(altVar.digiflazzSku).trim();
+                }
+            }
+            if (backupSku && backupSku !== sku) {
+                const foRefId = `${refId}-FO1`;
+                const foSign = md5Digiflazz(username + apiKey + foRefId);
+                const foPayload = { ...reqPayload, buyer_sku_code: backupSku, ref_id: foRefId, sign: foSign };
+                await updateDoc(doc(db, pathOrders, orderData.dbId), { digiflazzFailoverTried: true, digiflazzPrimaryFailedSku: sku, digiflazzPrimaryFailedRc: String(d.rc || ''), digiflazzSku: backupSku, digiflazzRefId: foRefId }).catch(() => {});
+                const foRes = await callDigiflazzApi('/v1/transaction', foPayload);
+                if (foRes && foRes.data) {
+                    res = foRes;
+                    d = foRes.data;
+                }
+            }
+        }
         const statusStr = String(d.status || 'Pending');
         const rcStr = String(d.rc || '03');
         const snStr = String(d.sn || '');
@@ -11738,6 +11793,16 @@ window.executeAdminPurgeAllTransactionsWithPassword = async function() {
             btn.disabled = false;
             btn.innerHTML = ogHtml;
         }
+    }
+};
+
+window.onNativeAdminPinInput = function(inpEl) {
+    if (!inpEl) return;
+    const clean = String(inpEl.value || '').replace(/[^0-9]/g, '').slice(0, 6);
+    if (inpEl.value !== clean) inpEl.value = clean;
+    window.syncAdminPinDotsUI();
+    if (clean.length === 6) {
+        setTimeout(() => window.confirmAdminPinVerification(), 90);
     }
 };
 
