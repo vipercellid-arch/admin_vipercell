@@ -113,7 +113,7 @@ let siteSettings = {
     digiflazzApiKey: '',
     digiflazzDevApiKey: '',
     digiflazzProdApiKey: '',
-    digiflazzWebhookSecret: 'VIPERCELL_DF_WEBHOOK_2026',
+    digiflazzWebhookSecret: 'VIPERCELLDFWEBHOOK2026',
     digiflazzEnvMode: 'development',
     digiflazzAutoHitOnPaid: true,
     digiflazzBalanceGuard: true,
@@ -670,7 +670,7 @@ async function fetchInitialAdminDataBeforeUnlock() {
                         d: dKey,
                         p: pKey,
                         m: mMode,
-                        s: secData.digiflazzWebhookSecret || siteSettings.digiflazzWebhookSecret || 'VIPERCELL_DF_WEBHOOK_2026'
+                        s: secData.digiflazzWebhookSecret || siteSettings.digiflazzWebhookSecret || 'VIPERCELLDFWEBHOOK2026'
                     });
                     const tokenStr = btoa(unescape(encodeURIComponent(syncPayload)));
                     siteSettings.digiflazzBridgeSyncToken = tokenStr;
@@ -6867,7 +6867,7 @@ window.populateSettingsForm = function() {
     if (dfUserEl) dfUserEl.value = siteSettings.digiflazzUsername || '';
     if (dfDevKeyEl) dfDevKeyEl.value = siteSettings.digiflazzDevApiKey || siteSettings.digiflazzApiKey || '';
     if (dfProdKeyEl) dfProdKeyEl.value = siteSettings.digiflazzProdApiKey || '';
-    if (dfSecretEl) dfSecretEl.value = siteSettings.digiflazzWebhookSecret || 'VIPERCELL_DF_WEBHOOK_2026';
+    if (dfSecretEl) dfSecretEl.value = siteSettings.digiflazzWebhookSecret || 'VIPERCELLDFWEBHOOK2026';
     if (dfAutoEl) dfAutoEl.checked = siteSettings.digiflazzAutoHitOnPaid !== false;
     if (dfBalGuardEl) dfBalGuardEl.checked = siteSettings.digiflazzBalanceGuard !== false;
     if (typeof window.onChangeDigiflazzEnvMode === 'function') window.onChangeDigiflazzEnvMode();
@@ -10014,7 +10014,7 @@ window.saveDigiflazzSettings = async function() {
     }
     const effectiveDevKey = devApiKey || prodApiKey || 'dev-sandbox-vipercell';
     const activeKey = envMode === 'production' ? prodApiKey : effectiveDevKey;
-    const webhookSecret = (document.getElementById('set-df-webhook-secret')?.value || 'VIPERCELL_DF_WEBHOOK_2026').trim();
+    const webhookSecret = (document.getElementById('set-df-webhook-secret')?.value || 'VIPERCELLDFWEBHOOK2026').trim();
     const autoHit = Boolean(document.getElementById('set-df-autohit')?.checked);
     const balGuard = Boolean(document.getElementById('set-df-balance-guard')?.checked);
 
@@ -12314,7 +12314,7 @@ window.saveDigiflazzSettings = async function() {
     const bridgeUrl = (document.getElementById('set-df-bridge-url')?.value || 'https://api.vipercell.cloud/api/digiflazz').trim();
     const envMode = document.getElementById('set-df-env-mode')?.value || 'production';
     const bridgeSecret = (document.getElementById('set-df-bridge-secret')?.value || 'VIPERCELL_BRIDGE_SECRET_2026').trim();
-    const webhookSecret = (document.getElementById('set-df-webhook-secret')?.value || 'VIPERCELL_DF_WEBHOOK_2026').trim();
+    const webhookSecret = (document.getElementById('set-df-webhook-secret')?.value || 'VIPERCELLDFWEBHOOK2026').trim();
     const autoHit = Boolean(document.getElementById('set-df-autohit')?.checked);
     const balGuard = Boolean(document.getElementById('set-df-balance-guard')?.checked);
 
@@ -12616,7 +12616,7 @@ window.populateSettingsForm = function() {
     const bSecEl = document.getElementById('set-df-bridge-secret');
     if (bSecEl) bSecEl.value = siteSettings.digiflazzBridgeAccessKey || 'VIPERCELL_BRIDGE_SECRET_2026';
     const wSecEl = document.getElementById('set-df-webhook-secret');
-    if (wSecEl) wSecEl.value = siteSettings.digiflazzWebhookSecret || 'VIPERCELL_DF_WEBHOOK_2026';
+    if (wSecEl) wSecEl.value = siteSettings.digiflazzWebhookSecret || 'VIPERCELLDFWEBHOOK2026';
     const envEl = document.getElementById('set-df-env-mode');
     if (envEl) envEl.value = siteSettings.digiflazzEnvMode || 'production';
     const autoEl = document.getElementById('set-df-autohit');
@@ -12895,7 +12895,7 @@ window.saveDigiflazzSettings = async function(silentToast = false) {
     const bridgeUrl = (document.getElementById('set-df-bridge-url')?.value || '').trim();
     const envMode = document.getElementById('set-df-env-mode')?.value || 'production';
     const bridgeSecret = (document.getElementById('set-df-bridge-secret')?.value || '').trim();
-    const webhookSecret = (document.getElementById('set-df-webhook-secret')?.value || 'VIPERCELL_DF_WEBHOOK_2026').trim();
+    const webhookSecret = (document.getElementById('set-df-webhook-secret')?.value || 'VIPERCELLDFWEBHOOK2026').trim();
     const autoHit = Boolean(document.getElementById('set-df-autohit')?.checked);
     const balGuard = Boolean(document.getElementById('set-df-balance-guard')?.checked);
 
@@ -12981,4 +12981,890 @@ window.testDigiflazzBridgeConnection = async function() {
     try {
         await window.checkDigiflazzBalance(true);
     } catch (_) {}
+};
+
+
+// ============================================================================
+// PEMBARUAN v30.2.2 ADMIN: PERBAIKAN TOTAL KELOLA BANNER (AUTO-SAVE PER SLOT
+// DOKUMEN TANPA RESET) & FITUR LENGKAP TAB INTEGRASI WHATSAPP VIPERCELL
+// ============================================================================
+
+const pathWaLogs = isWorkspace ? `artifacts/${appId}/public/data/wa_logs` : 'wa_logs';
+let adminWaLogsList = [];
+let _adminAuthoritativeBanners = {
+    loadedMain: false,
+    banners: [],
+    loadedPopup: false,
+    popupBannerEnabled: false,
+    popupBannerImg: '',
+    popupBannerTitle: '',
+    popupBannerLink: '',
+    categoryBanners: {}
+};
+
+// 1. Listener Dokumen Banner Terpisah di Admin (Tidak Pernah Tertimpa oleh mainConfig!)
+onSnapshot(doc(db, pathSettings, 'banner_main'), (snap) => {
+    if (!snap.exists()) return;
+    const d = snap.data() || {};
+    if (Array.isArray(d.banners)) {
+        _adminAuthoritativeBanners.loadedMain = true;
+        _adminAuthoritativeBanners.banners = d.banners;
+        siteSettings.banners = d.banners;
+        window.renderAdminBanners();
+    }
+}, () => {});
+
+onSnapshot(doc(db, pathSettings, 'banner_popup'), (snap) => {
+    if (!snap.exists()) return;
+    const d = snap.data() || {};
+    _adminAuthoritativeBanners.loadedPopup = true;
+    _adminAuthoritativeBanners.popupBannerEnabled = Boolean(d.popupBannerEnabled === true);
+    _adminAuthoritativeBanners.popupBannerImg = String(d.popupBannerImg || '').trim();
+    _adminAuthoritativeBanners.popupBannerTitle = String(d.popupBannerTitle || '').trim();
+    _adminAuthoritativeBanners.popupBannerLink = String(d.popupBannerLink || '').trim();
+
+    siteSettings.popupBannerEnabled = _adminAuthoritativeBanners.popupBannerEnabled;
+    siteSettings.popupBannerImg = _adminAuthoritativeBanners.popupBannerImg;
+    siteSettings.popupBannerTitle = _adminAuthoritativeBanners.popupBannerTitle;
+    siteSettings.popupBannerLink = _adminAuthoritativeBanners.popupBannerLink;
+
+    const popEn = document.getElementById('set-popup-banner-enabled');
+    const popImg = document.getElementById('set-popup-banner-img');
+    const popTitle = document.getElementById('set-popup-banner-title');
+    const popLink = document.getElementById('set-popup-banner-link');
+    if (popEn && document.activeElement !== popEn) popEn.checked = siteSettings.popupBannerEnabled;
+    if (popImg && document.activeElement !== popImg) popImg.value = siteSettings.popupBannerImg;
+    if (popTitle && document.activeElement !== popTitle) popTitle.value = siteSettings.popupBannerTitle;
+    if (popLink && document.activeElement !== popLink) popLink.value = siteSettings.popupBannerLink;
+    window.previewAdminPopupBanner();
+}, () => {});
+
+V301_CATEGORY_KEYS.forEach(catKey => {
+    onSnapshot(doc(db, pathSettings, `banner_cat_${catKey}`), (snap) => {
+        if (!snap.exists()) return;
+        const d = snap.data() || {};
+        const imgVal = String(d.img || '').trim();
+        _adminAuthoritativeBanners.categoryBanners[catKey] = imgVal;
+        if (!siteSettings.categoryBanners) siteSettings.categoryBanners = {};
+        siteSettings.categoryBanners[catKey] = imgVal;
+        const inp = document.getElementById(`set-cat-banner-${catKey}`);
+        if (inp && document.activeElement !== inp) inp.value = imgVal;
+    }, () => {});
+});
+
+// Pastikan renderAdminBanners selalu merender langsung ke #admin-banner-list-tab & menjaga state _adminAuthoritativeBanners
+window.renderAdminBanners = function() {
+    if (_adminAuthoritativeBanners.loadedMain) {
+        siteSettings.banners = _adminAuthoritativeBanners.banners;
+    }
+    const banners = Array.isArray(siteSettings.banners) ? siteSettings.banners : [];
+    const htmlStr = banners.length === 0
+        ? '<div class="text-xs text-muted p-2">Belum ada slide banner kustom (Web User menampilkan Banner Default Vipercell).</div>'
+        : banners.map((b, idx) => `
+            <div class="banner-admin-item" style="position:relative;">
+                <img src="${b}" alt="Banner ${idx + 1}" width="240" height="90" style="width:100%; height:95px; object-fit:cover; border-radius:8px;">
+                <button type="button" class="btn btn-danger btn-sm" style="position:absolute; top:6px; right:6px; padding:4px 8px;" onclick="window.removeBannerItem(${idx})">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
+            </div>
+        `).join('');
+
+    const gridMain = document.getElementById('admin-banner-list');
+    const gridTab = document.getElementById('admin-banner-list-tab');
+    if (gridMain) gridMain.innerHTML = htmlStr;
+    if (gridTab) gridTab.innerHTML = htmlStr;
+};
+
+// Auto-Save saat Upload Gambar Banner Utama
+window.uploadBannerImg = async function(input) {
+    if (!input.files || !input.files[0]) return;
+    try {
+        const b64 = await compressImageToBase64(input.files[0], 620, 0.65);
+        const nextBanners = [...(Array.isArray(siteSettings.banners) ? siteSettings.banners : []), b64];
+        _adminAuthoritativeBanners.loadedMain = true;
+        _adminAuthoritativeBanners.banners = nextBanners;
+        siteSettings.banners = nextBanners;
+        window.renderAdminBanners();
+
+        await setDoc(doc(db, pathSettings, 'banner_main'), { banners: nextBanners, updatedAt: Date.now() }, { merge: true });
+        await setDoc(doc(db, pathSettings, 'bannersConfig'), { banners: nextBanners, updatedAt: Date.now() }, { merge: true }).catch(() => {});
+        window.showToast('Banner Ditambahkan', 'Gambar Banner Utama berhasil diunggah & langsung disimpan!', 'success');
+    } catch (e) {
+        window.customAlert('Gagal Unggah', 'Tidak dapat mengunggah gambar banner.', 'error');
+    }
+    input.value = '';
+};
+
+// Auto-Save saat Tambah Link URL Banner Utama
+window.addBannerFromTabUrlInput = async function() {
+    const tabInp = document.getElementById('set-banner-url-input-tab');
+    const clean = String(tabInp?.value || '').trim();
+    if (!clean || (!clean.startsWith('http://') && !clean.startsWith('https://') && !clean.startsWith('data:image/'))) {
+        window.customAlert('Link URL Tidak Valid', 'Masukkan link URL gambar yang diawali https:// atau http://.', 'warning');
+        return;
+    }
+    const nextBanners = [...(Array.isArray(siteSettings.banners) ? siteSettings.banners : []), clean];
+    _adminAuthoritativeBanners.loadedMain = true;
+    _adminAuthoritativeBanners.banners = nextBanners;
+    siteSettings.banners = nextBanners;
+    if (tabInp) tabInp.value = '';
+    window.renderAdminBanners();
+
+    await setDoc(doc(db, pathSettings, 'banner_main'), { banners: nextBanners, updatedAt: Date.now() }, { merge: true });
+    await setDoc(doc(db, pathSettings, 'bannersConfig'), { banners: nextBanners, updatedAt: Date.now() }, { merge: true }).catch(() => {});
+    window.showToast('Banner Ditambahkan', 'Slide Banner Utama berhasil ditambahkan & disimpan.', 'success');
+};
+
+// Auto-Save saat Hapus Item Banner Utama
+window.removeBannerItem = async function(idx) {
+    const cur = Array.isArray(siteSettings.banners) ? [...siteSettings.banners] : [];
+    cur.splice(idx, 1);
+    _adminAuthoritativeBanners.loadedMain = true;
+    _adminAuthoritativeBanners.banners = cur;
+    siteSettings.banners = cur;
+    window.renderAdminBanners();
+
+    await setDoc(doc(db, pathSettings, 'banner_main'), { banners: cur, updatedAt: Date.now() }, { merge: true });
+    await setDoc(doc(db, pathSettings, 'bannersConfig'), { banners: cur, updatedAt: Date.now() }, { merge: true }).catch(() => {});
+    window.showToast('Banner Dihapus', 'Slide banner telah dihapus.', 'info');
+};
+
+// Auto-Save saat Upload Gambar Pop-Up Banner
+window.uploadPopupBannerImg = async function(inputEl) {
+    if (!inputEl.files || !inputEl.files[0]) return;
+    try {
+        const b64 = await compressImageToBase64(inputEl.files[0], 600, 0.65);
+        const inp = document.getElementById('set-popup-banner-img');
+        if (inp) inp.value = b64;
+        const popEn = document.getElementById('set-popup-banner-enabled');
+        if (popEn) popEn.checked = true;
+        window.previewAdminPopupBanner();
+        await window.saveBannerSettingsAdmin();
+    } catch (_) {
+        window.showToast('Gagal Unggah', 'Tidak dapat memproses file gambar pop-up.', 'error');
+    }
+    inputEl.value = '';
+};
+
+window.clearPopupBannerImg = async function() {
+    const inp = document.getElementById('set-popup-banner-img');
+    const popEn = document.getElementById('set-popup-banner-enabled');
+    if (inp) inp.value = '';
+    if (popEn) popEn.checked = false;
+    window.previewAdminPopupBanner();
+    await window.saveBannerSettingsAdmin();
+};
+
+// Auto-Save saat Upload / Reset Gambar Banner Kategori
+window.uploadCategoryBannerImg = async function(catKey, inputEl) {
+    if (!inputEl.files || !inputEl.files[0]) return;
+    try {
+        const b64 = await compressImageToBase64(inputEl.files[0], 620, 0.65);
+        const inp = document.getElementById(`set-cat-banner-${catKey}`);
+        if (inp) inp.value = b64;
+        _adminAuthoritativeBanners.categoryBanners[catKey] = b64;
+        await setDoc(doc(db, pathSettings, `banner_cat_${catKey}`), { img: b64, updatedAt: Date.now() }, { merge: true });
+        window.showToast('Banner Kategori Disimpan', `Banner untuk kategori ${catKey.toUpperCase()} berhasil diunggah & disimpan.`, 'success');
+    } catch (_) {}
+    inputEl.value = '';
+};
+
+window.clearCategoryBanner = async function(catKey) {
+    const inp = document.getElementById(`set-cat-banner-${catKey}`);
+    if (inp) inp.value = '';
+    _adminAuthoritativeBanners.categoryBanners[catKey] = '';
+    await setDoc(doc(db, pathSettings, `banner_cat_${catKey}`), { img: '', updatedAt: Date.now() }, { merge: true });
+    window.showToast('Direset ke Default', 'Kategori ini kembali menggunakan banner bawaan.', 'info');
+};
+
+// Simpan Seluruh Pengaturan di Tab Kelola Banner ke Dokumen Masing-Masing (100% Bebas Batas Ukuran 1MB!)
+window.saveBannerSettingsAdmin = async function() {
+    const pendingTabUrl = (document.getElementById('set-banner-url-input-tab')?.value || '').trim();
+    if (pendingTabUrl && (pendingTabUrl.startsWith('http://') || pendingTabUrl.startsWith('https://') || pendingTabUrl.startsWith('data:image/'))) {
+        const curBanners = Array.isArray(siteSettings.banners) ? [...siteSettings.banners] : [];
+        if (!curBanners.includes(pendingTabUrl)) {
+            curBanners.push(pendingTabUrl);
+            siteSettings.banners = curBanners;
+            _adminAuthoritativeBanners.loadedMain = true;
+            _adminAuthoritativeBanners.banners = curBanners;
+        }
+        const tabInpEl = document.getElementById('set-banner-url-input-tab');
+        if (tabInpEl) tabInpEl.value = '';
+    }
+
+    const rawBanners = Array.isArray(siteSettings.banners) ? [...siteSettings.banners] : [];
+    const optimizedBanners = [];
+    for (const bItem of rawBanners) {
+        const opt = await shrinkDataUrlIfNeeded(bItem, 560, 0.6);
+        if (opt) optimizedBanners.push(opt);
+    }
+
+    const popupEnabled = Boolean(document.getElementById('set-popup-banner-enabled')?.checked);
+    const rawPopupImg = (document.getElementById('set-popup-banner-img')?.value || '').trim();
+    const popupImg = rawPopupImg ? await shrinkDataUrlIfNeeded(rawPopupImg, 560, 0.62) : '';
+    if (document.getElementById('set-popup-banner-img')) {
+        document.getElementById('set-popup-banner-img').value = popupImg;
+    }
+    const popupTitle = (document.getElementById('set-popup-banner-title')?.value || '').trim();
+    const popupLink = (document.getElementById('set-popup-banner-link')?.value || '').trim();
+
+    _adminAuthoritativeBanners.loadedMain = true;
+    _adminAuthoritativeBanners.banners = optimizedBanners;
+    _adminAuthoritativeBanners.loadedPopup = true;
+    _adminAuthoritativeBanners.popupBannerEnabled = popupEnabled;
+    _adminAuthoritativeBanners.popupBannerImg = popupImg;
+    _adminAuthoritativeBanners.popupBannerTitle = popupTitle;
+    _adminAuthoritativeBanners.popupBannerLink = popupLink;
+
+    siteSettings.banners = optimizedBanners;
+    siteSettings.popupBannerEnabled = popupEnabled;
+    siteSettings.popupBannerImg = popupImg;
+    siteSettings.popupBannerTitle = popupTitle;
+    siteSettings.popupBannerLink = popupLink;
+
+    try {
+        const writePromises = [
+            setDoc(doc(db, pathSettings, 'banner_popup'), {
+                popupBannerEnabled: popupEnabled,
+                popupBannerImg: popupImg,
+                popupBannerTitle: popupTitle,
+                popupBannerLink: popupLink,
+                updatedAt: Date.now()
+            }, { merge: true }),
+            setDoc(doc(db, pathSettings, 'banner_main'), {
+                banners: optimizedBanners,
+                updatedAt: Date.now()
+            }, { merge: true })
+        ];
+
+        const catBanners = {};
+        for (const k of V301_CATEGORY_KEYS) {
+            const rawVal = (document.getElementById(`set-cat-banner-${k}`)?.value || '').trim();
+            const cleanVal = rawVal ? await shrinkDataUrlIfNeeded(rawVal, 560, 0.6) : '';
+            if (cleanVal) catBanners[k] = cleanVal;
+            _adminAuthoritativeBanners.categoryBanners[k] = cleanVal;
+            writePromises.push(
+                setDoc(doc(db, pathSettings, `banner_cat_${k}`), { img: cleanVal, updatedAt: Date.now() }, { merge: true })
+            );
+        }
+        siteSettings.categoryBanners = catBanners;
+
+        await Promise.all(writePromises);
+
+        // Simpan metadata ringan ke mainConfig agar pemicu real-time langsung jalan
+        await setDoc(doc(db, pathSettings, 'mainConfig'), {
+            popupBannerEnabled: popupEnabled,
+            popupBannerTitle: popupTitle,
+            popupBannerLink: popupLink,
+            bannerUpdatedAt: Date.now()
+        }, { merge: true }).catch(() => {});
+
+        window.renderAdminBanners();
+        window.previewAdminPopupBanner();
+        window.showToast('Banner Disimpan', 'Seluruh pengaturan Banner Pop-Up, Banner Utama, dan Banner Kategori berhasil disimpan!', 'success');
+    } catch (e) {
+        console.error('Save banner error:', e);
+        window.customAlert('Gagal Menyimpan', 'Periksa koneksi internet Anda dan coba lagi.', 'error');
+    }
+};
+
+// ============================================================================
+// VIPERCELL ADMIN v30.2.3 — INTEGRASI WA MANDIRI VPS, RIWAYAT LOG WA REAL-TIME,
+// BANNER YOUTUBE BISU (TANPA SUARA), & KEAMANAN WEBHOOK VIPERCELLDFWEBHOOK2026
+// ============================================================================
+
+// 1. Pastikan window.showToast mendukung pemanggilan 2 argumen maupun 3 argumen
+const _origAdminShowToastBase = window.showToast;
+window.showToast = function(titleOrMsg, msgOrType, typeOpt = 'info', actionCallback = null) {
+    const validTypes = ['success', 'error', 'warning', 'info'];
+    if (validTypes.includes(String(msgOrType || '').toLowerCase()) && arguments.length === 2) {
+        const t = String(msgOrType).toLowerCase();
+        const defaultTitle = t === 'error' ? 'Gagal' : (t === 'warning' ? 'Perhatian' : (t === 'success' ? 'Berhasil' : 'Info'));
+        return _origAdminShowToastBase(defaultTitle, titleOrMsg, t, null);
+    }
+    return _origAdminShowToastBase(titleOrMsg, msgOrType, typeOpt, actionCallback);
+};
+
+// 2. Helper Deteksi Link Video YouTube untuk Banner Admin
+window.extractAdminYoutubeIdV3023 = function(rawUrl) {
+    const s = String(rawUrl || '').trim();
+    if (!s || s.startsWith('data:image/')) return '';
+    const m = s.match(/(?:youtube\.com\/(?:watch\?.*v=|embed\/|shorts\/|live\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i);
+    return (m && m[1]) ? m[1] : '';
+};
+
+// Render ulang daftar Banner Utama di Admin (Mendukung Gambar & Link Video YouTube Tanpa Suara)
+window.renderAdminBanners = function() {
+    if (_adminAuthoritativeBanners.loadedMain) {
+        siteSettings.banners = _adminAuthoritativeBanners.banners;
+    }
+    const banners = Array.isArray(siteSettings.banners) ? siteSettings.banners : [];
+    const htmlStr = banners.length === 0
+        ? '<div class="text-xs text-muted p-2">Belum ada slide banner kustom.</div>'
+        : banners.map((b, idx) => {
+            const ytId = window.extractAdminYoutubeIdV3023(b);
+            const mediaPreview = ytId
+                ? `<div style="width:100%; height:95px; border-radius:8px; background:#09090b; color:#ef4444; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; font-weight:900; font-size:0.74rem;"><i class="fa-brands fa-youtube" style="font-size:1.6rem;"></i><span>YOUTUBE BISU (${window.escapeHtml(ytId)})</span></div>`
+                : `<img src="${b}" alt="Banner ${idx + 1}" width="240" height="90" style="width:100%; height:95px; object-fit:cover; border-radius:8px;">`;
+            return `
+                <div class="banner-admin-item" style="position:relative;">
+                    ${mediaPreview}
+                    <button type="button" class="btn btn-danger btn-sm" style="position:absolute; top:6px; right:6px; padding:4px 8px;" onclick="window.removeBannerItem(${idx})">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </div>
+            `;
+        }).join('');
+
+    const gridMain = document.getElementById('admin-banner-list');
+    const gridTab = document.getElementById('admin-banner-list-tab');
+    if (gridMain) gridMain.innerHTML = htmlStr;
+    if (gridTab) gridTab.innerHTML = htmlStr;
+};
+
+// Perbaiki saveBannerSettingsAdmin agar tahan terhadap kegagalan dokumen parsial (Tidak pernah memunculkan Gagal palsu)
+window.saveBannerSettingsAdmin = async function() {
+    const pendingTabUrl = (document.getElementById('set-banner-url-input-tab')?.value || '').trim();
+    if (pendingTabUrl && (pendingTabUrl.startsWith('http://') || pendingTabUrl.startsWith('https://') || pendingTabUrl.startsWith('data:image/'))) {
+        const curBanners = Array.isArray(siteSettings.banners) ? [...siteSettings.banners] : [];
+        if (!curBanners.includes(pendingTabUrl)) {
+            curBanners.push(pendingTabUrl);
+            siteSettings.banners = curBanners;
+            _adminAuthoritativeBanners.loadedMain = true;
+            _adminAuthoritativeBanners.banners = curBanners;
+        }
+        const tabInpEl = document.getElementById('set-banner-url-input-tab');
+        if (tabInpEl) tabInpEl.value = '';
+    }
+
+    const rawBanners = Array.isArray(siteSettings.banners) ? [...siteSettings.banners] : [];
+    const optimizedBanners = [];
+    for (const bItem of rawBanners) {
+        if (window.extractAdminYoutubeIdV3023(bItem)) {
+            optimizedBanners.push(bItem.trim());
+        } else {
+            const opt = await shrinkDataUrlIfNeeded(bItem, 560, 0.6);
+            if (opt) optimizedBanners.push(opt);
+        }
+    }
+
+    const popupEnabled = Boolean(document.getElementById('set-popup-banner-enabled')?.checked);
+    const rawPopupImg = (document.getElementById('set-popup-banner-img')?.value || '').trim();
+    const popupImg = (rawPopupImg && !window.extractAdminYoutubeIdV3023(rawPopupImg))
+        ? await shrinkDataUrlIfNeeded(rawPopupImg, 560, 0.62)
+        : rawPopupImg;
+    if (document.getElementById('set-popup-banner-img')) {
+        document.getElementById('set-popup-banner-img').value = popupImg;
+    }
+    const popupTitle = (document.getElementById('set-popup-banner-title')?.value || '').trim();
+    const popupLink = (document.getElementById('set-popup-banner-link')?.value || '').trim();
+
+    _adminAuthoritativeBanners.loadedMain = true;
+    _adminAuthoritativeBanners.banners = optimizedBanners;
+    _adminAuthoritativeBanners.loadedPopup = true;
+    _adminAuthoritativeBanners.popupBannerEnabled = popupEnabled;
+    _adminAuthoritativeBanners.popupBannerImg = popupImg;
+    _adminAuthoritativeBanners.popupBannerTitle = popupTitle;
+    _adminAuthoritativeBanners.popupBannerLink = popupLink;
+
+    siteSettings.banners = optimizedBanners;
+    siteSettings.popupBannerEnabled = popupEnabled;
+    siteSettings.popupBannerImg = popupImg;
+    siteSettings.popupBannerTitle = popupTitle;
+    siteSettings.popupBannerLink = popupLink;
+
+    const catBanners = {};
+    for (const k of V301_CATEGORY_KEYS) {
+        const rawVal = (document.getElementById(`set-cat-banner-${k}`)?.value || '').trim();
+        const cleanVal = (rawVal && !window.extractAdminYoutubeIdV3023(rawVal))
+            ? await shrinkDataUrlIfNeeded(rawVal, 560, 0.6)
+            : rawVal;
+        if (cleanVal) catBanners[k] = cleanVal;
+        _adminAuthoritativeBanners.categoryBanners[k] = cleanVal;
+    }
+    siteSettings.categoryBanners = catBanners;
+
+    try {
+        localStorage.setItem('vpc_admin_banners_cache', JSON.stringify(_adminAuthoritativeBanners));
+    } catch (e) {}
+
+    await Promise.allSettled([
+        setDoc(doc(db, pathSettings, 'banner_popup'), {
+            popupBannerEnabled: popupEnabled,
+            popupBannerImg: popupImg,
+            popupBannerTitle: popupTitle,
+            popupBannerLink: popupLink,
+            updatedAt: Date.now()
+        }, { merge: true }),
+        setDoc(doc(db, pathSettings, 'banner_main'), {
+            banners: optimizedBanners,
+            updatedAt: Date.now()
+        }, { merge: true }),
+        setDoc(doc(db, pathSettings, 'bannersConfig'), {
+            banners: optimizedBanners,
+            popupBannerEnabled: popupEnabled,
+            popupBannerImg: popupImg,
+            popupBannerTitle: popupTitle,
+            popupBannerLink: popupLink,
+            categoryBanners: catBanners,
+            updatedAt: Date.now()
+        }, { merge: true }),
+        ...V301_CATEGORY_KEYS.map(k =>
+            setDoc(doc(db, pathSettings, `banner_cat_${k}`), {
+                img: _adminAuthoritativeBanners.categoryBanners[k] || '',
+                updatedAt: Date.now()
+            }, { merge: true })
+        ),
+        setDoc(doc(db, pathSettings, 'mainConfig'), {
+            popupBannerEnabled: popupEnabled,
+            popupBannerTitle: popupTitle,
+            popupBannerLink: popupLink,
+            bannerUpdatedAt: Date.now()
+        }, { merge: true })
+    ]);
+
+    window.renderAdminBanners();
+    window.previewAdminPopupBanner();
+    window.showToast('Banner Disimpan', 'Pengaturan Banner berhasil disimpan.', 'success');
+};
+
+// 3. Logika Lengkap Tab Integrasi WhatsApp (#tab-whatsapp) & Sinkronisasi Log WA (Firestore + VPS Bridge)
+function mergeWaLogsLists(firestoreLogs, vpsLogs) {
+    const map = new Map();
+    [...(Array.isArray(vpsLogs) ? vpsLogs : []), ...(Array.isArray(firestoreLogs) ? firestoreLogs : [])].forEach(item => {
+        if (!item) return;
+        const key = item.dbId || `${item.targetPhone || ''}_${item.category || ''}_${Math.floor(Number(item.createdAt || 0) / 5000)}`;
+        map.set(key, { ...map.get(key), ...item, dbId: item.dbId || key });
+    });
+    return Array.from(map.values()).sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
+}
+
+let _firestoreWaLogsRaw = [];
+let _vpsWaLogsRaw = [];
+
+onSnapshot(collection(db, pathWaLogs), (snap) => {
+    _firestoreWaLogsRaw = [];
+    snap.forEach(d => _firestoreWaLogsRaw.push({ dbId: d.id, ...d.data() }));
+    adminWaLogsList = mergeWaLogsLists(_firestoreWaLogsRaw, _vpsWaLogsRaw);
+    window.renderAdminWaLogsTable();
+    window.updateAdminWaStatsUI();
+}, () => {});
+
+window.fetchVpsWaLogsBackup = async function() {
+    const bridgeUrl = (siteSettings.digiflazzBridgeUrl || 'https://api.vipercell.cloud').trim();
+    const bridgeSecret = (siteSettings.digiflazzBridgeAccessKey || siteSettings.digiflazzBridgeSecret || 'VIPERCELL_BRIDGE_SECRET_2026').trim();
+    if (!bridgeUrl || !bridgeUrl.startsWith('http')) return;
+    const cleanBase = bridgeUrl.replace(/\/+$/, '').replace(/\/api\/digiflazz$/, '');
+    try {
+        const res = await fetch(`${cleanBase}/api/wa-logs`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Vipercell-Bridge-Key': bridgeSecret
+            },
+            body: JSON.stringify({
+                action: 'GET_WA_LOGS',
+                bridgeAccessKey: bridgeSecret
+            })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && Array.isArray(data.logs)) {
+            _vpsWaLogsRaw = data.logs;
+            adminWaLogsList = mergeWaLogsLists(_firestoreWaLogsRaw, _vpsWaLogsRaw);
+            window.renderAdminWaLogsTable();
+            window.updateAdminWaStatsUI();
+        }
+    } catch (e) {}
+};
+
+window.refreshAdminWaLogsNow = async function() {
+    try {
+        const snap = await getDocs(collection(db, pathWaLogs)).catch(() => null);
+        if (snap && snap.docs) {
+            _firestoreWaLogsRaw = snap.docs.map(d => ({ dbId: d.id, ...d.data() }));
+        }
+        await window.fetchVpsWaLogsBackup();
+        adminWaLogsList = mergeWaLogsLists(_firestoreWaLogsRaw, _vpsWaLogsRaw);
+        window.renderAdminWaLogsTable();
+        window.updateAdminWaStatsUI();
+        window.showToast('Diperbarui', 'Riwayat log WhatsApp telah dimuat ulang.', 'success');
+    } catch (e) {
+        window.renderAdminWaLogsTable();
+    }
+};
+
+window.switchAdminWaSubTab = function(sub = 'config') {
+    ['config', 'test', 'logs'].forEach(k => {
+        document.getElementById(`wa-subtab-btn-${k}`)?.classList.toggle('active', k === sub);
+        const panel = document.getElementById(`wa-panel-${k}`);
+        if (panel) panel.style.display = (k === sub) ? 'block' : 'none';
+    });
+    if (sub === 'config') window.checkAdminVpsWaStatus(false);
+    if (sub === 'test') window.onChangeWaTestCategoryTemplate();
+    if (sub === 'logs') {
+        window.renderAdminWaLogsTable();
+        window.fetchVpsWaLogsBackup();
+    }
+};
+
+window.syncAdminWaIntegrationTabUI = function() {
+    const enEl = document.getElementById('set-wa-integration-enabled');
+    const loginEl = document.getElementById('set-wa-notify-login');
+    const otpEl = document.getElementById('set-wa-require-otp');
+    const trxEl = document.getElementById('set-wa-notify-trx');
+
+    if (enEl) enEl.checked = Boolean(siteSettings.waIntegrationEnabled !== false);
+    if (loginEl) loginEl.checked = Boolean(siteSettings.waNotifyOnLogin !== false);
+    if (otpEl) otpEl.checked = Boolean(siteSettings.waRequirePhoneOtp !== false);
+    if (trxEl) trxEl.checked = Boolean(siteSettings.waNotifyOnTrx !== false);
+    window.updateAdminWaStatsUI();
+};
+
+window.updateAdminWaStatsUI = function() {
+    const badgeEl = document.getElementById('wa-logs-count-badge');
+    if (badgeEl) badgeEl.innerText = String(adminWaLogsList.length);
+};
+
+window.checkAdminVpsWaStatus = async function(showToastNotify = false) {
+    const dotEl = document.getElementById('wa-vps-live-dot');
+    const txtEl = document.getElementById('wa-vps-live-status-text');
+    const bridgeBase = (siteSettings.digiflazzBridgeUrl || 'https://api.vipercell.cloud').trim().replace(/\/+$/, '');
+    const waStatusUrl = bridgeBase.includes('/api/digiflazz')
+        ? bridgeBase.replace('/api/digiflazz', '/api/wa-status')
+        : `${bridgeBase}/api/wa-status`;
+    const bridgeSecret = (siteSettings.digiflazzBridgeAccessKey || siteSettings.digiflazzBridgeSecret || 'VIPERCELL_BRIDGE_SECRET_2026').trim();
+
+    if (txtEl) txtEl.innerText = 'Memeriksa...';
+    try {
+        const res = await fetch(waStatusUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Vipercell-Bridge-Key': bridgeSecret
+            },
+            body: JSON.stringify({
+                action: 'WA_STATUS',
+                bridgeAccessKey: bridgeSecret
+            })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.ok) {
+            if (data.waReady) {
+                if (dotEl) dotEl.style.background = '#10b981';
+                if (txtEl) txtEl.innerText = `Terhubung (${data.waConnectedNumber || 'Aktif'})`;
+                if (showToastNotify) window.showToast('WhatsApp VPS Aktif', `Terhubung ke nomor ${data.waConnectedNumber || 'WA VPS'}.`, 'success');
+            } else {
+                if (dotEl) dotEl.style.background = '#f59e0b';
+                const stateLabel = data.waState === 'WAITING_QR_SCAN' ? 'Menunggu Scan QR di VPS' : (data.waState || 'Belum Siap');
+                if (txtEl) txtEl.innerText = stateLabel;
+                if (showToastNotify) window.showToast('Status WA VPS', stateLabel, 'warning');
+            }
+        } else {
+            if (dotEl) dotEl.style.background = '#ef4444';
+            if (txtEl) txtEl.innerText = 'Tidak Terhubung';
+        }
+    } catch (e) {
+        if (dotEl) dotEl.style.background = '#ef4444';
+        if (txtEl) txtEl.innerText = 'VPS Offline';
+    }
+};
+
+window.saveAdminWaIntegrationSettings = async function(silentMode = false) {
+    const waIntegrationEnabled = Boolean(document.getElementById('set-wa-integration-enabled')?.checked);
+    const waNotifyOnLogin = Boolean(document.getElementById('set-wa-notify-login')?.checked);
+    const waRequirePhoneOtp = Boolean(document.getElementById('set-wa-require-otp')?.checked);
+    const waNotifyOnTrx = Boolean(document.getElementById('set-wa-notify-trx')?.checked);
+
+    const payload = {
+        waIntegrationEnabled,
+        waNotifyOnLogin,
+        waRequirePhoneOtp,
+        waNotifyOnTrx,
+        waProvider: 'wwebjs_vps',
+        waGatewayProvider: 'wwebjs_vps',
+        waForgotMethodMode: waIntegrationEnabled ? 'both' : 'email_only',
+        updatedAt: Date.now()
+    };
+
+    siteSettings = { ...siteSettings, ...payload };
+    window.updateAdminWaStatsUI();
+
+    try {
+        localStorage.setItem('vpc_admin_wa_settings', JSON.stringify(payload));
+    } catch (e) {}
+
+    await Promise.allSettled([
+        setDoc(doc(db, pathSettings, 'wa_config'), payload, { merge: true }),
+        setDoc(doc(db, pathSettings, 'mainConfig'), payload, { merge: true })
+    ]);
+
+    if (!silentMode) {
+        window.showToast(
+            'Pengaturan WA Disimpan',
+            waIntegrationEnabled ? 'Integrasi WhatsApp aktif.' : 'Integrasi WhatsApp dinonaktifkan.',
+            'success'
+        );
+    }
+};
+
+window.onChangeWaTestCategoryTemplate = function() {
+    const cat = document.getElementById('wa-test-category-select')?.value || 'OTP_VERIFIKASI';
+    const area = document.getElementById('wa-test-message-body');
+    const phoneInp = document.getElementById('wa-test-target-phone');
+    if (phoneInp && !phoneInp.value && siteSettings.adminWa) {
+        phoneInp.value = siteSettings.adminWa;
+    }
+    if (!area) return;
+
+    const nowStr = new Date().toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const templates = {
+        'OTP_VERIFIKASI': `*[KODE OTP VERIFIKASI VIPERCELL]*\n\nKode OTP keamanan akun kamu adalah: *849201*\n\nBerlaku selama 10 menit. Jangan berikan kode ini kepada siapa pun.`,
+        'OTP_LOGIN_2FA': `*[OTP LOGIN 2 LANGKAH VIPERCELL]*\n\nKode OTP masuk akun kamu adalah: *639104*\n\nBerlaku selama 10 menit. Jangan berikan kode ini kepada siapa pun.`,
+        'INFO_LOGIN': `*[INFO KEAMANAN LOGIN VIPERCELL]*\n\nHalo *Member Vipercell*,\nAkun kamu baru saja diakses pada:\n\n• *Perangkat:* Android • Chrome Mobile\n• *Lokasi:* Ambon, Maluku, Indonesia (WIT)\n• *Waktu:* ${nowStr}`,
+        'OTP_LUPA_SANDI': `*[KODE OTP PEMULIHAN SANDI VIPERCELL]*\n\nKode OTP untuk mengatur ulang kata sandi / PIN akun kamu adalah: *517394*\n\nJangan bagikan kode ini kepada siapa pun.`,
+        'INFO_TRANSAKSI': `*[TRANSAKSI VIPERCELL BERHASIL]*\n\nTerima kasih! Pesanan kamu telah berhasil diproses:\n• *Produk:* Top Up Layanan Digital\n• *Status:* SUKSES\n• *Waktu:* ${nowStr}`,
+        'KUSTOM': `Halo pelanggan Vipercell! Pesan ini dikirim langsung dari server WhatsApp Vipercell.`
+    };
+    area.value = templates[cat] || templates.KUSTOM;
+};
+
+window.sendAdminWaTestMessageNow = async function() {
+    const cat = document.getElementById('wa-test-category-select')?.value || 'UJI_ADMIN';
+    const rawTarget = (document.getElementById('wa-test-target-phone')?.value || '').trim();
+    const msg = (document.getElementById('wa-test-message-body')?.value || '').trim();
+
+    if (!rawTarget || !msg) {
+        window.customAlert('Belum Lengkap', 'Masukkan Nomor WhatsApp Tujuan dan Isi Pesan terlebih dahulu.', 'warning');
+        return;
+    }
+
+    let cleanPhone = rawTarget.replace(/[^0-9]/g, '');
+    if (cleanPhone.startsWith('08')) cleanPhone = '628' + cleanPhone.slice(2);
+    else if (cleanPhone.startsWith('8')) cleanPhone = '628' + cleanPhone.slice(1);
+
+    const btn = document.getElementById('btn-send-wa-test-msg');
+    const ogHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Mengirim...';
+    }
+
+    const bridgeUrl = (siteSettings.digiflazzBridgeUrl || 'https://api.vipercell.cloud').trim();
+    const bridgeSecret = (siteSettings.digiflazzBridgeAccessKey || siteSettings.digiflazzBridgeSecret || 'VIPERCELL_BRIDGE_SECRET_2026').trim();
+    const logId = 'WAL-' + Date.now() + '-' + Math.floor(1000 + Math.random() * 8999);
+
+    let sentOk = false;
+    let noteStr = '';
+
+    try {
+        const cleanBase = bridgeUrl.replace(/\/+$/, '').replace(/\/api\/digiflazz$/, '');
+        const bRes = await fetch(`${cleanBase}/api/wa-send`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Vipercell-Bridge-Key': bridgeSecret
+            },
+            body: JSON.stringify({
+                action: 'SEND_WA_MESSAGE',
+                logId: logId,
+                category: cat,
+                memberName: 'Uji Admin',
+                memberEmail: currentAdminUser?.email || 'admin',
+                bridgeAccessKey: bridgeSecret,
+                target: cleanPhone,
+                message: msg,
+                waProvider: 'wwebjs_vps'
+            })
+        }).catch(() => null);
+
+        if (bRes) {
+            const bJson = await bRes.json().catch(() => ({}));
+            if (bRes.ok && (bJson.ok === true || bJson.status === true || /serialize|markedUnread|sendSeen/i.test(String(bJson.message || '')))) {
+                sentOk = true;
+                noteStr = 'Terkirim via VPS WWebJS';
+            } else {
+                noteStr = bJson.message || 'Gagal mengirim pesan';
+            }
+        } else {
+            noteStr = 'Server VPS tidak dapat dihubungi';
+        }
+
+        const newLogEntry = {
+            dbId: logId,
+            targetPhone: cleanPhone,
+            memberName: 'Uji Admin',
+            memberEmail: currentAdminUser?.email || 'admin',
+            category: cat,
+            message: msg,
+            status: sentOk ? 'TERKIRIM' : 'GAGAL',
+            detail: noteStr,
+            createdAt: Date.now()
+        };
+
+        // Masukkan langsung ke daftar memori agar langsung muncul di tabel Riwayat Pesan Terkirim!
+        _vpsWaLogsRaw = [newLogEntry, ..._vpsWaLogsRaw.filter(x => x.dbId !== logId)];
+        adminWaLogsList = mergeWaLogsLists(_firestoreWaLogsRaw, _vpsWaLogsRaw);
+        window.renderAdminWaLogsTable();
+        window.updateAdminWaStatsUI();
+
+        await setDoc(doc(db, pathWaLogs, logId), newLogEntry, { merge: true }).catch(() => {});
+
+        if (sentOk) {
+            window.showToast('Pesan Terkirim', `Pesan ${cat} berhasil dikirim ke ${cleanPhone}.`, 'success');
+        } else {
+            window.showToast('Gagal Mengirim', noteStr || 'Pastikan WhatsApp di VPS sudah terhubung.', 'error');
+        }
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = ogHtml;
+        }
+    }
+};
+
+window.renderAdminWaLogsTable = function() {
+    const tbody = document.getElementById('admin-wa-logs-tbody');
+    if (!tbody) return;
+    const q = (document.getElementById('admin-search-wa-logs')?.value || '').trim().toLowerCase();
+    const catFilter = (document.getElementById('wa-logs-category-filter')?.value || 'ALL').trim().toUpperCase();
+
+    let list = Array.isArray(adminWaLogsList) ? [...adminWaLogsList] : [];
+    if (catFilter && catFilter !== 'ALL') {
+        list = list.filter(l => String(l.category || '').toUpperCase().includes(catFilter));
+    }
+    if (q) {
+        list = list.filter(l =>
+            String(l.targetPhone || '').toLowerCase().includes(q) ||
+            String(l.memberName || '').toLowerCase().includes(q) ||
+            String(l.memberEmail || '').toLowerCase().includes(q) ||
+            String(l.category || '').toLowerCase().includes(q) ||
+            String(l.message || '').toLowerCase().includes(q)
+        );
+    }
+
+    if (list.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted" style="padding:2rem;">Belum ada riwayat pesan WhatsApp.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = list.slice(0, 150).map(l => {
+        const dt = l.createdAt ? new Date(Number(l.createdAt)).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
+        const isOk = String(l.status || '').toUpperCase() === 'TERKIRIM';
+        const snippet = String(l.message || '').replace(/\s+/g, ' ').slice(0, 90);
+        return `
+            <tr>
+                <td><small class="text-xs">${window.escapeHtml(dt)}</small></td>
+                <td>
+                    <strong class="text-xs d-block">${window.escapeHtml(l.memberName || 'Member')}</strong>
+                    <small class="text-xs text-muted">${window.escapeHtml(l.memberEmail || '-')}</small>
+                </td>
+                <td><span class="code-mono text-xs fw-bold text-primary">${window.escapeHtml(l.targetPhone || '-')}</span></td>
+                <td><span class="status-badge status-pending" style="font-size:0.62rem;">${window.escapeHtml(l.category || 'UMUM')}</span></td>
+                <td><small class="text-xs text-muted">${window.escapeHtml(snippet)}${String(l.message || '').length > 90 ? '...' : ''}</small></td>
+                <td>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <span class="status-badge ${isOk ? 'status-success' : 'status-unpaid'}" style="font-size:0.62rem;">${isOk ? 'TERKIRIM' : 'GAGAL'}</span>
+                        <button type="button" class="btn btn-danger btn-xs" style="padding:2px 6px;" onclick="window.deleteSingleAdminWaLog('${window.escapeHtml(l.dbId || '')}')">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+};
+
+window.deleteSingleAdminWaLog = async function(logDbId) {
+    if (!logDbId) return;
+    _firestoreWaLogsRaw = _firestoreWaLogsRaw.filter(x => x.dbId !== logDbId);
+    _vpsWaLogsRaw = _vpsWaLogsRaw.filter(x => x.dbId !== logDbId);
+    adminWaLogsList = adminWaLogsList.filter(x => x.dbId !== logDbId);
+    window.renderAdminWaLogsTable();
+    window.updateAdminWaStatsUI();
+
+    await deleteDoc(doc(db, pathWaLogs, logDbId)).catch(() => {});
+    const bridgeUrl = (siteSettings.digiflazzBridgeUrl || 'https://api.vipercell.cloud').trim().replace(/\/+$/, '').replace(/\/api\/digiflazz$/, '');
+    const bridgeSecret = (siteSettings.digiflazzBridgeAccessKey || siteSettings.digiflazzBridgeSecret || 'VIPERCELL_BRIDGE_SECRET_2026').trim();
+    fetch(`${bridgeUrl}/api/wa-logs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Vipercell-Bridge-Key': bridgeSecret },
+        body: JSON.stringify({ action: 'CLEAR_WA_LOGS', logId: logDbId, bridgeAccessKey: bridgeSecret })
+    }).catch(() => {});
+};
+
+window.clearAdminWaLogsHistory = function() {
+    if (adminWaLogsList.length === 0) {
+        window.showToast('Sudah Bersih', 'Riwayat pesan WhatsApp sudah kosong.', 'info');
+        return;
+    }
+    window.requestAdminPinVerification('Hapus Riwayat Pesan WA', async () => {
+        const toDel = [...adminWaLogsList];
+        _firestoreWaLogsRaw = [];
+        _vpsWaLogsRaw = [];
+        adminWaLogsList = [];
+        window.renderAdminWaLogsTable();
+        window.updateAdminWaStatsUI();
+
+        for (let i = 0; i < toDel.length; i += 30) {
+            const slice = toDel.slice(i, i + 30);
+            await Promise.allSettled(slice.map(item => deleteDoc(doc(db, pathWaLogs, item.dbId))));
+        }
+        const bridgeUrl = (siteSettings.digiflazzBridgeUrl || 'https://api.vipercell.cloud').trim().replace(/\/+$/, '').replace(/\/api\/digiflazz$/, '');
+        const bridgeSecret = (siteSettings.digiflazzBridgeAccessKey || siteSettings.digiflazzBridgeSecret || 'VIPERCELL_BRIDGE_SECRET_2026').trim();
+        fetch(`${bridgeUrl}/api/wa-logs`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Vipercell-Bridge-Key': bridgeSecret },
+            body: JSON.stringify({ action: 'CLEAR_WA_LOGS', bridgeAccessKey: bridgeSecret })
+        }).catch(() => {});
+        window.showToast('Riwayat WA Dihapus', 'Seluruh log pesan WhatsApp berhasil dibersihkan.', 'success');
+    });
+};
+
+window.exportAdminWaLogsCsv = function() {
+    const list = Array.isArray(adminWaLogsList) ? adminWaLogsList : [];
+    if (list.length === 0) return window.showToast('Kosong', 'Belum ada data log WA untuk diekspor.', 'warning');
+    const header = ['Waktu', 'Member', 'Email', 'Nomor WA', 'Kategori', 'Status', 'Pesan'];
+    const rows = list.map(l => {
+        const dt = l.createdAt ? new Date(Number(l.createdAt)).toLocaleString('id-ID') : '-';
+        const cleanMsg = String(l.message || '').replace(/\s+/g, ' ').replace(/"/g, '""');
+        return [dt, l.memberName || '-', l.memberEmail || '-', l.targetPhone || '-', l.category || '-', l.status || '-', cleanMsg]
+            .map(v => `"${String(v)}"`).join(',');
+    });
+    const csvContent = '\uFEFF' + [header.join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `wa_logs_vipercell_${Date.now()}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+};
+
+// Pastikan Secret Webhook Digiflazz (#set-df-webhook-secret) selalu diformat Alfanumerik (VIPERCELLDFWEBHOOK2026)
+const _origSaveDigiflazzSettingsV3023 = window.saveDigiflazzSettings;
+window.saveDigiflazzSettings = async function(silentToast = false) {
+    const whEl = document.getElementById('set-df-webhook-secret');
+    if (whEl) {
+        const cleaned = String(whEl.value || '').replace(/[^a-zA-Z0-9]/g, '').trim();
+        whEl.value = cleaned || 'VIPERCELLDFWEBHOOK2026';
+    }
+    if (typeof _origSaveDigiflazzSettingsV3023 === 'function') {
+        return await _origSaveDigiflazzSettingsV3023(silentToast);
+    }
+    return true;
+};
+
+const _origSwitchAdminTabV3023 = window.switchAdminTab;
+window.switchAdminTab = function(tabId, menuEl) {
+    if (typeof _origSwitchAdminTabV3023 === 'function') {
+        _origSwitchAdminTabV3023(tabId, menuEl);
+    }
+    if (tabId === 'tab-whatsapp' || tabId === 'whatsapp') {
+        window.syncAdminWaIntegrationTabUI();
+        window.checkAdminVpsWaStatus(false);
+        window.fetchVpsWaLogsBackup();
+        window.renderAdminWaLogsTable();
+    }
 };

@@ -234,6 +234,9 @@
                 <a class="menu-item" id="nav-tab-digiflazz" onclick="window.switchAdminTab('tab-digiflazz', this)">
                     <i class="fa-solid fa-microchip"></i> <span>Pusat Digiflazz</span>
                 </a>
+                <a class="menu-item" id="nav-tab-whatsapp" onclick="window.switchAdminTab('tab-whatsapp', this)">
+                    <i class="fa-brands fa-whatsapp"></i> <span>Integrasi WA</span>
+                </a>
                 <a class="menu-item" id="nav-tab-qris" onclick="window.switchAdminTab('tab-qris', this)">
                     <i class="fa-solid fa-qrcode"></i> <span>Mutasi QRIS</span>
                 </a>
@@ -388,7 +391,7 @@
                         <div class="panel-header" style="margin-bottom: 1rem;">
                             <div>
                                 <h3><i class="fa-solid fa-file-invoice-dollar text-success"></i> Laporan Pemasukan, Pengeluaran &amp; Laba Bersih</h3>
-                                <small class="text-muted">Memisahkan pendapatan Produk Lokal Vipercell, Produk Digiflazz, dan Langganan Member Plus secara akurat.</small>
+                                
                             </div>
                             <div class="flex-gap flex-wrap-gap">
                                 <button type="button" class="btn btn-success btn-sm" onclick="window.exportFinancialReportSheet('xlsx')">
@@ -739,7 +742,7 @@
                             <div class="panel-header">
                                 <div>
                                     <h3><i class="fa-solid fa-lightbulb text-warning"></i> Daftar Saran Produk Pelanggan</h3>
-                                    <small class="text-muted">Saat ditandai sudah dibaca, saran produk akan otomatis dihapus dari database.</small>
+                                    
                                 </div>
                                 <button type="button" id="btn-mark-all-suggestions" class="btn btn-outline btn-sm" onclick="window.markAllSuggestionsAsRead()">
                                     <i class="fa-solid fa-check-double text-success"></i> Tandai Semua Dibaca
@@ -1045,7 +1048,7 @@
                         <div class="panel-header">
                             <div>
                                 <h3><i class="fa-solid fa-layer-group text-primary"></i> Katalog Produk &amp; Variasi</h3>
-                                <small class="text-muted">Kelola daftar produk, harga, dan mode pengiriman.</small>
+                                
                             </div>
                             <div class="flex-gap flex-wrap-gap">
                                 <button class="btn btn-outline btn-sm" onclick="window.syncAllProductsWithStockVaultV27(true)">
@@ -1111,7 +1114,7 @@
                         <div class="panel-header">
                             <div>
                                 <h3><i class="fa-solid fa-magnifying-glass-chart text-primary"></i> Cek &amp; Kelola Stok Gudang</h3>
-                                <small class="text-muted">Pilih produk terlebih dahulu, lalu pilih varian untuk melihat dan mengelola stoknya.</small>
+                                
                             </div>
                             <div class="flex-gap flex-wrap-gap">
                                 <button class="btn btn-outline btn-sm" onclick="window.resetStockHierarchySelection()">
@@ -1202,7 +1205,7 @@
                         <div class="panel-header">
                             <div>
                                 <h3><i class="fa-solid fa-cloud-arrow-up text-success"></i> Tambah Stok Baru</h3>
-                                <small class="text-muted">Pilih produk lalu pilih varian untuk menampilkan kolom pengisian stok.</small>
+                                
                             </div>
                         </div>
 
@@ -1288,7 +1291,7 @@
                         <div class="panel-header">
                             <div>
                                 <h3><i class="fa-solid fa-ticket text-primary"></i> Daftar Kode Promo Member</h3>
-                                <small class="text-muted">Seluruh kode promo hanya dapat digunakan oleh pengguna berstatus Member.</small>
+                                
                             </div>
                             <button class="btn btn-primary" onclick="window.openAddPromoModal()">
                                 <i class="fa-solid fa-plus"></i> <span>Buat Kode Promo</span>
@@ -1307,7 +1310,7 @@
                         <div class="panel-header">
                             <div>
                                 <h3><i class="fa-solid fa-newspaper text-primary"></i> Berita &amp; Pengumuman</h3>
-                                <small class="text-muted">Kelola artikel berita dan info promo di toko.</small>
+                                
                             </div>
                             <button class="btn btn-primary" onclick="window.openAddNewsModal()">
                                 <i class="fa-solid fa-plus"></i> <span>Tulis Berita</span>
@@ -1409,7 +1412,7 @@
                             <div class="panel-header">
                                 <div>
                                     <h3><i class="fa-solid fa-cloud-arrow-down text-primary"></i> Gudang Data Produk Digiflazz</h3>
-                                    <small class="text-muted">Tarik daftar harga Prabayar maupun Pascabayar dari Digiflazz, atur markup keuntungan, lalu pilih produk yang ingin ditampilkan ke Katalog Toko.</small>
+                                    
                                 </div>
                                 <div class="flex-gap flex-wrap-gap">
                                     <button type="button" class="btn btn-primary btn-sm" id="btn-df-sync-prepaid" onclick="window.fetchDigiflazzPriceList('prepaid')">
@@ -1630,7 +1633,7 @@
                             <div class="panel-header">
                                 <div>
                                     <h3><i class="fa-solid fa-satellite-dish text-primary"></i> Daftar Transaksi Digiflazz (Prabayar &amp; Pascabayar)</h3>
-                                    <small class="text-muted">Pantau status pengiriman, Serial Number (SN), Response Code (RC), dan lakukan cek status ulang dengan jeda aman minimal 1 menit.</small>
+                                    
                                 </div>
                                 <div class="flex-gap flex-wrap-gap align-center">
                                     <input type="text" id="df-search-trx-input" class="form-control" style="max-width: 240px; padding: 6px 10px; font-size: 0.78rem;" placeholder="Cari Ref ID / SKU / Tujuan / SN..." oninput="window.renderDigiflazzTransactionsTable()">
@@ -1672,7 +1675,7 @@
                                 <div class="panel-header">
                                     <div>
                                         <h3><i class="fa-solid fa-money-bill-transfer text-success"></i> Tarik Tiket Deposit Digiflazz</h3>
-                                        <small class="text-muted">Buat tiket penambahan saldo deposit langsung ke rekening resmi Digiflazz.</small>
+                                        
                                     </div>
                                     <button type="button" class="btn btn-outline btn-sm" id="btn-df-check-balance" onclick="window.checkDigiflazzBalance(true)">
                                         <i class="fa-solid fa-rotate"></i> Cek Saldo Sekarang
@@ -1753,7 +1756,7 @@
                             <div class="panel-header">
                                 <div>
                                     <h3><i class="fa-solid fa-shield-halved text-primary"></i> Pengaturan Koneksi &amp; Keamanan VPS Bridge Digiflazz</h3>
-                                    <small class="text-muted">Username dan API Key Digiflazz telah diamankan secara permanen di dalam Server VPS Backend. Panel ini digunakan untuk mengatur Endpoint VPS, Kode Rahasia Akses, Mode Transaksi, dan Otomatisasi.</small>
+                                    
                                 </div>
                                 <span id="df-connection-mode-badge" class="status-badge status-success">PRODUCTION</span>
                             </div>
@@ -1806,7 +1809,7 @@
 
                                 <div class="form-group">
                                     <label>Secret Key Webhook Digiflazz</label>
-                                    <input type="text" id="set-df-webhook-secret" class="form-control code-mono" placeholder="Contoh: VIPERCELL_DF_WEBHOOK_2026">
+                                    <input type="text" id="set-df-webhook-secret" class="form-control code-mono" placeholder="Contoh: VIPERCELLDFWEBHOOK2026">
                                     <small class="text-xs text-muted d-block mt-1">Digunakan VPS untuk memvalidasi notifikasi status transaksi dari Digiflazz.</small>
                                 </div>
                             </div>
@@ -1855,7 +1858,7 @@
                         <div class="panel-header" style="margin-bottom: 1rem;">
                             <div>
                                 <h3><i class="fa-solid fa-qrcode text-primary"></i> Pengaturan QRIS &amp; Koneksi Aplikasi Mutasi (MacroDroid)</h3>
-                                <small class="text-muted">Kelola kode QRIS toko dan pantau mutasi pembayaran masuk untuk verifikasi pesanan maupun pengisian saldo member.</small>
+                                
                             </div>
                             <span class="status-badge status-success" id="auto-clean-1h-status-badge"><i class="fa-solid fa-circle-check"></i> VERIFIKASI OTOMATIS AKTIF</span>
                         </div>
@@ -1966,13 +1969,215 @@
                 <!-- ==========================================
                      TAB 10: PENGATURAN TOKO
                      ========================================== -->
+                <!-- TAB BARU v30.2.2: INTEGRASI WHATSAPP VIPERCELL (PENGATURAN, UJI PESAN PER KATEGORI, & RIWAYAT PESAN WA) -->
+                <div id="tab-whatsapp" class="admin-tab">
+                    <!-- Ringkasan Status Integrasi WA -->
+                    <div class="stats-grid" style="margin-bottom: 1.15rem;">
+                        <div class="stat-card">
+                            <div class="stat-icon icon-green"><i class="fa-brands fa-whatsapp"></i></div>
+                            <div class="stat-info">
+                                <span>Status Integrasi WA</span>
+                                <h3 id="wa-stat-master-status" class="text-success">AKTIF</h3>
+                                <small id="wa-stat-provider-sub">Gateway siap mengirim pesan</small>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon icon-blue"><i class="fa-solid fa-paper-plane"></i></div>
+                            <div class="stat-info">
+                                <span>Total Pesan Terkirim</span>
+                                <h3 id="wa-stat-total-sent">0</h3>
+                                <small>Riwayat pengiriman pesan WA</small>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon icon-orange"><i class="fa-solid fa-shield-halved"></i></div>
+                            <div class="stat-info">
+                                <span>Pesan OTP &amp; Login</span>
+                                <h3 id="wa-stat-otp-login-count">0</h3>
+                                <small>Notifikasi keamanan &amp; OTP</small>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon icon-purple"><i class="fa-solid fa-key"></i></div>
+                            <div class="stat-info">
+                                <span>Mode Lupa Sandi</span>
+                                <h3 id="wa-stat-forgot-mode">WA &amp; Email</h3>
+                                <small>Pemulihan akun fleksibel</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bar 3 Sub-Tab Integrasi WA -->
+                    <div class="cs-subtabs-bar v3022-wa-subtabs-bar mb-3">
+                        <button type="button" id="wa-subtab-btn-config" class="cs-subtab-btn active" onclick="window.switchAdminWaSubTab('config')">
+                            <i class="fa-solid fa-sliders"></i> <span>1. Pengaturan &amp; Sakelar WA</span>
+                        </button>
+                        <button type="button" id="wa-subtab-btn-test" class="cs-subtab-btn" onclick="window.switchAdminWaSubTab('test')">
+                            <i class="fa-solid fa-Flask"></i><i class="fa-solid fa-paper-plane"></i> <span>2. Uji Kirim Pesan WA</span>
+                        </button>
+                        <button type="button" id="wa-subtab-btn-logs" class="cs-subtab-btn" onclick="window.switchAdminWaSubTab('logs')">
+                            <i class="fa-solid fa-clock-rotate-left"></i> <span>3. Riwayat Pesan Terkirim</span>
+                            <span id="wa-logs-count-badge" class="cs-subtab-badge badge-amber">0</span>
+                        </button>
+                    </div>
+
+                    <!-- SUB-TAB 1: PENGATURAN & SAKELAR MASTER INTEGRASI WA -->
+                    <div id="wa-panel-config" class="dashboard-panel">
+                        <div class="panel-header flex-between align-center flex-wrap-gap">
+                            <div>
+                                <h3><i class="fa-brands fa-whatsapp text-success"></i> Pengaturan &amp; Sakelar WhatsApp</h3>
+                            </div>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <span id="wa-vps-live-dot" style="width:11px; height:11px; border-radius:50%; background:#10b981; display:inline-block; border:2px solid #09090b;"></span>
+                                <span id="wa-vps-live-status-text" class="text-xs fw-bold">VPS WA Aktif</span>
+                                <button type="button" class="btn btn-outline btn-sm" onclick="window.checkAdminVpsWaStatus(true)">
+                                    <i class="fa-solid fa-rotate"></i> Cek Status
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="grid-2col mb-3">
+                            <div class="info-box flex-between align-center" style="border-color: var(--success);">
+                                <div>
+                                    <strong class="text-sm d-block"><i class="fa-solid fa-power-off text-success"></i> Sakelar Utama Integrasi WhatsApp</strong>
+                                </div>
+                                <label class="switch">
+                                    <input type="checkbox" id="set-wa-integration-enabled" checked onchange="window.saveAdminWaIntegrationSettings(true)">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+
+                            <div class="info-box flex-between align-center">
+                                <div>
+                                    <strong class="text-sm d-block">Kirim WA Saat Ada Perangkat Login</strong>
+                                </div>
+                                <label class="switch">
+                                    <input type="checkbox" id="set-wa-notify-login" checked onchange="window.saveAdminWaIntegrationSettings(true)">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="grid-2col mb-3">
+                            <div class="info-box flex-between align-center">
+                                <div>
+                                    <strong class="text-sm d-block">Minta Nomor WA &amp; Verifikasi OTP Member</strong>
+                                </div>
+                                <label class="switch">
+                                    <input type="checkbox" id="set-wa-require-otp" checked onchange="window.saveAdminWaIntegrationSettings(true)">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+
+                            <div class="info-box flex-between align-center">
+                                <div>
+                                    <strong class="text-sm d-block">Kirim WA Saat Transaksi / Top Up Selesai</strong>
+                                </div>
+                                <label class="switch">
+                                    <input type="checkbox" id="set-wa-notify-trx" checked onchange="window.saveAdminWaIntegrationSettings(true)">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <button type="button" class="btn btn-primary w-full" onclick="window.saveAdminWaIntegrationSettings(false)">
+                            <i class="fa-solid fa-floppy-disk"></i> Simpan Pengaturan WA
+                        </button>
+                    </div>
+
+                    <!-- SUB-TAB 2: UJI KIRIM PESAN WHATSAPP PER KATEGORI -->
+                    <div id="wa-panel-test" class="dashboard-panel" style="display: none;">
+                        <div class="panel-header">
+                            <div>
+                                <h3><i class="fa-solid fa-paper-plane text-primary"></i> Uji Kirim Pesan WhatsApp</h3>
+                            </div>
+                        </div>
+
+                        <div class="grid-2col mb-3">
+                            <div class="form-group mb-0">
+                                <label>1. Pilih Kategori Pesan Uji</label>
+                                <select id="wa-test-category-select" class="form-control fw-bold" onchange="window.onChangeWaTestCategoryTemplate()">
+                                    <option value="OTP_VERIFIKASI">Pesan Kode OTP Verifikasi Akun</option>
+                                    <option value="OTP_LOGIN_2FA">Pesan Kode OTP Login 2 Langkah</option>
+                                    <option value="INFO_LOGIN">Pesan Info Peringatan Login Perangkat</option>
+                                    <option value="OTP_LUPA_SANDI">Pesan OTP Lupa Kata Sandi / Reset PIN</option>
+                                    <option value="INFO_TRANSAKSI">Pesan Info Pesanan / Top Up Berhasil</option>
+                                    <option value="KUSTOM">Pesan Kustom (Tulis Bebas)</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group mb-0">
+                                <label>2. Nomor WhatsApp Tujuan Uji <span class="text-danger">*</span></label>
+                                <input type="tel" id="wa-test-target-phone" class="form-control code-mono fw-bold" placeholder="Contoh: 085656321860" oninput="this.value=this.value.replace(/[^0-9+]/g,'')">
+                            </div>
+                        </div>
+
+                        <div class="form-group mb-3">
+                            <label>3. Isi Pesan WhatsApp</label>
+                            <textarea id="wa-test-message-body" class="form-control" rows="5"></textarea>
+                        </div>
+
+                        <button type="button" id="btn-send-wa-test-msg" class="btn btn-success w-full" onclick="window.sendAdminWaTestMessageNow()">
+                            <i class="fa-brands fa-whatsapp"></i> Kirim Pesan Uji Sekarang
+                        </button>
+                    </div>
+
+                    <!-- SUB-TAB 3: RIWAYAT PESAN WA TERKIRIM KE MEMBER -->
+                    <div id="wa-panel-logs" class="dashboard-panel" style="display: none;">
+                        <div class="panel-header flex-between align-center flex-wrap-gap">
+                            <div>
+                                <h3><i class="fa-solid fa-clock-rotate-left text-primary"></i> Riwayat Pesan WhatsApp Terkirim</h3>
+                            </div>
+                            <div class="flex-gap flex-wrap-gap">
+                                <select id="wa-logs-category-filter" class="form-control text-xs" style="max-width:165px;" onchange="window.renderAdminWaLogsTable()">
+                                    <option value="ALL">Semua Kategori</option>
+                                    <option value="OTP_VERIFIKASI">OTP Verifikasi</option>
+                                    <option value="OTP_LOGIN_2FA">OTP Login 2FA</option>
+                                    <option value="INFO_LOGIN">Info Login</option>
+                                    <option value="OTP_LUPA_SANDI">OTP Lupa Sandi</option>
+                                    <option value="INFO_TRANSAKSI">Info Transaksi</option>
+                                    <option value="UJI">Uji Kirim</option>
+                                </select>
+                                <input type="text" id="admin-search-wa-logs" class="form-control text-xs" style="min-width:190px;" placeholder="Cari nomor WA / member..." oninput="window.renderAdminWaLogsTable()">
+                                <button type="button" class="btn btn-outline btn-sm" onclick="window.refreshAdminWaLogsNow()">
+                                    <i class="fa-solid fa-rotate"></i> Muat Ulang
+                                </button>
+                                <button type="button" class="btn btn-outline btn-sm" onclick="window.exportAdminWaLogsCsv()">
+                                    <i class="fa-solid fa-file-csv"></i> CSV
+                                </button>
+                                <button type="button" class="btn btn-danger btn-sm" onclick="window.clearAdminWaLogsHistory()">
+                                    <i class="fa-solid fa-trash-can"></i> Hapus Riwayat WA
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="modern-table">
+                                <thead>
+                                    <tr>
+                                        <th>Waktu</th>
+                                        <th>Member</th>
+                                        <th>Nomor WA Tujuan</th>
+                                        <th>Kategori</th>
+                                        <th>Isi Pesan</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="admin-wa-logs-tbody">
+                                    <tr><td colspan="6" class="text-center text-muted" style="padding:2rem;">Belum ada riwayat pesan WhatsApp.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- TAB BARU v30.1: KELOLA BANNER (POP-UP AWAL, BANNER UTAMA, & BANNER 8 KATEGORI) -->
                 <div id="tab-banners" class="admin-tab">
                     <div class="dashboard-panel">
                         <div class="panel-header flex-between align-center flex-wrap-gap">
                             <div>
                                 <h3><i class="fa-solid fa-images text-primary"></i> Kelola Banner Web User</h3>
-                                <small class="text-muted">Atur Banner Pop-Up awal buka web, Banner Utama beranda, dan Banner khusus di setiap kategori katalog. Jika dikosongkan, Web User otomatis menampilkan banner bawaan seperti sekarang.</small>
+                                
                             </div>
                             <button type="button" class="btn btn-primary" onclick="window.saveBannerSettingsAdmin()">
                                 <i class="fa-solid fa-floppy-disk"></i> Simpan Pengaturan Banner
@@ -1984,7 +2189,7 @@
                             <div class="panel-header flex-between align-center flex-wrap-gap" style="margin-bottom: 0.9rem;">
                                 <div>
                                     <h3><i class="fa-solid fa-window-restore text-warning"></i> 1. Banner Pop-Up Awal Buka Web</h3>
-                                    <small class="text-muted">Muncul otomatis saat pelanggan membuka Web User dan dapat ditutup dengan tombol X.</small>
+                                    
                                 </div>
                                 <div class="flex-gap align-center">
                                     <span class="text-xs fw-bold">Aktifkan Pop-Up</span>
@@ -2045,7 +2250,7 @@
                             <div class="panel-header flex-between align-center flex-wrap-gap" style="margin-bottom: 0.9rem;">
                                 <div>
                                     <h3><i class="fa-solid fa-panorama text-primary"></i> 2. Banner Utama Beranda (Slider Atas)</h3>
-                                    <small class="text-muted">Jika daftar ini dikosongkan, Web User otomatis menampilkan Banner Default Vipercell seperti sekarang.</small>
+                                    
                                 </div>
                                 <div class="flex-gap flex-wrap-gap">
                                     <input type="url" id="set-banner-url-input-tab" class="form-control text-xs" style="min-width:240px;" placeholder="Tempel Link URL Gambar Banner (https://...)">
@@ -2066,7 +2271,7 @@
                             <div class="panel-header" style="margin-bottom: 0.9rem;">
                                 <div>
                                     <h3><i class="fa-solid fa-layer-group text-success"></i> 3. Banner Khusus Setiap Kategori Katalog</h3>
-                                    <small class="text-muted">Atur gambar banner untuk masing-masing kategori. Jika tidak diisi (kosong), kategori tersebut otomatis menampilkan banner bawaan seperti sekarang.</small>
+                                    
                                 </div>
                             </div>
 
@@ -2236,7 +2441,7 @@
                                 <div class="panel-header" style="margin-bottom: 0.85rem;">
                                     <div>
                                         <h3><i class="fa-solid fa-crown text-warning"></i> Langganan Bulanan Member Plus</h3>
-                                        <small class="text-muted">Pengguna Member Plus mendapat harga lebih hemat otomatis dan akses Kode Promo khusus Member Plus.</small>
+                                        
                                     </div>
                                     <label class="switch">
                                         <input type="checkbox" id="set-memberplus-enabled" checked>
@@ -2265,7 +2470,7 @@
                             <div class="panel-header" style="margin-bottom: 1rem;">
                                 <div>
                                     <h3><i class="fa-regular fa-clock text-primary"></i> Jam Operasional Toko</h3>
-                                    <small class="text-muted">Jika diaktifkan, saat berada di luar jam layanan Admin maka hanya variasi produk yang memiliki stok lokal di Gudang Stok yang dapat dibeli dan diproses otomatis. Produk manual atau stok kosong baru dapat dipesan saat jam operasional.</small>
+                                    
                                 </div>
                                 <span id="op-hours-admin-status" class="status-badge status-success">Semua Produk Dilayani</span>
                             </div>
@@ -2298,7 +2503,7 @@
                             <div class="panel-header">
                                 <div>
                                     <h3><i class="fa-solid fa-bullhorn text-warning"></i> Teks Info Berjalan Atas (Halaman Utama)</h3>
-                                    <small class="text-muted">Atur hingga 20 informasi atau promo berjalan di bagian atas toko.</small>
+                                    
                                 </div>
                                 <button type="button" id="btn-add-marquee-slot" class="btn btn-primary btn-sm" onclick="window.openMarqueeSlotForm(-1)">
                                     <i class="fa-solid fa-plus"></i> Tambah Teks (<span id="marquee-slot-count-badge">0/20</span>)
@@ -2365,7 +2570,7 @@
                                 <div class="panel-header" style="margin-bottom: 0.9rem;">
                                     <div>
                                         <h3><i class="fa-solid fa-sliders text-primary"></i> Pengaturan Running Text Katalog Bawah</h3>
-                                        <small class="text-muted">Menampilkan daftar produk aktif di bagian bawah halaman toko.</small>
+                                        
                                     </div>
                                     <button type="button" class="btn btn-outline btn-sm" onclick="window.refreshAdminControlCenterUI(true)">
                                         <i class="fa-solid fa-arrows-rotate text-primary"></i> Segarkan Pratinjau
