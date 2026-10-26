@@ -214,6 +214,9 @@
                 <a class="menu-item" id="nav-tab-products" onclick="window.switchAdminTab('tab-products', this)">
                     <i class="fa-solid fa-layer-group"></i> <span>Katalog Produk</span>
                 </a>
+                <a class="menu-item" id="nav-tab-banners" onclick="window.switchAdminTab('tab-banners', this)">
+                    <i class="fa-solid fa-images"></i> <span>Kelola Banner</span>
+                </a>
                 <a class="menu-item" id="nav-tab-stocks" onclick="window.switchAdminTab('tab-stocks', this)">
                     <i class="fa-solid fa-vault"></i> <span>Gudang Stok</span>
                 </a>
@@ -612,7 +615,7 @@
                         <div class="flex-between flex-wrap-gap mb-3 align-center">
                             <div class="order-filter-pills">
                                 <button class="filter-pill active" onclick="window.setAdminOrderFilter('ALL', this)">Semua Pesanan</button>
-                                <button class="filter-pill" onclick="window.setAdminOrderFilter('LOCAL_ONLY', this)"><i class="fa-solid fa-vault text-primary"></i> Stok Lokal</button>
+                                
                                 <button class="filter-pill" onclick="window.setAdminOrderFilter('DIGIFLAZZ_ONLY', this)"><i class="fa-solid fa-bolt text-warning"></i> Otomatis Digiflazz</button>
                                 <button class="filter-pill" onclick="window.setAdminOrderFilter('NEED_ACTION', this)"><i class="fa-solid fa-fire text-danger"></i> Perlu Proses Lokal</button>
                                 <button class="filter-pill" onclick="window.setAdminOrderFilter('SUCCESS', this)"><i class="fa-solid fa-circle-check text-success"></i> Terkirim &amp; Selesai</button>
@@ -887,11 +890,24 @@
 
                     <!-- SUB-PANEL 3: RIWAYAT LOG MUTASI SALDO (TOPUP, PEMBELIAN, AUTO-REFUND, ADJUSTMENT) -->
                     <div id="bal-panel-logs" class="dashboard-panel" style="display: none;">
-                        <div class="panel-header">
+                        <div class="panel-header flex-between align-center flex-wrap-gap">
                             <div>
                                 <h3><i class="fa-solid fa-list-check text-primary"></i> Riwayat Mutasi Saldo Member</h3>
                             </div>
-                            <input type="text" id="admin-search-balance-logs" class="form-control" style="max-width: 320px;" placeholder="Cari invoice, email, atau catatan..." oninput="window.renderAdminBalanceLogsTable()">
+                            <div class="flex-gap flex-wrap-gap align-center">
+                                <div class="flex-gap align-center" style="background:var(--bg); padding:4px 8px; border-radius:10px; border:var(--brutal-border-thin);">
+                                    <select id="admin-purge-bal-logs-range" class="form-control text-xs fw-bold" style="min-width:155px; padding:6px 10px;">
+                                        <option value="7">1 Minggu Terakhir</option>
+                                        <option value="30">1 Bulan Terakhir</option>
+                                        <option value="90">3 Bulan Terakhir</option>
+                                        <option value="ALL">Semua Log Mutasi</option>
+                                    </select>
+                                    <button type="button" class="btn btn-danger btn-sm" onclick="window.purgeBalanceLogsByRange()" style="white-space:nowrap;">
+                                        <i class="fa-solid fa-trash-can"></i> Hapus Log Mutasi
+                                    </button>
+                                </div>
+                                <input type="text" id="admin-search-balance-logs" class="form-control" style="max-width: 260px;" placeholder="Cari invoice, email, atau catatan..." oninput="window.renderAdminBalanceLogsTable()">
+                            </div>
                         </div>
 
                         <div class="table-responsive">
@@ -1417,17 +1433,12 @@
 
                                 <div class="neo-markup-step-box" style="margin-bottom:0;">
                                     <div class="grid-auto" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; align-items: end;">
-                                        <div class="form-group mb-0" style="position:relative;">
+                                        <div class="form-group mb-0">
                                             <label class="text-xs fw-bold">Target Member Aktif</label>
-                                            <input type="hidden" id="df-markup-target-tier" value="regular">
-                                            <div class="markup-target-tabs" style="margin-bottom:0; display:grid; grid-template-columns: 1fr 1fr; gap:6px;">
-                                                <button type="button" id="btn-markup-tier-regular" class="markup-target-tab active" style="padding:8px 10px; font-size:0.78rem;" onclick="window.switchAdminMarkupTargetTier('regular')">
-                                                    <i class="fa-solid fa-user-check"></i> <span>Member Biasa</span>
-                                                </button>
-                                                <button type="button" id="btn-markup-tier-memberplus" class="markup-target-tab tab-gold" style="padding:8px 10px; font-size:0.78rem;" onclick="window.switchAdminMarkupTargetTier('member_plus')">
-                                                    <i class="fa-solid fa-crown"></i> <span>Member Plus</span>
-                                                </button>
-                                            </div>
+                                            <select id="df-markup-target-tier" class="form-control fw-bold" onchange="window.switchAdminMarkupTargetTier(this.value)">
+                                                <option value="regular">Member Biasa (Reguler)</option>
+                                                <option value="member_plus">Member Plus (VIP)</option>
+                                            </select>
                                         </div>
 
                                         <div class="form-group mb-0">
@@ -1511,15 +1522,11 @@
 
                                     <input type="hidden" id="df-markup-memberplus-disc" value="35">
 
-                                    <div class="flex-between align-center flex-wrap-gap mt-3">
-                                        <div id="df-markup-live-sim-box" class="neo-markup-sim-grid" style="flex:1; margin-top:0;"></div>
-                                        <button type="button" class="btn btn-success" style="min-width: 220px;" onclick="window.applyMarkupToAllCatalogDigiflazzProducts()">
+                                    <div class="flex-between align-center flex-wrap-gap mt-3" style="justify-content:flex-end;">
+                                        <button type="button" class="btn btn-success" style="min-width: 240px;" onclick="window.applyMarkupToAllCatalogDigiflazzProducts()">
                                             <i class="fa-solid fa-bolt"></i> Simpan &amp; Terapkan Harga
                                         </button>
                                     </div>
-
-                                    <!-- Daftar Aturan Harga Tersimpan Per Kategori / Brand -->
-                                    <div id="df-saved-markup-rules-box" style="margin-top: 10px;"></div>
                                 </div>
                             </div>
 
@@ -1745,72 +1752,70 @@
                         <div class="dashboard-panel">
                             <div class="panel-header">
                                 <div>
-                                    <h3><i class="fa-solid fa-plug-circle-check text-primary"></i> Konfigurasi Koneksi API Digiflazz</h3>
-                                    <small class="text-muted">Simpan API Key Development dan Production di kolom terpisah. Sistem otomatis memilih kunci sesuai Mode Lingkungan yang aktif.</small>
+                                    <h3><i class="fa-solid fa-shield-halved text-primary"></i> Pengaturan Koneksi &amp; Keamanan VPS Bridge Digiflazz</h3>
+                                    <small class="text-muted">Username dan API Key Digiflazz telah diamankan secara permanen di dalam Server VPS Backend. Panel ini digunakan untuk mengatur Endpoint VPS, Kode Rahasia Akses, Mode Transaksi, dan Otomatisasi.</small>
                                 </div>
-                                <span id="df-connection-mode-badge" class="status-badge status-pending">DEVELOPMENT</span>
+                                <span id="df-connection-mode-badge" class="status-badge status-success">PRODUCTION</span>
                             </div>
+
+                            <div id="df-env-active-indicator" class="info-box mb-3" style="border-color: var(--success); display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+                                <div style="display:flex; align-items:center; gap:10px;">
+                                    <i class="fa-solid fa-server text-success" style="font-size:1.15rem;"></i>
+                                    <div class="text-xs">
+                                        <strong class="d-block">Kredensial Digiflazz Terkunci di Server VPS Backend</strong>
+                                        <span class="text-muted">API Key Production, API Key Development, dan Username disimpan di VPS (tidak disimpan di Firebase maupun Browser).</span>
+                                    </div>
+                                </div>
+                                <span class="status-badge status-success">TERKUNCI AMAN DI VPS</span>
+                            </div>
+
+                            <!-- Input tersembunyi untuk kompatibilitas mundur -->
+                            <input type="hidden" id="set-df-username" value="">
+                            <input type="hidden" id="set-df-dev-apikey" value="">
+                            <input type="hidden" id="set-df-prod-apikey" value="">
+                            <input type="hidden" id="set-df-apikey" value="">
 
                             <div class="grid-2col">
                                 <div class="form-group">
-                                    <label>URL Server Bridge VPS</label>
-                                    <input type="text" id="set-df-bridge-url" class="form-control code-mono" placeholder="Contoh: http://139.59.60.91:3100/api/digiflazz">
+                                    <label>Link Endpoint VPS Bridge Digiflazz <span class="text-danger">*</span></label>
+                                    <input type="text" id="set-df-bridge-url" class="form-control code-mono" placeholder="Contoh: https://api.vipercell.cloud/api/digiflazz">
+                                    <small class="text-xs text-muted d-block mt-1">Alamat server VPS tempat file <b>digiflazz bridge.js</b> dijalankan.</small>
                                 </div>
+
                                 <div class="form-group">
-                                    <label>Mode Lingkungan Transaksi Aktif</label>
-                                    <select id="set-df-env-mode" class="form-control" onchange="window.updateDigiflazzEnvBadgePreview()">
-                                        <option value="development">Development / Testing (Pakai API Key Development)</option>
-                                        <option value="production">Production / Live (Pakai API Key Production)</option>
+                                    <label>Mode Transaksi Web (Production / Development)</label>
+                                    <select id="set-df-env-mode" class="form-control fw-bold" onchange="window.updateDigiflazzEnvBadgePreview()">
+                                        <option value="production">Production / Transaksi Real (Live)</option>
+                                        <option value="development">Development / Mode Uji Coba (Sandbox)</option>
                                     </select>
+                                    <small class="text-xs text-muted d-block mt-1">Mengatur apakah VPS Bridge menggunakan kunci Production atau Development.</small>
                                 </div>
                             </div>
 
                             <div class="grid-2col">
                                 <div class="form-group">
-                                    <label>Username Buyer Digiflazz <span class="text-danger">*</span></label>
-                                    <input type="text" id="set-df-username" class="form-control code-mono" placeholder="Username dari menu Atur Koneksi API">
+                                    <label class="text-primary fw-bold"><i class="fa-solid fa-key"></i> Kode Rahasia Akses Endpoint Bridge <span class="text-danger">*</span></label>
+                                    <div class="flex-gap">
+                                        <input type="password" id="set-df-bridge-secret" class="form-control code-mono fw-bold" value="VIPERCELL_BRIDGE_SECRET_2026" placeholder="Kode rahasia pengaman endpoint VPS">
+                                        <button type="button" class="btn btn-outline btn-sm" onclick="window.toggleAdminInputEye('set-df-bridge-secret', this)" title="Tampilkan / Sembunyikan">
+                                            <i class="fa-regular fa-eye"></i>
+                                        </button>
+                                    </div>
+                                    <small class="text-xs text-muted d-block mt-1">Wajib cocok dengan VPS agar pihak luar tidak dapat menembak endpoint Digiflazz Anda.</small>
                                 </div>
+
                                 <div class="form-group">
                                     <label>Secret Key Webhook Digiflazz</label>
                                     <input type="text" id="set-df-webhook-secret" class="form-control code-mono" placeholder="Contoh: VIPERCELL_DF_WEBHOOK_2026">
+                                    <small class="text-xs text-muted d-block mt-1">Digunakan VPS untuk memvalidasi notifikasi status transaksi dari Digiflazz.</small>
                                 </div>
                             </div>
-
-                            <div id="df-env-active-indicator" class="info-box mb-3" style="border-color: var(--primary); display:flex; align-items:center; gap:10px;">
-                                <i class="fa-solid fa-flask text-warning"></i>
-                                <div class="text-xs">Mode aktif sedang dimuat...</div>
-                            </div>
-
-                            <!-- 2 Kolom Terpisah: API Key Development & API Key Production (Dengan Tombol Lihat/Sembunyikan & Anti-Tertukar) -->
-                            <div class="grid-2col">
-                                <div class="form-group" id="df-dev-key-card">
-                                    <label class="text-warning fw-bold"><i class="fa-solid fa-flask"></i> API Key Development (Testing)</label>
-                                    <div class="flex-gap">
-                                        <input type="password" id="set-df-dev-apikey" class="form-control code-mono" placeholder="dev-xxxxxxxxxxxxxxxx" autocomplete="off">
-                                        <button type="button" class="btn btn-outline btn-sm" onclick="window.toggleAdminInputEye('set-df-dev-apikey', this)" title="Tampilkan / Sembunyikan Key">
-                                            <i class="fa-regular fa-eye"></i>
-                                        </button>
-                                    </div>
-                                    <small class="text-xs text-muted d-block mt-1">Digunakan khusus saat Mode Lingkungan = <b>Development</b>.</small>
-                                </div>
-                                <div class="form-group" id="df-prod-key-card">
-                                    <label class="text-success fw-bold"><i class="fa-solid fa-bolt"></i> API Key Production (Live)</label>
-                                    <div class="flex-gap">
-                                        <input type="password" id="set-df-prod-apikey" class="form-control code-mono" placeholder="Masukkan API Key Production" autocomplete="off">
-                                        <button type="button" class="btn btn-outline btn-sm" onclick="window.toggleAdminInputEye('set-df-prod-apikey', this)" title="Tampilkan / Sembunyikan Key">
-                                            <i class="fa-regular fa-eye"></i>
-                                        </button>
-                                    </div>
-                                    <small class="text-xs text-muted d-block mt-1">Digunakan khusus saat Mode Lingkungan = <b>Production</b>.</small>
-                                </div>
-                            </div>
-                            <input type="hidden" id="set-df-apikey" value="">
 
                             <div class="grid-2col mb-3">
                                 <div class="info-box flex-between align-center mb-0">
                                     <div>
-                                        <strong class="text-sm d-block">Proses Otomatis Saat Pembayaran Lunas</strong>
-                                        <span class="text-xs text-muted">Kirim pesanan ke Digiflazz otomatis saat pembayaran QRIS atau Saldo selesai.</span>
+                                        <strong class="text-sm d-block">Proses Otomatis Saat Pembayaran Berhasil</strong>
+                                        <span class="text-xs text-muted">Teruskan pesanan ke VPS Bridge otomatis begitu pembayaran terverifikasi.</span>
                                     </div>
                                     <label class="switch">
                                         <input type="checkbox" id="set-df-autohit" checked>
@@ -1821,7 +1826,7 @@
                                 <div class="info-box flex-between align-center mb-0" style="border-color: var(--primary);">
                                     <div>
                                         <strong class="text-sm d-block">Kunci Produk Jika Saldo Digiflazz Tidak Cukup</strong>
-                                        <span class="text-xs text-muted">Produk yang harga modalnya di atas sisa saldo Digiflazz tidak dapat dibeli.</span>
+                                        <span class="text-xs text-muted">Otomatis mengunci variasi produk yang harga modalnya melebihi sisa saldo Digiflazz.</span>
                                     </div>
                                     <label class="switch">
                                         <input type="checkbox" id="set-df-balance-guard" checked>
@@ -1832,10 +1837,10 @@
 
                             <div class="flex-gap flex-wrap-gap">
                                 <button type="button" class="btn btn-primary flex-2" onclick="window.saveDigiflazzSettings()">
-                                    <i class="fa-solid fa-floppy-disk"></i> Simpan Pengaturan Digiflazz
+                                    <i class="fa-solid fa-floppy-disk"></i> Simpan Pengaturan Koneksi
                                 </button>
                                 <button type="button" class="btn btn-outline flex-1" onclick="window.testDigiflazzBridgeConnection()">
-                                    <i class="fa-solid fa-plug-circle-bolt text-success"></i> Tes Koneksi &amp; Cek Saldo
+                                    <i class="fa-solid fa-plug-circle-bolt text-success"></i> Uji Koneksi &amp; Cek Saldo VPS
                                 </button>
                             </div>
                         </div>
@@ -1932,8 +1937,14 @@
                                     <button type="button" class="btn btn-outline btn-sm" id="btn-refresh-firebase-log" onclick="window.refreshFirebaseMutationsLogNow()">
                                         <i class="fa-solid fa-rotate text-primary" id="icon-refresh-firebase-log"></i> Segarkan
                                     </button>
+                                    <select id="admin-purge-qris-logs-range" class="form-control text-xs fw-bold" style="width:auto; min-width:140px; padding:4px 8px;">
+                                        <option value="7">1 Minggu Terakhir</option>
+                                        <option value="30">1 Bulan Terakhir</option>
+                                        <option value="90">3 Bulan Terakhir</option>
+                                        <option value="ALL">Semua Log Mutasi</option>
+                                    </select>
                                     <button type="button" class="btn btn-danger btn-sm" onclick="window.cleanOldPaymentMutations()">
-                                        <i class="fa-solid fa-trash-can"></i> Bersihkan Log
+                                        <i class="fa-solid fa-trash-can"></i> Hapus Log Mutasi
                                     </button>
                                 </div>
                             </div>
@@ -1955,6 +1966,191 @@
                 <!-- ==========================================
                      TAB 10: PENGATURAN TOKO
                      ========================================== -->
+                <!-- TAB BARU v30.1: KELOLA BANNER (POP-UP AWAL, BANNER UTAMA, & BANNER 8 KATEGORI) -->
+                <div id="tab-banners" class="admin-tab">
+                    <div class="dashboard-panel">
+                        <div class="panel-header flex-between align-center flex-wrap-gap">
+                            <div>
+                                <h3><i class="fa-solid fa-images text-primary"></i> Kelola Banner Web User</h3>
+                                <small class="text-muted">Atur Banner Pop-Up awal buka web, Banner Utama beranda, dan Banner khusus di setiap kategori katalog. Jika dikosongkan, Web User otomatis menampilkan banner bawaan seperti sekarang.</small>
+                            </div>
+                            <button type="button" class="btn btn-primary" onclick="window.saveBannerSettingsAdmin()">
+                                <i class="fa-solid fa-floppy-disk"></i> Simpan Pengaturan Banner
+                            </button>
+                        </div>
+
+                        <!-- 1. BANNER POP-UP SAAT AWAL BUKA WEB USER -->
+                        <div class="dashboard-panel mb-4" style="background: var(--surface-elevated); border-color: var(--warning);">
+                            <div class="panel-header flex-between align-center flex-wrap-gap" style="margin-bottom: 0.9rem;">
+                                <div>
+                                    <h3><i class="fa-solid fa-window-restore text-warning"></i> 1. Banner Pop-Up Awal Buka Web</h3>
+                                    <small class="text-muted">Muncul otomatis saat pelanggan membuka Web User dan dapat ditutup dengan tombol X.</small>
+                                </div>
+                                <div class="flex-gap align-center">
+                                    <span class="text-xs fw-bold">Aktifkan Pop-Up</span>
+                                    <label class="switch">
+                                        <input type="checkbox" id="set-popup-banner-enabled">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="grid-2col">
+                                <div class="form-group mb-0">
+                                    <label>Gambar Banner Pop-Up (Link URL / Upload File)</label>
+                                    <div class="flex-gap align-center">
+                                        <input type="url" id="set-popup-banner-img" class="form-control text-xs" placeholder="Tempel Link URL Gambar Pop-Up (https://...)" oninput="window.previewAdminPopupBanner()">
+                                        <label class="btn btn-outline btn-sm m-0 pointer" style="white-space:nowrap;">
+                                            <i class="fa-solid fa-upload"></i> Upload
+                                            <input type="file" accept="image/*" style="display:none;" onchange="window.uploadPopupBannerImg(this)">
+                                        </label>
+                                        <button type="button" class="btn btn-danger btn-sm" onclick="window.clearPopupBannerImg()" title="Kosongkan">
+                                            <i class="fa-solid fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="form-group mb-0">
+                                    <label>Judul / Keterangan Singkat Pop-Up (Opsional)</label>
+                                    <input type="text" id="set-popup-banner-title" class="form-control text-xs" placeholder="Contoh: Promo Spesial Top Up Game & Member Plus!">
+                                </div>
+                            </div>
+
+                            <div class="grid-2col mt-2">
+                                <div class="form-group mb-0">
+                                    <label>Tujuan Saat Gambar Pop-Up Diklik (Opsional)</label>
+                                    <select id="set-popup-banner-link" class="form-control text-xs">
+                                        <option value="">Tidak Ada Tindakan Klik</option>
+                                        <option value="game">Buka Katalog Top Up Game</option>
+                                        <option value="pulsa">Buka Katalog Pulsa &amp; Data</option>
+                                        <option value="pln">Buka Katalog Token PLN</option>
+                                        <option value="ewallet">Buka Katalog E-Wallet</option>
+                                        <option value="app_premium">Buka Katalog Aplikasi Premium</option>
+                                        <option value="ppob">Buka Katalog Bayar Tagihan</option>
+                                        <option value="tools">Buka Katalog Digital &amp; Tools</option>
+                                    </select>
+                                </div>
+                                <div class="info-box flex-between align-center mb-0">
+                                    <div>
+                                        <strong class="text-xs d-block">Pratinjau Gambar Pop-Up</strong>
+                                        <span class="text-xs text-muted" id="admin-popup-banner-status-text">Belum ada gambar pop-up</span>
+                                    </div>
+                                    <img id="admin-popup-banner-preview" src="" alt="Preview Pop-Up" style="height:46px; width:82px; object-fit:cover; border-radius:8px; border:2px solid var(--border); display:none;">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 2. BANNER SLIDER UTAMA BERANDA -->
+                        <div class="dashboard-panel mb-4" style="background: var(--surface-elevated); border-color: var(--primary);">
+                            <div class="panel-header flex-between align-center flex-wrap-gap" style="margin-bottom: 0.9rem;">
+                                <div>
+                                    <h3><i class="fa-solid fa-panorama text-primary"></i> 2. Banner Utama Beranda (Slider Atas)</h3>
+                                    <small class="text-muted">Jika daftar ini dikosongkan, Web User otomatis menampilkan Banner Default Vipercell seperti sekarang.</small>
+                                </div>
+                                <div class="flex-gap flex-wrap-gap">
+                                    <input type="url" id="set-banner-url-input-tab" class="form-control text-xs" style="min-width:240px;" placeholder="Tempel Link URL Gambar Banner (https://...)">
+                                    <button type="button" class="btn btn-primary btn-sm" onclick="window.addBannerFromTabUrlInput()">
+                                        <i class="fa-solid fa-plus"></i> Tambah Link
+                                    </button>
+                                    <label class="btn btn-outline btn-sm m-0 pointer">
+                                        <i class="fa-solid fa-upload"></i> Upload Gambar
+                                        <input type="file" accept="image/*" style="display:none;" onchange="window.uploadBannerImg(this)">
+                                    </label>
+                                </div>
+                            </div>
+                            <div id="admin-banner-list-tab" class="banner-admin-grid"></div>
+                        </div>
+
+                        <!-- 3. BANNER KHUSUS SETIAP KATEGORI KATALOG (8 KATEGORI) -->
+                        <div class="dashboard-panel mb-3" style="background: var(--surface-elevated); border-color: var(--success);">
+                            <div class="panel-header" style="margin-bottom: 0.9rem;">
+                                <div>
+                                    <h3><i class="fa-solid fa-layer-group text-success"></i> 3. Banner Khusus Setiap Kategori Katalog</h3>
+                                    <small class="text-muted">Atur gambar banner untuk masing-masing kategori. Jika tidak diisi (kosong), kategori tersebut otomatis menampilkan banner bawaan seperti sekarang.</small>
+                                </div>
+                            </div>
+
+                            <div class="grid-2col" style="gap: 12px;">
+                                <div class="info-box">
+                                    <label class="text-xs fw-bold d-block mb-1"><i class="fa-solid fa-gamepad text-primary"></i> Banner Kategori Top Up Game</label>
+                                    <div class="flex-gap">
+                                        <input type="url" id="set-cat-banner-game" class="form-control text-xs" placeholder="Kosongkan untuk banner default Game">
+                                        <label class="btn btn-outline btn-sm m-0 pointer"><i class="fa-solid fa-upload"></i><input type="file" accept="image/*" style="display:none;" onchange="window.uploadCategoryBannerImg('game', this)"></label>
+                                        <button type="button" class="btn btn-danger btn-sm" onclick="window.clearCategoryBanner('game')"><i class="fa-solid fa-rotate-left"></i></button>
+                                    </div>
+                                </div>
+
+                                <div class="info-box">
+                                    <label class="text-xs fw-bold d-block mb-1"><i class="fa-solid fa-mobile-screen-button text-primary"></i> Banner Kategori Pulsa &amp; Data</label>
+                                    <div class="flex-gap">
+                                        <input type="url" id="set-cat-banner-pulsa" class="form-control text-xs" placeholder="Kosongkan untuk banner default Pulsa & Data">
+                                        <label class="btn btn-outline btn-sm m-0 pointer"><i class="fa-solid fa-upload"></i><input type="file" accept="image/*" style="display:none;" onchange="window.uploadCategoryBannerImg('pulsa', this)"></label>
+                                        <button type="button" class="btn btn-danger btn-sm" onclick="window.clearCategoryBanner('pulsa')"><i class="fa-solid fa-rotate-left"></i></button>
+                                    </div>
+                                </div>
+
+                                <div class="info-box">
+                                    <label class="text-xs fw-bold d-block mb-1"><i class="fa-solid fa-bolt text-warning"></i> Banner Kategori Token Listrik PLN</label>
+                                    <div class="flex-gap">
+                                        <input type="url" id="set-cat-banner-pln" class="form-control text-xs" placeholder="Kosongkan untuk banner default Token PLN">
+                                        <label class="btn btn-outline btn-sm m-0 pointer"><i class="fa-solid fa-upload"></i><input type="file" accept="image/*" style="display:none;" onchange="window.uploadCategoryBannerImg('pln', this)"></label>
+                                        <button type="button" class="btn btn-danger btn-sm" onclick="window.clearCategoryBanner('pln')"><i class="fa-solid fa-rotate-left"></i></button>
+                                    </div>
+                                </div>
+
+                                <div class="info-box">
+                                    <label class="text-xs fw-bold d-block mb-1"><i class="fa-solid fa-wallet text-success"></i> Banner Kategori Saldo E-Wallet</label>
+                                    <div class="flex-gap">
+                                        <input type="url" id="set-cat-banner-ewallet" class="form-control text-xs" placeholder="Kosongkan untuk banner default E-Wallet">
+                                        <label class="btn btn-outline btn-sm m-0 pointer"><i class="fa-solid fa-upload"></i><input type="file" accept="image/*" style="display:none;" onchange="window.uploadCategoryBannerImg('ewallet', this)"></label>
+                                        <button type="button" class="btn btn-danger btn-sm" onclick="window.clearCategoryBanner('ewallet')"><i class="fa-solid fa-rotate-left"></i></button>
+                                    </div>
+                                </div>
+
+                                <div class="info-box">
+                                    <label class="text-xs fw-bold d-block mb-1"><i class="fa-solid fa-clapperboard text-primary"></i> Banner Kategori Aplikasi Premium</label>
+                                    <div class="flex-gap">
+                                        <input type="url" id="set-cat-banner-app_premium" class="form-control text-xs" placeholder="Kosongkan untuk banner default Aplikasi Premium">
+                                        <label class="btn btn-outline btn-sm m-0 pointer"><i class="fa-solid fa-upload"></i><input type="file" accept="image/*" style="display:none;" onchange="window.uploadCategoryBannerImg('app_premium', this)"></label>
+                                        <button type="button" class="btn btn-danger btn-sm" onclick="window.clearCategoryBanner('app_premium')"><i class="fa-solid fa-rotate-left"></i></button>
+                                    </div>
+                                </div>
+
+                                <div class="info-box">
+                                    <label class="text-xs fw-bold d-block mb-1"><i class="fa-solid fa-file-invoice-dollar text-danger"></i> Banner Kategori Bayar Tagihan</label>
+                                    <div class="flex-gap">
+                                        <input type="url" id="set-cat-banner-ppob" class="form-control text-xs" placeholder="Kosongkan untuk banner default Tagihan">
+                                        <label class="btn btn-outline btn-sm m-0 pointer"><i class="fa-solid fa-upload"></i><input type="file" accept="image/*" style="display:none;" onchange="window.uploadCategoryBannerImg('ppob', this)"></label>
+                                        <button type="button" class="btn btn-danger btn-sm" onclick="window.clearCategoryBanner('ppob')"><i class="fa-solid fa-rotate-left"></i></button>
+                                    </div>
+                                </div>
+
+                                <div class="info-box">
+                                    <label class="text-xs fw-bold d-block mb-1"><i class="fa-solid fa-wand-magic-sparkles text-primary"></i> Banner Kategori Digital &amp; Tools</label>
+                                    <div class="flex-gap">
+                                        <input type="url" id="set-cat-banner-tools" class="form-control text-xs" placeholder="Kosongkan untuk banner default Digital & Tools">
+                                        <label class="btn btn-outline btn-sm m-0 pointer"><i class="fa-solid fa-upload"></i><input type="file" accept="image/*" style="display:none;" onchange="window.uploadCategoryBannerImg('tools', this)"></label>
+                                        <button type="button" class="btn btn-danger btn-sm" onclick="window.clearCategoryBanner('tools')"><i class="fa-solid fa-rotate-left"></i></button>
+                                    </div>
+                                </div>
+
+                                <div class="info-box">
+                                    <label class="text-xs fw-bold d-block mb-1"><i class="fa-solid fa-border-all text-primary"></i> Banner Kategori Semua Produk</label>
+                                    <div class="flex-gap">
+                                        <input type="url" id="set-cat-banner-all" class="form-control text-xs" placeholder="Kosongkan untuk banner default Semua Produk">
+                                        <label class="btn btn-outline btn-sm m-0 pointer"><i class="fa-solid fa-upload"></i><input type="file" accept="image/*" style="display:none;" onchange="window.uploadCategoryBannerImg('all', this)"></label>
+                                        <button type="button" class="btn btn-danger btn-sm" onclick="window.clearCategoryBanner('all')"><i class="fa-solid fa-rotate-left"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="button" class="btn btn-primary w-full" onclick="window.saveBannerSettingsAdmin()">
+                            <i class="fa-solid fa-floppy-disk"></i> Simpan Semua Pengaturan Banner
+                        </button>
+                    </div>
+                </div>
+
                 <div id="tab-settings" class="admin-tab">
                     <div class="dashboard-panel">
                         <div class="panel-header">
@@ -2294,26 +2490,11 @@
                             </div>
                         </div>
 
-                        <div class="form-group mt-3">
-                            <div class="flex-between align-center flex-wrap-gap mb-2">
-                                <label class="m-0">Banner Slider Halaman Utama (Upload File / Link URL)</label>
-                                <div class="flex-gap flex-wrap-gap" style="flex:1; max-width:520px; justify-content:flex-end;">
-                                    <input type="url" id="set-banner-url-input" class="form-control text-xs" style="max-width:290px;" placeholder="Tempel Link URL Gambar Banner (https://...)">
-                                    <button type="button" class="btn btn-primary btn-sm" onclick="window.addBannerFromUrlInput()" style="white-space:nowrap;">
-                                        <i class="fa-solid fa-link"></i> Tambah Link
-                                    </button>
-                                    <label class="btn btn-outline btn-sm m-0 pointer" style="white-space:nowrap;">
-                                        <i class="fa-solid fa-upload"></i> Upload File
-                                        <input type="file" accept="image/*" style="display:none;" onchange="window.uploadBannerImg(this)">
-                                    </label>
-                                </div>
-                            </div>
-                            <div id="admin-banner-list" class="banner-admin-grid"></div>
-                        </div>
-
-                        <div class="form-group mt-3">
-                            <label for="set-category-banner-game"><i class="fa-solid fa-gamepad text-primary"></i> Banner Khusus Katalog Game (Link URL Gambar Opsional)</label>
-                            <input type="url" id="set-category-banner-game" class="form-control text-xs" placeholder="Contoh: https://.../banner-game.jpg (Kosongkan untuk memakai banner default Neo-Brutalism)">
+                        <!-- Pengaturan Banner telah dipindahkan sepenuhnya ke Tab Kelola Banner (v30.2 Poin #9) -->
+                        <div style="display:none !important;" aria-hidden="true">
+                            <input type="url" id="set-banner-url-input">
+                            <div id="admin-banner-list"></div>
+                            <input type="url" id="set-category-banner-game">
                         </div>
 
                         <button id="btn-save-settings" class="btn btn-primary w-full mt-4" style="padding: 13px;" onclick="window.saveSiteSettings()">
@@ -3066,13 +3247,13 @@
     <div class="modal-overlay" id="modal-admin-pin-verify">
         <div class="modal-content" style="max-width: 410px; text-align: center;">
             <div class="modal-header">
-                <h2><i class="fa-solid fa-shield-halved text-primary"></i> PIN Keamanan Admin</h2>
+                <h2><i class="fa-solid fa-shield-halved text-primary"></i> Konfirmasi</h2>
                 <button class="close-btn" onclick="window.closeAdminPinModal()" aria-label="Tutup">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
             <p id="admin-pin-modal-desc" class="text-xs text-muted mb-2">
-                Masukkan 6 digit PIN Admin untuk melanjutkan.
+                Masukkan PIN
             </p>
             <div class="v30-admin-pin-box-wrap" onclick="document.getElementById('admin-pin-verify-input')?.focus()">
                 <input type="tel" id="admin-pin-verify-input" class="v30-admin-native-pin-input" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="off" oninput="window.onNativeAdminPinInput(this)">

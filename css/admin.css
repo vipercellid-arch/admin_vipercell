@@ -55,18 +55,18 @@
     --secondary: #6366f1;
     --accent-yellow: #facc15;
 
-    --bg: #090d16;
-    --bg-grid-line: rgba(148, 163, 184, 0.06);
-    --bg-dot: rgba(148, 163, 184, 0.12);
-    --surface: #111827;
-    --surface-hover: #1e293b;
-    --surface-elevated: #172033;
+    --bg: #0a0a0a;
+    --bg-grid-line: rgba(255, 255, 255, 0.045);
+    --bg-dot: rgba(250, 204, 21, 0.14);
+    --surface: #141414;
+    --surface-hover: #222222;
+    --surface-elevated: #1b1b1b;
 
-    --text: #f8fafc;
-    --text-muted: #94a3b8;
+    --text: #fafafa;
+    --text-muted: #a1a1aa;
 
-    --border: #475569;
-    --border-subtle: #1e293b;
+    --border: #3f3f46;
+    --border-subtle: #27272a;
 
     --brutal-border: 2.5px solid #64748b;
     --brutal-border-thin: 2px solid #475569;
@@ -3612,4 +3612,50 @@ button:active,
     content: "●";
     font-size: 1.05rem;
     color: var(--primary);
+}
+
+
+/* ==========================================================================
+   PEMBARUAN v30.2 ADMIN: KUNCI SCROLL POP-UP & HAPUS UI EMAS BERLEBIHAN
+   ========================================================================== */
+
+html.v302-admin-modal-locked,
+body.v302-admin-modal-locked {
+    overflow: hidden !important;
+    overscroll-behavior: none !important;
+}
+
+.modal-overlay.active {
+    overscroll-behavior: contain !important;
+}
+
+/* Hapus warna latar emas pada baris pesanan, kartu member, dan baris chat (hanya tampil label Member Plus) */
+.modern-table tbody tr.row-order-memberplus,
+[data-theme="dark"] .modern-table tbody tr.row-order-memberplus {
+    background: transparent !important;
+    border-left: none !important;
+}
+
+.member-card.member-card-gold,
+[data-theme="dark"] .member-card.member-card-gold {
+    background: var(--surface) !important;
+    border: var(--brutal-border-thin) !important;
+    box-shadow: var(--brutal-shadow-sm) !important;
+    color: var(--text) !important;
+}
+
+.member-card.member-card-gold .member-meta-box,
+[data-theme="dark"] .member-card.member-card-gold .member-meta-box {
+    background: var(--bg) !important;
+    border-color: var(--border-subtle) !important;
+}
+
+.wa-chat-item.chat-memberplus {
+    background: transparent !important;
+    border-left: none !important;
+}
+
+.wa-avatar.avatar-memberplus-gold {
+    background: var(--primary) !important;
+    color: #ffffff !important;
 }

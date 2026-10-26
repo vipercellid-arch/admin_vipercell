@@ -10,90 +10,71 @@ service cloud.firestore {
       );
     }
 
+    function isValidUserOrderUpdate() {
+      let diffKeys = request.resource.data.diff(resource.data).affectedKeys();
+      let allowedKeys = [
+        'status', 'paymentVerified', 'paidAt', 'paidAtIso',
+        'paymentVerifiedBy', 'paymentMutationId', 'paymentApp',
+        'adminReply', 'autoDelivered', 'deliveredAt',
+        'durationDays', 'subscriptionStartAt', 'subscriptionEndAt', 'subscriptionStatus',
+        'userId', 'userEmail', 'emailSent', 'emailSending', 'emailSentAt',
+        'notif_new', 'notif_paid', 'notif_completed',
+        'isTopupOrder', 'isMemberPlusOrder',
+        'isMemberPlusUser', 'memberPlusActivated', 'orderType', 'topupAmount',
+        'balanceCredited', 'balanceCreditedAt', 'balanceRefunded', 'balanceRefundedAt',
+        'refundedToBalance', 'refundedAt', 'verifiedTargetName', 'targetAccountName',
+        'plnTokenNumber', 'plnSubscriberName', 'plnSegmentPower', 'plnKwh',
+        'customEwalletNominal', 'customEwalletAmount', 'adminFeeAmount', 'pascaBillDetails',
+        'digiflazzRefId', 'digiflazzSku', 'digiflazzCustomerNo', 'digiflazzStatus', 'digiflazzPending',
+        'digiflazzRc', 'digiflazzSn', 'digiflazzMessage', 'digiflazzLastHitAt',
+        'digiflazzPrice', 'digiflazzSellingPrice', 'digiflazzDesc', 'digiflazzCommand', 'digiflazzInFlight',
+        'digiflazzFailoverTried', 'digiflazzPrimaryFailedSku', 'digiflazzPrimaryFailedRc',
+        'cancelledAt'
+      ];
+      let priceUnchanged = (
+        request.resource.data.get('finalTotal', 0) == resource.data.get('finalTotal', 0) &&
+        request.resource.data.get('baseTotal', 0) == resource.data.get('baseTotal', 0) &&
+        request.resource.data.get('topupAmount', 0) == resource.data.get('topupAmount', 0)
+      );
+      let notRevertingSuccess = (
+        resource.data.get('status', '') != 'SUCCESS' ||
+        request.resource.data.get('status', '') == 'SUCCESS'
+      );
+      return diffKeys.hasOnly(allowedKeys) && priceUnchanged && notRevertingSuccess;
+    }
+
     match /users/{userId} {
       allow read: if true;
       allow create: if isAdmin() || (
         request.auth != null &&
         request.auth.uid == userId &&
-        (!('balance' in request.resource.data) || request.resource.data.balance == 0)
+        (!('balance' in request.resource.data) || (request.resource.data.balance is number && request.resource.data.balance == 0))
       );
       allow update: if isAdmin() || (
         request.auth != null && (
           request.auth.uid == userId ||
           resource.data.uid == userId
         ) && (
+          !('balance' in request.resource.data) || (request.resource.data.balance is number && request.resource.data.balance >= 0)
+        ) && (
           (request.resource.data.get('isAnonymous', false) == false && request.resource.data.get('isGuest', false) == false) ||
           request.resource.data.get('balance', 0) == 0
         )
       );
-      allow delete: if isAdmin() || request.auth != null;
+      allow delete: if isAdmin() || (request.auth != null && request.auth.uid == userId);
     }
 
     match /orders/{orderId} {
-      allow read, create: if true;
-      allow update: if isAdmin() || (
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'status',
-          'paymentVerified',
-          'paidAt',
-          'paidAtIso',
-          'paymentVerifiedBy',
-          'paymentMutationId',
-          'paymentApp',
-          'adminReply',
-          'autoDelivered',
-          'deliveredAt',
-          'durationDays',
-          'subscriptionStartAt',
-          'subscriptionEndAt',
-          'subscriptionStatus',
-          'userId',
-          'userEmail',
-          'emailSent',
-          'emailSending',
-          'emailSentAt',
-          'notif_new',
-          'notif_paid',
-          'notif_completed',
-          'isTopupOrder',
-          'isMemberPlusOrder',
-          'isMemberPlusUser',
-          'memberPlusActivated',
-          'orderType',
-          'topupAmount',
-          'balanceCredited',
-          'balanceCreditedAt',
-          'balanceRefunded',
-          'balanceRefundedAt',
-          'refundedToBalance',
-          'refundedAt',
-          'verifiedTargetName',
-          'targetAccountName',
-          'plnTokenNumber',
-          'plnSubscriberName',
-          'plnSegmentPower',
-          'plnKwh',
-          'customEwalletNominal',
-          'customEwalletAmount',
-          'adminFeeAmount',
-          'pascaBillDetails',
-          'digiflazzRefId',
-          'digiflazzSku',
-          'digiflazzCustomerNo',
-          'digiflazzStatus',
-          'digiflazzPending',
-          'digiflazzRc',
-          'digiflazzSn',
-          'digiflazzMessage',
-          'digiflazzLastHitAt',
-          'digiflazzPrice',
-          'digiflazzSellingPrice',
-          'digiflazzDesc',
-          'digiflazzCommand',
-          'digiflazzInFlight',
-          'cancelledAt'
-        ])
+      allow read: if true;
+      allow create: if isAdmin() || (
+        request.resource.data.get('finalTotal', 0) is number &&
+        request.resource.data.get('finalTotal', 0) >= 0 &&
+        (
+          request.resource.data.get('isTopupOrder', false) == false ||
+          request.resource.data.get('finalTotal', 0) >= request.resource.data.get('topupAmount', 0)
+        )
       );
+      allow update: if isAdmin() || isValidUserOrderUpdate();
       allow delete: if isAdmin();
     }
 
@@ -102,14 +83,7 @@ service cloud.firestore {
       allow create, delete: if isAdmin();
       allow update: if isAdmin() || (
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'usedQuota',
-          'status',
-          'usedAt',
-          'orderId',
-          'buyers',
-          'sentCount',
-          'lastSentAt',
-          'lastOrderId'
+          'usedQuota', 'status', 'usedAt', 'orderId', 'buyers', 'sentCount', 'lastSentAt', 'lastOrderId'
         ])
       );
     }
@@ -119,18 +93,9 @@ service cloud.firestore {
       allow create, delete: if isAdmin();
       allow update: if isAdmin() || (
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'stockVault',
-          'exhaustedVault',
-          'stockCount',
-          'soldOut',
-          'isGangguan',
-          'isVariantGangguan',
-          'isHidden',
-          'isBrandHidden',
-          'memberPlusPriceNum',
-          'isCheckUsernameProduct',
-          'sellerProductStatus',
-          'buyerProductStatus'
+          'stockVault', 'exhaustedVault', 'stockCount', 'soldOut', 'isGangguan', 'isVariantGangguan',
+          'isHidden', 'isBrandHidden', 'memberPlusPriceNum', 'isCheckUsernameProduct',
+          'sellerProductStatus', 'buyerProductStatus'
         ])
       );
     }
@@ -154,8 +119,7 @@ service cloud.firestore {
       allow create, delete: if isAdmin();
       allow update: if isAdmin() || (
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'usedCount',
-          'usedEmails'
+          'usedCount', 'usedEmails'
         ])
       );
     }
@@ -170,21 +134,21 @@ service cloud.firestore {
       allow update: if isAdmin() || (
         settingId != 'secretConfig' &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'lastPaymentDetected',
-          'lastPaymentTimestamp',
-          'lastPaymentMutation',
-          'suggestionsList',
-          'footerMarqueeShowPrice',
-          'footerMarqueeShowStatus',
-          'footerMarqueeSpeed',
-          'digiflazzLastBalance',
-          'digiflazzBalanceUpdatedAt'
+          'lastPaymentDetected', 'lastPaymentTimestamp', 'lastPaymentMutation',
+          'suggestionsList', 'footerMarqueeShowPrice', 'footerMarqueeShowStatus',
+          'footerMarqueeSpeed', 'digiflazzLastBalance', 'digiflazzBalanceUpdatedAt'
         ])
       );
     }
 
     match /payment_mutations/{mutationId} {
-      allow read, create, update, delete: if true;
+      allow read, create: if true;
+      allow update: if isAdmin() || (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'matchedOrderId', 'amount'
+        ])
+      );
+      allow delete: if isAdmin();
     }
 
     match /product_suggestions/{suggestionId} {
@@ -211,30 +175,13 @@ service cloud.firestore {
       allow read, create, update, delete: if isAdmin();
     }
     match /artifacts/{appId}/public/data/users/{userId} {
-      allow read, create, update: if true;
-      allow delete: if isAdmin() || request.auth != null;
+      allow read: if true;
+      allow create, update: if isAdmin() || request.auth != null;
+      allow delete: if isAdmin() || (request.auth != null && request.auth.uid == userId);
     }
     match /artifacts/{appId}/public/data/orders/{orderId} {
       allow read, create: if true;
-      allow update: if isAdmin() || (
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'status', 'paymentVerified', 'paidAt', 'paidAtIso',
-          'paymentVerifiedBy', 'paymentMutationId', 'paymentApp',
-          'adminReply', 'autoDelivered', 'deliveredAt',
-          'durationDays', 'subscriptionStartAt', 'subscriptionEndAt', 'subscriptionStatus',
-          'userId', 'userEmail', 'emailSent', 'emailSending', 'emailSentAt',
-          'notif_new', 'notif_paid', 'notif_completed',
-          'isTopupOrder', 'isMemberPlusOrder',
-          'isMemberPlusUser', 'memberPlusActivated', 'orderType', 'topupAmount',
-          'balanceCredited', 'balanceCreditedAt', 'balanceRefunded', 'balanceRefundedAt',
-          'refundedToBalance', 'refundedAt', 'verifiedTargetName', 'targetAccountName',
-          'plnTokenNumber', 'plnSubscriberName', 'plnSegmentPower', 'plnKwh',
-          'customEwalletNominal', 'customEwalletAmount', 'adminFeeAmount', 'pascaBillDetails',
-          'digiflazzRefId', 'digiflazzSku', 'digiflazzCustomerNo', 'digiflazzStatus', 'digiflazzPending',
-          'digiflazzRc', 'digiflazzSn', 'digiflazzMessage', 'digiflazzLastHitAt',
-          'digiflazzPrice', 'digiflazzSellingPrice', 'digiflazzDesc', 'digiflazzCommand', 'digiflazzInFlight', 'cancelledAt'
-        ])
-      );
+      allow update: if isAdmin() || isValidUserOrderUpdate();
       allow delete: if isAdmin();
     }
     match /artifacts/{appId}/public/data/stocks/{stockId} {
@@ -251,8 +198,9 @@ service cloud.firestore {
       allow create, delete: if isAdmin();
       allow update: if isAdmin() || (
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'stockVault', 'exhaustedVault', 'stockCount', 'soldOut', 'isGangguan', 'isVariantGangguan', 'isHidden', 'isBrandHidden', 'memberPlusPriceNum',
-          'isCheckUsernameProduct', 'sellerProductStatus', 'buyerProductStatus'
+          'stockVault', 'exhaustedVault', 'stockCount', 'soldOut', 'isGangguan', 'isVariantGangguan',
+          'isHidden', 'isBrandHidden', 'memberPlusPriceNum', 'isCheckUsernameProduct',
+          'sellerProductStatus', 'buyerProductStatus'
         ])
       );
     }
@@ -288,7 +236,13 @@ service cloud.firestore {
       );
     }
     match /artifacts/{appId}/public/data/payment_mutations/{mutationId} {
-      allow read, create, update, delete: if true;
+      allow read, create: if true;
+      allow update: if isAdmin() || (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'matchedOrderId', 'amount'
+        ])
+      );
+      allow delete: if isAdmin();
     }
     match /artifacts/{appId}/public/data/product_suggestions/{suggestionId} {
       allow read, create: if true;
