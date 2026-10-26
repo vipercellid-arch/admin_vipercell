@@ -1,7 +1,3 @@
-/* ============================================================================
- * VIPERCELL - ADMIN STYLESHEET (NEO-BRUTALISM EDITION)
- * File : css/admin.css
- * ============================================================================ */
 
 :root {
     --primary: #2563eb;
@@ -13,24 +9,19 @@
     --accent-purple: #8b5cf6;
     --accent-pink: #ec4899;
     --accent-cyan: #06b6d4;
-
     --bg: #f4f1ea;
     --bg-grid-line: rgba(15, 23, 42, 0.055);
     --bg-dot: rgba(15, 23, 42, 0.11);
     --surface: #ffffff;
     --surface-hover: #fef9c3;
     --surface-elevated: #f8fafc;
-
     --text: #0f172a;
     --text-muted: #475569;
-
     --border: #0f172a;
     --border-subtle: #cbd5e1;
-
     --success: #10b981;
     --warning: #f59e0b;
     --danger: #ef4444;
-
     --brutal-border: 2.5px solid #0f172a;
     --brutal-border-thin: 2px solid #0f172a;
     --brutal-shadow: 5px 5px 0px #0f172a;
@@ -40,34 +31,28 @@
     --radius-lg: 16px;
     --radius-md: 12px;
     --radius-sm: 10px;
-
     --font-display: 'Space Grotesk', 'Plus Jakarta Sans', sans-serif;
     --font-heading: 'Space Grotesk', 'Plus Jakarta Sans', sans-serif;
     --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
     --font-accent: 'Plus Jakarta Sans', sans-serif;
     --font-mono: 'Space Grotesk', monospace;
 }
-
 [data-theme="dark"] {
     --primary: #3b82f6;
     --primary-hover: #2563eb;
     --primary-light: #93c5fd;
     --secondary: #6366f1;
     --accent-yellow: #facc15;
-
     --bg: #0a0a0a;
     --bg-grid-line: rgba(255, 255, 255, 0.045);
     --bg-dot: rgba(250, 204, 21, 0.14);
     --surface: #141414;
     --surface-hover: #222222;
     --surface-elevated: #1b1b1b;
-
     --text: #fafafa;
     --text-muted: #a1a1aa;
-
     --border: #3f3f46;
     --border-subtle: #27272a;
-
     --brutal-border: 2.5px solid #64748b;
     --brutal-border-thin: 2px solid #475569;
     --brutal-shadow: 5px 5px 0px #020617;
@@ -75,10 +60,6 @@
     --brutal-shadow-xs: 2px 2px 0px #020617;
     --brutal-shadow-hover: 6px 6px 0px #020617;
 }
-
-/* ==========================================
-   KANVAS EFEK SENTUHAN AIR BERWARNA
-   ========================================== */
 #water-ripple-canvas {
     position: fixed;
     inset: 0;
@@ -87,10 +68,6 @@
     pointer-events: none;
     z-index: 0;
 }
-
-/* ==========================================
-   TRANSISI TEMA
-   ========================================== */
 html.theme-transitioning,
 html.theme-transitioning *,
 html.theme-transitioning *::before,
@@ -100,7 +77,6 @@ html.theme-transitioning *::after {
                 border-color 0.32s cubic-bezier(0.22, 1, 0.36, 1),
                 box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1) !important;
 }
-
 #theme-transition-curtain {
     position: fixed;
     inset: 0;
@@ -110,20 +86,16 @@ html.theme-transitioning *::after {
     background: radial-gradient(circle at var(--theme-x, 88%) var(--theme-y, 8%), rgba(59, 130, 246, 0.22), transparent 65%);
     transition: opacity 0.35s ease;
 }
-
 #theme-transition-curtain.active {
     opacity: 1;
 }
-
 .spin-theme-icon i {
     animation: themeIconRotate 0.42s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-
 @keyframes themeIconRotate {
     0% { transform: rotate(-140deg) scale(0.5); opacity: 0.3; }
     100% { transform: rotate(0deg) scale(1); opacity: 1; }
 }
-
 * {
     margin: 0;
     padding: 0;
@@ -131,13 +103,10 @@ html.theme-transitioning *::after {
     font-family: var(--font-body);
     -webkit-tap-highlight-color: transparent;
 }
-
 html {
     scroll-behavior: smooth;
     -webkit-text-size-adjust: 100%;
 }
-
-/* Latar Belakang Neo-Brutalism Matang */
 body {
     background-color: var(--bg);
     background-image:
@@ -152,42 +121,31 @@ body {
     overflow-x: hidden;
     position: relative;
 }
-
 body.no-scroll,
 body.preloader-locked {
     overflow: hidden !important;
     height: 100dvh !important;
 }
-
-/* Proteksi Anti-Bocor ke Layar Login Saat Admin Sudah Login */
 html.has-admin-session #admin-login-screen,
 body:not(.admin-auth-locked) #admin-login-screen {
     display: none !important;
 }
-
 body.admin-auth-locked #admin-dashboard-view {
     display: none !important;
 }
-
 h1, h2, h3, h4, .brand-title {
     font-family: var(--font-heading);
     letter-spacing: -0.02em;
 }
-
 ::-webkit-scrollbar { width: 7px; height: 7px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
 ::-webkit-scrollbar-thumb {
     background: var(--primary);
     border-radius: 99px;
 }
-
 .notif-dot {
     display: none !important;
 }
-
-/* ==========================================
-   PRE-LOADER ADMIN SOLID ANTI-BOCOR
-   ========================================== */
 .preloader-overlay {
     position: fixed;
     inset: 0;
@@ -202,13 +160,11 @@ h1, h2, h3, h4, .brand-title {
     transition: opacity 0.22s ease, visibility 0.22s ease;
     pointer-events: all;
 }
-
 .preloader-overlay.hidden {
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
 }
-
 .preloader-simple-box {
     display: flex;
     flex-direction: column;
@@ -223,7 +179,6 @@ h1, h2, h3, h4, .brand-title {
     max-width: 285px;
     text-align: center;
 }
-
 .preloader-brand-pill {
     display: inline-flex;
     align-items: center;
@@ -237,7 +192,6 @@ h1, h2, h3, h4, .brand-title {
     font-size: 0.7rem;
     font-weight: 900;
 }
-
 .preloader-circle-spinner {
     width: 36px;
     height: 36px;
@@ -246,14 +200,12 @@ h1, h2, h3, h4, .brand-title {
     border-top-color: var(--primary);
     animation: simpleSpin 0.65s linear infinite;
 }
-
 .preloader-simple-text {
     font-size: 0.9rem;
     font-weight: 800;
     color: var(--text);
     margin: 0;
 }
-
 .preloader-stage-bar-wrap {
     width: 100%;
     height: 8px;
@@ -262,26 +214,19 @@ h1, h2, h3, h4, .brand-title {
     border-radius: 99px;
     overflow: hidden;
 }
-
 .preloader-stage-bar-fill {
     height: 100%;
     background: var(--primary);
     transition: width 0.22s ease;
 }
-
 .preloader-stage-sub {
     font-size: 0.72rem;
     font-weight: 700;
     color: var(--text-muted);
 }
-
 @keyframes simpleSpin {
     to { transform: rotate(360deg); }
 }
-
-/* ==========================================
-   UTILITY CLASSES
-   ========================================== */
 .text-primary { color: var(--primary) !important; }
 .text-success { color: var(--success) !important; }
 .text-warning { color: var(--warning) !important; }
@@ -320,27 +265,20 @@ h1, h2, h3, h4, .brand-title {
 .flex-wrap-gap { display: flex; flex-wrap: wrap; gap: 10px; }
 .flex-col-gap { display: flex; flex-direction: column; gap: 10px; }
 .grid-span-full { grid-column: 1 / -1 !important; }
-
 .code-mono {
     font-family: var(--font-mono) !important;
     font-size: 0.83rem;
 }
-
 .grid-2col {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
     gap: 1.15rem;
 }
-
 .grid-auto {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 1.1rem;
 }
-
-/* ==========================================
-   BUTTONS & FORMS NEO-BRUTALISM
-   ========================================== */
 .btn {
     display: inline-flex;
     align-items: center;
@@ -360,29 +298,24 @@ h1, h2, h3, h4, .brand-title {
     touch-action: manipulation;
     transform: translate3d(0, 0, 0);
 }
-
 .btn:hover:not(:disabled) {
     transform: translate3d(-1.5px, -1.5px, 0);
     box-shadow: 4.5px 4.5px 0px var(--border);
 }
-
 .btn:active:not(:disabled) {
     transform: translate3d(1.5px, 1.5px, 0);
     box-shadow: 1px 1px 0px var(--border);
 }
-
 .btn:disabled {
     opacity: 0.55;
     cursor: not-allowed;
     box-shadow: none;
 }
-
 .btn-sm {
     padding: 6px 12px;
     min-height: 34px;
     font-size: 0.78rem;
 }
-
 .btn-primary { background: var(--primary); color: #ffffff; }
 .btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
 .btn-success { background: var(--success); color: #ffffff; }
@@ -391,7 +324,6 @@ h1, h2, h3, h4, .brand-title {
 .btn-outline { background: var(--surface); color: var(--text); }
 .btn-outline:hover:not(:disabled) { background: var(--surface-hover); }
 [data-theme="dark"] .btn-outline:hover:not(:disabled) { color: #f8fafc; }
-
 .btn-icon-only {
     width: 38px;
     height: 38px;
@@ -407,17 +339,14 @@ h1, h2, h3, h4, .brand-title {
     transition: transform 0.12s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.12s ease;
     touch-action: manipulation;
 }
-
 .btn-icon-only:hover {
     background: var(--accent-yellow);
     color: #0f172a;
     transform: translate3d(-1px, -1px, 0);
 }
-
 .btn-icon-only:active {
     transform: translate3d(1px, 1px, 0);
 }
-
 .form-group { margin-bottom: 0.95rem; }
 .form-group label {
     display: block;
@@ -426,7 +355,6 @@ h1, h2, h3, h4, .brand-title {
     margin-bottom: 5px;
     color: var(--text);
 }
-
 .form-control {
     width: 100%;
     padding: 10px 13px;
@@ -439,19 +367,16 @@ h1, h2, h3, h4, .brand-title {
     font-weight: 600;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
-
 .form-control:focus {
     outline: none;
     border-color: var(--primary);
     box-shadow: 3px 3px 0px var(--primary);
 }
-
 .input-icon-wrap {
     position: relative;
     display: flex;
     align-items: center;
 }
-
 .input-icon-wrap > i {
     position: absolute;
     left: 13px;
@@ -459,12 +384,9 @@ h1, h2, h3, h4, .brand-title {
     font-size: 0.92rem;
     pointer-events: none;
 }
-
 .input-icon-wrap .form-control {
     padding-left: 38px;
 }
-
-/* Toggle Switch */
 .switch {
     position: relative;
     display: inline-block;
@@ -498,10 +420,6 @@ input:checked + .slider:before {
     transform: translateX(22px);
     background-color: #ffffff;
 }
-
-/* ==========================================
-   LAYAR LOGIN ADMIN NEO-BRUTALISM RAME & MATANG
-   ========================================== */
 .admin-login-wrapper {
     min-height: 100dvh;
     display: flex;
@@ -511,7 +429,6 @@ input:checked + .slider:before {
     position: relative;
     z-index: 1;
 }
-
 .admin-auth-stage {
     width: 100%;
     max-width: 980px;
@@ -520,7 +437,6 @@ input:checked + .slider:before {
     gap: 1.5rem;
     align-items: stretch;
 }
-
 .admin-auth-showcase {
     background: var(--surface);
     border: var(--brutal-border);
@@ -533,14 +449,12 @@ input:checked + .slider:before {
     position: relative;
     overflow: hidden;
 }
-
 .admin-auth-stickers {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
     margin-bottom: 1rem;
 }
-
 .neo-sticker {
     display: inline-flex;
     align-items: center;
@@ -553,10 +467,8 @@ input:checked + .slider:before {
     box-shadow: 2.5px 2.5px 0px #0f172a;
     text-transform: uppercase;
 }
-
 .sticker-yellow { background: var(--accent-yellow); color: #0f172a; }
 .sticker-blue { background: #dbeafe; color: #1e40af; }
-
 .admin-showcase-title {
     font-size: 1.7rem;
     font-weight: 900;
@@ -564,7 +476,6 @@ input:checked + .slider:before {
     color: var(--text);
     margin-bottom: 0.6rem;
 }
-
 .admin-showcase-sub {
     font-size: 0.88rem;
     font-weight: 600;
@@ -572,13 +483,11 @@ input:checked + .slider:before {
     margin-bottom: 1.35rem;
     line-height: 1.55;
 }
-
 .admin-showcase-bento {
     display: flex;
     flex-direction: column;
     gap: 10px;
 }
-
 .admin-bento-card {
     display: flex;
     align-items: center;
@@ -588,11 +497,9 @@ input:checked + .slider:before {
     border: 2px solid #0f172a;
     box-shadow: 3px 3px 0px #0f172a;
 }
-
 .admin-bento-card.bento-blue { background: #dbeafe; color: #0f172a; }
 .admin-bento-card.bento-amber { background: #fef3c7; color: #0f172a; }
 .admin-bento-card.bento-emerald { background: #dcfce7; color: #0f172a; }
-
 .bento-icon-box {
     width: 40px;
     height: 40px;
@@ -606,21 +513,18 @@ input:checked + .slider:before {
     font-size: 1.1rem;
     flex-shrink: 0;
 }
-
 .admin-bento-card strong {
     display: block;
     font-size: 0.88rem;
     font-weight: 900;
     color: #0f172a;
 }
-
 .admin-bento-card span {
     display: block;
     font-size: 0.75rem;
     font-weight: 600;
     color: #334155;
 }
-
 .admin-login-card {
     width: 100%;
     background: var(--surface);
@@ -634,7 +538,6 @@ input:checked + .slider:before {
     justify-content: center;
     position: relative;
 }
-
 .admin-card-floating-tag {
     position: absolute;
     top: -12px;
@@ -649,7 +552,6 @@ input:checked + .slider:before {
     font-weight: 900;
     letter-spacing: 0.04em;
 }
-
 .login-icon-badge {
     width: 58px;
     height: 58px;
@@ -664,10 +566,6 @@ input:checked + .slider:before {
     font-size: 1.5rem;
     margin: 0 auto 1rem;
 }
-
-/* ==========================================
-   LAYOUT SIDEBAR & TOPBAR
-   ========================================== */
 .admin-layout {
     display: flex;
     min-height: 100dvh;
@@ -675,7 +573,6 @@ input:checked + .slider:before {
     position: relative;
     z-index: 1;
 }
-
 .admin-sidebar {
     width: 256px;
     background: var(--surface);
@@ -689,7 +586,6 @@ input:checked + .slider:before {
     flex-shrink: 0;
     transition: transform 0.26s cubic-bezier(0.22, 1, 0.36, 1);
 }
-
 .sidebar-brand {
     padding: 1.15rem 1.2rem;
     border-bottom: var(--brutal-border-thin);
@@ -697,7 +593,6 @@ input:checked + .slider:before {
     align-items: center;
     gap: 10px;
 }
-
 .brand-icon {
     width: 36px;
     height: 36px;
@@ -711,14 +606,12 @@ input:checked + .slider:before {
     justify-content: center;
     font-size: 1rem;
 }
-
 .brand-title {
     font-size: 1.2rem;
     font-weight: 800;
     color: var(--text);
 }
 .brand-title span { color: var(--primary); }
-
 .sidebar-close-btn {
     display: none;
     margin-left: auto;
@@ -728,7 +621,6 @@ input:checked + .slider:before {
     font-size: 1.25rem;
     cursor: pointer;
 }
-
 .sidebar-menu {
     flex: 1;
     padding: 0.9rem 0.8rem;
@@ -737,7 +629,6 @@ input:checked + .slider:before {
     flex-direction: column;
     gap: 4px;
 }
-
 .menu-category {
     font-size: 0.67rem;
     font-weight: 800;
@@ -745,7 +636,6 @@ input:checked + .slider:before {
     letter-spacing: 0.08em;
     padding: 0.65rem 0.65rem 0.25rem;
 }
-
 .menu-item {
     display: flex;
     align-items: center;
@@ -760,41 +650,34 @@ input:checked + .slider:before {
     transition: transform 0.12s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.12s ease, color 0.12s ease;
     touch-action: manipulation;
 }
-
 .menu-item i {
     width: 18px;
     text-align: center;
     font-size: 0.95rem;
 }
-
 .menu-item:hover {
     background: var(--surface-hover);
     color: #0f172a;
 }
-
 [data-theme="dark"] .menu-item:hover {
     color: #f8fafc;
 }
-
 .menu-item.active {
     background: var(--primary);
     color: #ffffff;
     border-color: #0f172a;
     box-shadow: 2.5px 2.5px 0px #0f172a;
 }
-
 .sidebar-footer {
     padding: 0.9rem;
     border-top: var(--brutal-border-thin);
 }
-
 .admin-main {
     flex: 1;
     min-width: 0;
     display: flex;
     flex-direction: column;
 }
-
 .admin-topbar {
     height: 64px;
     background: var(--surface);
@@ -808,14 +691,12 @@ input:checked + .slider:before {
     z-index: 900;
     gap: 10px;
 }
-
 .topbar-left {
     display: flex;
     align-items: center;
     gap: 10px;
     min-width: 0;
 }
-
 .topbar-left h2 {
     font-size: 1.15rem;
     font-weight: 800;
@@ -823,7 +704,6 @@ input:checked + .slider:before {
     overflow: hidden;
     text-overflow: ellipsis;
 }
-
 .mobile-menu-btn {
     display: none;
     width: 38px;
@@ -836,14 +716,12 @@ input:checked + .slider:before {
     font-size: 1.05rem;
     cursor: pointer;
 }
-
 .topbar-actions {
     display: flex;
     align-items: center;
     gap: 8px;
     flex-shrink: 0;
 }
-
 .admin-badge {
     padding: 6px 12px;
     border-radius: 999px;
@@ -855,15 +733,12 @@ input:checked + .slider:before {
     align-items: center;
     gap: 6px;
 }
-
 .admin-content {
     padding: 1.35rem;
     max-width: 1440px;
     width: 100%;
     margin: 0 auto;
 }
-
-/* Transisi Antar-Tab & Panel Lebih Halus */
 .admin-tab {
     display: none;
     opacity: 0;
@@ -875,22 +750,16 @@ input:checked + .slider:before {
     transform: translate3d(0, 0, 0);
     animation: smoothAdminTabIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
-
 @keyframes smoothAdminTabIn {
     from { opacity: 0; transform: translate3d(0, 10px, 0); }
     to { opacity: 1; transform: translate3d(0, 0, 0); }
 }
-
-/* ==========================================
-   STATS & DASHBOARD PANELS
-   ========================================== */
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: 1rem;
     margin-bottom: 1.35rem;
 }
-
 .stat-card {
     background: var(--surface);
     border: var(--brutal-border);
@@ -902,11 +771,9 @@ input:checked + .slider:before {
     gap: 13px;
     transition: transform 0.12s cubic-bezier(0.22, 1, 0.36, 1);
 }
-
 .stat-card:hover {
     transform: translate3d(-1.5px, -1.5px, 0);
 }
-
 .stat-icon {
     width: 48px;
     height: 48px;
@@ -919,32 +786,27 @@ input:checked + .slider:before {
     font-size: 1.25rem;
     flex-shrink: 0;
 }
-
 .icon-green { background: #dcfce7; color: #047857; }
 .icon-blue { background: #dbeafe; color: #1d4ed8; }
 .icon-purple { background: #f3e8ff; color: #6d28d9; }
 .icon-orange { background: #fef3c7; color: #b45309; }
-
 .stat-info span {
     font-size: 0.74rem;
     font-weight: 800;
     color: var(--text-muted);
     text-transform: uppercase;
 }
-
 .stat-info h3 {
     font-size: 1.38rem;
     font-weight: 900;
     color: var(--text);
     margin: 2px 0;
 }
-
 .stat-info small {
     font-size: 0.71rem;
     font-weight: 600;
     color: var(--text-muted);
 }
-
 .dashboard-panel {
     background: var(--surface);
     border: var(--brutal-border);
@@ -953,7 +815,6 @@ input:checked + .slider:before {
     padding: 1.35rem;
     margin-bottom: 1.35rem;
 }
-
 .panel-header {
     display: flex;
     justify-content: space-between;
@@ -964,7 +825,6 @@ input:checked + .slider:before {
     padding-bottom: 0.85rem;
     border-bottom: 2px dashed var(--border-subtle);
 }
-
 .panel-header h3 {
     font-size: 1.08rem;
     font-weight: 800;
@@ -972,16 +832,11 @@ input:checked + .slider:before {
     align-items: center;
     gap: 8px;
 }
-
-/* ==========================================
-   FILTER PILLS & TABLES
-   ========================================== */
 .order-filter-pills {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
 }
-
 .filter-pill {
     padding: 6px 13px;
     border-radius: 999px;
@@ -994,42 +849,35 @@ input:checked + .slider:before {
     transition: transform 0.1s ease, background-color 0.12s ease;
     touch-action: manipulation;
 }
-
 .filter-pill:hover {
     color: #0f172a;
     background: var(--surface-hover);
 }
-
 [data-theme="dark"] .filter-pill:hover {
     color: #f8fafc;
 }
-
 .filter-pill.active {
     background: var(--primary);
     color: #ffffff;
     border-color: #0f172a;
     box-shadow: 2px 2px 0px #0f172a;
 }
-
 .table-responsive {
     width: 100%;
     overflow-x: auto;
     border-radius: var(--radius-md);
     border: var(--brutal-border-thin);
 }
-
 .modern-table {
     width: 100%;
     border-collapse: collapse;
     text-align: left;
     min-width: 680px;
 }
-
 .modern-table thead {
     background: var(--surface-elevated);
     border-bottom: var(--brutal-border-thin);
 }
-
 .modern-table th {
     padding: 11px 13px;
     font-size: 0.74rem;
@@ -1037,23 +885,18 @@ input:checked + .slider:before {
     text-transform: uppercase;
     color: var(--text-muted);
 }
-
 .modern-table td {
     padding: 11px 13px;
     font-size: 0.84rem;
     border-bottom: 1px solid var(--border-subtle);
     vertical-align: middle;
 }
-
 .modern-table tbody tr:hover {
     background: rgba(37, 99, 235, 0.04);
 }
-
 .row-sub-expired {
     background: rgba(239, 68, 68, 0.08) !important;
 }
-
-/* Status Badges */
 .status-badge {
     display: inline-flex;
     align-items: center;
@@ -1065,7 +908,6 @@ input:checked + .slider:before {
     border: 1.5px solid #0f172a;
     text-transform: uppercase;
 }
-
 .status-success { background: #dcfce7; color: #047857; }
 .status-pending { background: #fef3c7; color: #b45309; }
 .status-unpaid { background: #dbeafe; color: #1d4ed8; }
@@ -1073,7 +915,6 @@ input:checked + .slider:before {
 .status-anon { background: #e2e8f0; color: #334155; }
 .status-vip { background: var(--accent-yellow); color: #0f172a; }
 .status-email-oauth { background: #f3e8ff; color: #6b21a8; }
-
 .sub-countdown-box {
     display: inline-flex;
     align-items: center;
@@ -1085,18 +926,15 @@ input:checked + .slider:before {
     font-weight: 800;
     border: 1.5px solid #0f172a;
 }
-
 .sub-running { background: #dbeafe; color: #1e40af; }
 .sub-expired { background: #fee2e2; color: #b91c1c; }
 .sub-kicked { background: #e2e8f0; color: #475569; }
-
 .info-box {
     padding: 0.9rem 1.05rem;
     border-radius: var(--radius-md);
     border: var(--brutal-border-thin);
     background: var(--bg);
 }
-
 .bg-primary-light { background: rgba(37, 99, 235, 0.08); }
 .bg-warning-light { background: rgba(245, 158, 11, 0.1); }
 .bg-danger-light { background: rgba(239, 68, 68, 0.1); }
@@ -1105,14 +943,9 @@ input:checked + .slider:before {
 .border-warning { border-color: var(--warning) !important; }
 .border-danger { border-color: var(--danger) !important; }
 .border-success { border-color: var(--success) !important; }
-
-/* ==========================================
-   GUDANG STOK MINIMALIS & SANGAT MATANG
-   ========================================== */
 .stock-minimal-panel {
     position: relative;
 }
-
 .stock-step-selector-bar {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -1123,7 +956,6 @@ input:checked + .slider:before {
     padding: 1rem;
     margin-bottom: 1rem;
 }
-
 .stock-step-field label {
     display: flex;
     align-items: center;
@@ -1133,7 +965,6 @@ input:checked + .slider:before {
     margin-bottom: 6px;
     color: var(--text);
 }
-
 .stock-step-badge {
     width: 22px;
     height: 22px;
@@ -1148,19 +979,16 @@ input:checked + .slider:before {
     font-weight: 900;
     flex-shrink: 0;
 }
-
 .stock-step-badge.badge-green {
     background: #dcfce7;
     color: #047857;
 }
-
 .stock-hierarchy-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(195px, 1fr));
     gap: 9px;
     margin-bottom: 0.75rem;
 }
-
 .stock-brand-card {
     background: var(--surface);
     border: var(--brutal-border-thin);
@@ -1174,24 +1002,20 @@ input:checked + .slider:before {
     gap: 8px;
     transition: transform 0.12s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.12s ease;
 }
-
 .stock-brand-card:hover {
     background: var(--surface-hover);
     transform: translate3d(-1.5px, -1.5px, 0);
 }
-
 .stock-brand-card.active {
     background: var(--primary);
     color: #ffffff;
     border-color: #0f172a;
     box-shadow: 3px 3px 0px #0f172a;
 }
-
 .stock-brand-card.active strong,
 .stock-brand-card.active span:not(.status-badge) {
     color: #ffffff !important;
 }
-
 .stock-variants-box {
     background: var(--bg);
     border: var(--brutal-border-thin);
@@ -1200,13 +1024,11 @@ input:checked + .slider:before {
     margin-top: 0.75rem;
     animation: smoothAdminTabIn 0.22s cubic-bezier(0.22, 1, 0.36, 1);
 }
-
 .stock-variant-pills-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
     gap: 9px;
 }
-
 .stock-variant-card {
     background: var(--surface);
     border: var(--brutal-border-thin);
@@ -1220,31 +1042,26 @@ input:checked + .slider:before {
     gap: 5px;
     transition: transform 0.12s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.12s ease;
 }
-
 .stock-variant-card:hover {
     transform: translate3d(-1.5px, -1.5px, 0);
     background: var(--surface-hover);
 }
-
 .stock-variant-card.active {
     background: var(--accent-yellow);
     color: #0f172a;
     border-color: #0f172a;
     box-shadow: 3px 3px 0px #0f172a;
 }
-
 .stock-variant-card.active strong,
 .stock-variant-card.active span:not(.status-badge) {
     color: #0f172a !important;
 }
-
 .stock-items-result-box {
     margin-top: 1.15rem;
     padding-top: 1.15rem;
     border-top: 2px dashed var(--border-subtle);
     animation: smoothAdminTabIn 0.24s cubic-bezier(0.22, 1, 0.36, 1);
 }
-
 .stock-result-header {
     display: flex;
     justify-content: space-between;
@@ -1257,12 +1074,10 @@ input:checked + .slider:before {
     border-radius: var(--radius-md);
     margin-bottom: 1rem;
 }
-
 .stock-add-minimal-form {
     padding-top: 0.75rem;
     animation: smoothAdminTabIn 0.24s cubic-bezier(0.22, 1, 0.36, 1);
 }
-
 .stock-target-banner {
     display: flex;
     justify-content: space-between;
@@ -1275,7 +1090,6 @@ input:checked + .slider:before {
     border-radius: var(--radius-md);
     margin-bottom: 1rem;
 }
-
 .email-oauth-config-box {
     background: rgba(139, 92, 246, 0.1);
     border: 2px solid var(--border);
@@ -1283,7 +1097,6 @@ input:checked + .slider:before {
     padding: 0.85rem 1rem;
     margin-bottom: 1rem;
 }
-
 .raw-pipe-pill {
     font-family: var(--font-mono);
     font-size: 0.75rem;
@@ -1295,23 +1108,17 @@ input:checked + .slider:before {
     border: 1.5px solid var(--border);
     word-break: break-all;
 }
-
 .stock-mobile-cards {
     display: none;
     flex-direction: column;
     gap: 10px;
 }
-
 .stock-m-card {
     background: var(--bg);
     border: var(--brutal-border-thin);
     border-radius: var(--radius-md);
     padding: 0.9rem;
 }
-
-/* ==========================================
-   CS BANTUAN: SUB-TAB CHAT VS SARAN PRODUK
-   ========================================== */
 .cs-subtabs-bar {
     display: inline-flex;
     flex-wrap: wrap;
@@ -1323,7 +1130,6 @@ input:checked + .slider:before {
     border-radius: var(--radius-md);
     margin-bottom: 1rem;
 }
-
 .cs-subtab-btn {
     display: inline-flex;
     align-items: center;
@@ -1338,19 +1144,16 @@ input:checked + .slider:before {
     cursor: pointer;
     transition: all 0.16s cubic-bezier(0.22, 1, 0.36, 1);
 }
-
 .cs-subtab-btn:hover {
     color: var(--text);
     background: var(--bg);
 }
-
 .cs-subtab-btn.active {
     background: var(--primary);
     color: #ffffff;
     border-color: #0f172a;
     box-shadow: 2.5px 2.5px 0px #0f172a;
 }
-
 .cs-subtab-badge {
     display: inline-flex;
     align-items: center;
@@ -1365,22 +1168,18 @@ input:checked + .slider:before {
     font-size: 0.68rem;
     font-weight: 900;
 }
-
 .cs-subtab-badge.badge-amber {
     background: var(--accent-yellow);
     color: #0f172a;
 }
-
 .cs-subpanel {
     animation: smoothAdminTabIn 0.24s cubic-bezier(0.22, 1, 0.36, 1);
 }
-
 .suggestions-admin-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: 1rem;
 }
-
 .suggestion-admin-card {
     background: var(--bg);
     border: var(--brutal-border-thin);
@@ -1393,11 +1192,9 @@ input:checked + .slider:before {
     gap: 12px;
     transition: transform 0.14s cubic-bezier(0.22, 1, 0.36, 1);
 }
-
 .suggestion-admin-card:hover {
     transform: translate3d(-2px, -2px, 0);
 }
-
 .suggestion-notes-box {
     background: var(--surface);
     border: 1.5px solid var(--border);
@@ -1408,10 +1205,6 @@ input:checked + .slider:before {
     color: var(--text);
     line-height: 1.45;
 }
-
-/* ==========================================
-   CATALOG, MEMBER & MARQUEE CARDS
-   ========================================== */
 .catalog-card,
 .member-card,
 .marquee-slot-card {
@@ -1425,20 +1218,17 @@ input:checked + .slider:before {
     justify-content: space-between;
     transition: transform 0.12s cubic-bezier(0.22, 1, 0.36, 1);
 }
-
 .catalog-card:hover,
 .member-card:hover,
 .marquee-slot-card:hover {
     transform: translate3d(-1.5px, -1.5px, 0);
 }
-
 .catalog-card-top,
 .member-card-head {
     display: flex;
     align-items: center;
     gap: 11px;
 }
-
 .catalog-thumb,
 .member-avatar {
     width: 48px;
@@ -1454,12 +1244,10 @@ input:checked + .slider:before {
     background: var(--primary);
     color: #ffffff;
 }
-
 .member-avatar.anon-avatar {
     background: var(--accent-yellow);
     color: #0f172a;
 }
-
 .member-meta-box {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -1471,44 +1259,37 @@ input:checked + .slider:before {
     margin-bottom: 10px;
     font-size: 0.74rem;
 }
-
 .member-meta-item span {
     display: block;
     font-size: 0.64rem;
     font-weight: 800;
     color: var(--text-muted);
 }
-
 .member-actions-row {
     display: flex;
     gap: 6px;
     flex-wrap: wrap;
 }
-
 .marquee-studio-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
     gap: 10px;
 }
-
 .marquee-slot-head {
     display: flex;
     justify-content: space-between;
     align-items: center;
 }
-
 .marquee-slot-num {
     font-size: 0.7rem;
     font-weight: 900;
     color: var(--primary);
 }
-
 .banner-admin-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
     gap: 10px;
 }
-
 .banner-admin-item {
     position: relative;
     border-radius: 10px;
@@ -1516,16 +1297,11 @@ input:checked + .slider:before {
     border: var(--brutal-border-thin);
     aspect-ratio: 16 / 7;
 }
-
 .banner-admin-item img {
     width: 100%;
     height: 100%;
     object-fit: cover;
 }
-
-/* ==========================================
-   LIVE CHAT ADMIN WORKSPACE
-   ========================================== */
 .wa-layout-container {
     display: grid;
     grid-template-columns: 310px 1fr;
@@ -1537,14 +1313,12 @@ input:checked + .slider:before {
     border-radius: var(--radius-lg);
     overflow: hidden;
 }
-
 .wa-sidebar {
     border-right: var(--brutal-border-thin);
     display: flex;
     flex-direction: column;
     background: var(--bg);
 }
-
 .wa-sidebar-header {
     padding: 0.95rem 1.1rem;
     background: var(--surface);
@@ -1553,12 +1327,10 @@ input:checked + .slider:before {
     justify-content: space-between;
     align-items: center;
 }
-
 .wa-chat-list {
     flex: 1;
     overflow-y: auto;
 }
-
 .wa-chat-item {
     display: flex;
     align-items: center;
@@ -1568,13 +1340,11 @@ input:checked + .slider:before {
     cursor: pointer;
     transition: background-color 0.12s ease;
 }
-
 .wa-chat-item:hover { background: var(--surface-hover); }
 .wa-chat-item.active {
     background: rgba(37, 99, 235, 0.12);
     border-left: 4px solid var(--primary);
 }
-
 .wa-avatar {
     width: 40px;
     height: 40px;
@@ -1588,14 +1358,12 @@ input:checked + .slider:before {
     font-weight: 800;
     flex-shrink: 0;
 }
-
 .wa-main {
     display: flex;
     flex-direction: column;
     background: var(--surface);
     min-width: 0;
 }
-
 .wa-empty-state {
     flex: 1;
     display: flex;
@@ -1606,20 +1374,17 @@ input:checked + .slider:before {
     text-align: center;
     color: var(--text-muted);
 }
-
 .wa-empty-state i {
     font-size: 2.6rem;
     color: var(--primary);
     margin-bottom: 0.7rem;
 }
-
 .wa-active-view {
     flex: 1;
     display: flex;
     flex-direction: column;
     height: 100%;
 }
-
 .wa-chat-header {
     padding: 0.85rem 1.1rem;
     border-bottom: var(--brutal-border-thin);
@@ -1628,7 +1393,6 @@ input:checked + .slider:before {
     gap: 10px;
     background: var(--surface-elevated);
 }
-
 .wa-back-btn {
     display: none;
     width: 34px;
@@ -1639,7 +1403,6 @@ input:checked + .slider:before {
     color: var(--text);
     cursor: pointer;
 }
-
 .wa-chat-messages {
     flex: 1;
     padding: 1rem;
@@ -1649,7 +1412,6 @@ input:checked + .slider:before {
     gap: 8px;
     background: var(--bg);
 }
-
 .chat-msg {
     max-width: 76%;
     padding: 9px 13px;
@@ -1659,21 +1421,18 @@ input:checked + .slider:before {
     border: 1.5px solid #0f172a;
     box-shadow: 2px 2px 0px rgba(15, 23, 42, 0.25);
 }
-
 .chat-msg.user {
     align-self: flex-start;
     background: var(--surface);
     color: var(--text);
     border-bottom-left-radius: 4px;
 }
-
 .chat-msg.admin {
     align-self: flex-end;
     background: var(--primary);
     color: #ffffff;
     border-bottom-right-radius: 4px;
 }
-
 .chat-time {
     display: block;
     font-size: 0.65rem;
@@ -1681,7 +1440,6 @@ input:checked + .slider:before {
     margin-top: 3px;
     text-align: right;
 }
-
 .wa-quick-replies {
     padding: 7px 10px;
     background: var(--surface);
@@ -1690,7 +1448,6 @@ input:checked + .slider:before {
     gap: 6px;
     overflow-x: auto;
 }
-
 .quick-chip {
     padding: 5px 10px;
     border-radius: 999px;
@@ -1702,12 +1459,10 @@ input:checked + .slider:before {
     white-space: nowrap;
     cursor: pointer;
 }
-
 .quick-chip:hover {
     background: var(--accent-yellow);
     color: #0f172a;
 }
-
 .wa-chat-input-area {
     padding: 0.8rem 1rem;
     background: var(--surface);
@@ -1715,10 +1470,6 @@ input:checked + .slider:before {
     display: flex;
     gap: 8px;
 }
-
-/* ==========================================
-   NEWS & PROMO STUDIO LAYOUTS
-   ========================================== */
 .news-studio-layout,
 .promo-studio-layout {
     display: grid;
@@ -1726,7 +1477,6 @@ input:checked + .slider:before {
     gap: 1.25rem;
     align-items: start;
 }
-
 .news-live-card-preview,
 .voucher-ticket-preview {
     background: var(--bg);
@@ -1735,7 +1485,6 @@ input:checked + .slider:before {
     border-radius: var(--radius-md);
     overflow: hidden;
 }
-
 .news-preview-img-box {
     width: 100%;
     height: 150px;
@@ -1746,13 +1495,11 @@ input:checked + .slider:before {
     justify-content: center;
     overflow: hidden;
 }
-
 .news-preview-img-box img {
     width: 100%;
     height: 100%;
     object-fit: cover;
 }
-
 .news-preview-placeholder {
     display: flex;
     flex-direction: column;
@@ -1762,7 +1509,6 @@ input:checked + .slider:before {
     font-size: 0.76rem;
     font-weight: 700;
 }
-
 .news-preview-body { padding: 1rem; }
 .news-preview-tag {
     display: inline-block;
@@ -1773,7 +1519,6 @@ input:checked + .slider:before {
     font-size: 0.64rem;
     font-weight: 800;
 }
-
 .voucher-ticket-preview { padding: 1.15rem; }
 .voucher-ticket-top {
     display: flex;
@@ -1810,16 +1555,10 @@ input:checked + .slider:before {
     font-weight: 700;
     color: var(--text-muted);
 }
-
-/* ==========================================
-   POP-UP MODALS & NOTIFIKASI NEO-BRUTALISM
-   ========================================== */
 .modal-overlay {
     position: fixed;
     inset: 0;
     background: rgba(15, 23, 42, 0.62);
-    
-    
     z-index: 99990;
     display: none;
     align-items: center;
@@ -1827,12 +1566,10 @@ input:checked + .slider:before {
     padding: 1rem;
     overflow-y: auto;
 }
-
 .modal-overlay.active {
     display: flex;
     animation: modalFadeIn 0.18s ease forwards;
 }
-
 .modal-content {
     width: 100%;
     max-width: 560px;
@@ -1846,11 +1583,9 @@ input:checked + .slider:before {
     position: relative;
     animation: modalPopScale 0.22s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
-
 .modal-content.modal-lg {
     max-width: 860px;
 }
-
 .modal-header {
     display: flex;
     justify-content: space-between;
@@ -1860,7 +1595,6 @@ input:checked + .slider:before {
     padding-bottom: 0.75rem;
     border-bottom: 2px dashed var(--border-subtle);
 }
-
 .modal-header h2 {
     font-size: 1.1rem;
     font-weight: 800;
@@ -1868,7 +1602,6 @@ input:checked + .slider:before {
     align-items: center;
     gap: 8px;
 }
-
 .close-btn {
     width: 34px;
     height: 34px;
@@ -1883,30 +1616,23 @@ input:checked + .slider:before {
     font-size: 0.95rem;
     transition: background-color 0.12s ease;
 }
-
 .close-btn:hover {
     background: var(--danger);
     color: #ffffff;
 }
-
-/* Pop-Up Alert & Konfirmasi Neo-Brutalist */
 .msg-overlay {
     position: fixed;
     inset: 0;
     background: rgba(15, 23, 42, 0.58);
-    
-    
     z-index: 99999;
     display: none;
     align-items: center;
     justify-content: center;
     padding: 1rem;
 }
-
 .msg-overlay.active {
     display: flex;
 }
-
 .msg-box {
     width: 100%;
     max-width: 330px;
@@ -1918,7 +1644,6 @@ input:checked + .slider:before {
     text-align: center;
     animation: modalPopScale 0.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
-
 .msg-icon {
     width: 46px;
     height: 46px;
@@ -1931,19 +1656,16 @@ input:checked + .slider:before {
     font-size: 1.2rem;
     margin: 0 auto 0.75rem;
 }
-
 .msg-icon.success { background: #dcfce7; color: #047857; }
 .msg-icon.warning { background: #fef3c7; color: #b45309; }
 .msg-icon.error { background: #fee2e2; color: #b91c1c; }
 .msg-icon.info { background: #dbeafe; color: #1d4ed8; }
-
 .msg-title {
     font-size: 1rem;
     font-weight: 900;
     margin-bottom: 4px;
     color: var(--text);
 }
-
 .msg-desc {
     font-size: 0.82rem;
     font-weight: 600;
@@ -1951,8 +1673,6 @@ input:checked + .slider:before {
     margin-bottom: 0.95rem;
     line-height: 1.45;
 }
-
-/* Toast Pop-Up Notifikasi Neo-Brutalist Matang */
 .toast-container {
     position: fixed;
     top: 16px;
@@ -1965,7 +1685,6 @@ input:checked + .slider:before {
     max-width: 315px;
     pointer-events: none;
 }
-
 .toast-item {
     pointer-events: auto;
     position: relative;
@@ -1983,12 +1702,10 @@ input:checked + .slider:before {
     transform: translate3d(20px, -8px, 0) scale(0.95);
     transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.22s ease;
 }
-
 .toast-item.show {
     opacity: 1;
     transform: translate3d(0, 0, 0) scale(1);
 }
-
 .toast-icon {
     width: 30px;
     height: 30px;
@@ -2001,18 +1718,15 @@ input:checked + .slider:before {
     font-size: 0.88rem;
     flex-shrink: 0;
 }
-
 .toast-success .toast-icon { background: #dcfce7; color: #047857; }
 .toast-warning .toast-icon { background: #fef3c7; color: #b45309; }
 .toast-error .toast-icon { background: #fee2e2; color: #b91c1c; }
 .toast-info .toast-icon { background: #dbeafe; color: #1d4ed8; }
-
 .toast-content h4 {
     font-size: 0.82rem;
     font-weight: 900;
     margin: 0 0 2px;
 }
-
 .toast-content p {
     font-size: 0.74rem;
     font-weight: 600;
@@ -2020,7 +1734,6 @@ input:checked + .slider:before {
     margin: 0;
     line-height: 1.38;
 }
-
 .toast-progress-bar {
     position: absolute;
     left: 0;
@@ -2031,40 +1744,29 @@ input:checked + .slider:before {
     transform-origin: left;
     animation: toastProgressShrink 3.4s linear forwards;
 }
-
 .toast-success .toast-progress-bar { background: var(--success); }
 .toast-warning .toast-progress-bar { background: var(--warning); }
 .toast-error .toast-progress-bar { background: var(--danger); }
-
 @keyframes toastProgressShrink {
     from { transform: scaleX(1); }
     to { transform: scaleX(0); }
 }
-
 @keyframes modalFadeIn {
     from { opacity: 0; }
     to { opacity: 1; }
 }
-
 @keyframes modalPopScale {
     from { opacity: 0; transform: scale(0.95) translate3d(0, 8px, 0); }
     to { opacity: 1; transform: scale(1) translate3d(0, 0, 0); }
 }
-
-/* ==========================================
-   RESPONSIVE MOBILE BREAKPOINTS
-   ========================================== */
 .sidebar-backdrop {
     display: none;
     position: fixed;
     inset: 0;
     background: rgba(15, 23, 42, 0.55);
-    
     z-index: 998;
 }
-
 .sidebar-backdrop.active { display: block; }
-
 @media (max-width: 992px) {
     .admin-auth-stage {
         grid-template-columns: 1fr;
@@ -2104,7 +1806,6 @@ input:checked + .slider:before {
         justify-content: center;
     }
 }
-
 @media (max-width: 768px) {
     .hide-mobile { display: none !important; }
     .admin-content { padding: 0.95rem; }
@@ -2122,27 +1823,16 @@ input:checked + .slider:before {
         max-width: 280px;
     }
 }
-
-
-/* ==========================================================================
-   GUDANG STOK DROPDOWN MURNI (TANPA KOTAK PRODUK) &
-   OPTIMASI PERFORMA LIGHTHOUSE 90+
-   ========================================================================== */
 #stock-brand-cards-grid,
 #stock-check-variants-panel {
     display: none !important;
 }
-
 .catalog-card,
 .member-card,
 .suggestion-admin-card {
     content-visibility: auto;
     contain-intrinsic-size: 160px;
 }
-
-/* ============================================================================
- * POLISH UI NEO-BRUTALISM ADMIN PANEL LEBIH MATANG & SMOOTH
- * ============================================================================ */
 .stat-card,
 .dashboard-panel,
 .catalog-card,
@@ -2151,23 +1841,17 @@ input:checked + .slider:before {
 .marquee-slot-card {
     transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.16s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.16s ease;
 }
-
 .stat-card:hover,
 .catalog-card:hover,
 .member-card:hover,
 .suggestion-admin-card:hover {
     transform: translate(-2px, -2px);
 }
-
-/* ============================================================================
- * PANEL KONTROL RUNNING TEXT KATALOG & MONITOR VALIDASI QRIS
- * ============================================================================ */
 .v278-mini-stats-row {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 10px;
 }
-
 .v278-mini-stat-box {
     background: var(--surface-elevated);
     border: var(--brutal-border-thin);
@@ -2178,14 +1862,12 @@ input:checked + .slider:before {
     flex-direction: column;
     gap: 2px;
 }
-
 .v278-stat-lbl {
     font-size: 0.65rem;
     font-weight: 800;
     color: var(--text-muted);
     letter-spacing: 0.04em;
 }
-
 .v278-dark-preview-strip {
     background: #070a12;
     border: 2px solid #0f172a;
@@ -2197,7 +1879,6 @@ input:checked + .slider:before {
     overflow-x: auto;
     white-space: nowrap;
 }
-
 .v278-preview-pill {
     display: inline-flex;
     align-items: center;
@@ -2211,7 +1892,6 @@ input:checked + .slider:before {
     font-weight: 800;
     flex-shrink: 0;
 }
-
 .v278-preview-badge {
     font-size: 0.6rem;
     font-weight: 900;
@@ -2220,16 +1900,13 @@ input:checked + .slider:before {
     background: #2563eb;
     color: #ffffff;
 }
-
 .v278-preview-badge.badge-sold {
     background: #ef4444;
 }
-
 .v278-preview-badge.badge-game {
     background: #facc15;
     color: #0f172a;
 }
-
 .v278-monitor-list {
     max-height: 210px;
     overflow-y: auto;
@@ -2241,7 +1918,6 @@ input:checked + .slider:before {
     border: 1.5px solid var(--border);
     border-radius: 10px;
 }
-
 .v278-monitor-item {
     background: var(--surface);
     border: 1.5px solid var(--border);
@@ -2253,12 +1929,6 @@ input:checked + .slider:before {
     gap: 8px;
     flex-wrap: wrap;
 }
-
-
-
-/* ==========================================================================
-   V27.9 DIRECT FIREBASE NOTIFICATION LOG VIEWER & JSON PREVIEW
-   ========================================================================== */
 .v279-json-preview-details {
     margin-top: 8px;
     padding: 8px 12px;
@@ -2266,7 +1936,6 @@ input:checked + .slider:before {
     background: var(--surface-elevated);
     border: 1.5px dashed var(--border);
 }
-
 .v279-json-pre {
     margin: 8px 0 0;
     padding: 10px 12px;
@@ -2278,7 +1947,6 @@ input:checked + .slider:before {
     overflow-x: auto;
     border: 1.5px solid var(--border);
 }
-
 .v279-firebase-log-container {
     display: flex;
     flex-direction: column;
@@ -2290,7 +1958,6 @@ input:checked + .slider:before {
     background: var(--surface-elevated);
     border: var(--brutal-border-thin);
 }
-
 .v279-firebase-log-card {
     background: var(--surface);
     border: var(--brutal-border-thin);
@@ -2299,11 +1966,9 @@ input:checked + .slider:before {
     box-shadow: var(--brutal-shadow-sm);
     transition: transform 0.12s ease;
 }
-
 .v279-firebase-log-card.log-matched {
     border-color: var(--success);
 }
-
 .v279-log-head {
     display: flex;
     justify-content: space-between;
@@ -2314,7 +1979,6 @@ input:checked + .slider:before {
     margin-bottom: 8px;
     border-bottom: 1.5px dashed var(--border-subtle);
 }
-
 .v279-log-index {
     font-family: var(--font-heading);
     font-size: 0.7rem;
@@ -2324,14 +1988,12 @@ input:checked + .slider:before {
     background: var(--primary);
     color: #ffffff;
 }
-
 .v279-log-amount {
     font-family: var(--font-heading);
     font-size: 1rem;
     font-weight: 900;
     color: var(--success);
 }
-
 .v279-log-app-tag {
     font-size: 0.68rem;
     font-weight: 800;
@@ -2341,13 +2003,11 @@ input:checked + .slider:before {
     color: var(--text-muted);
     border: 1px solid var(--border-subtle);
 }
-
 .v279-log-body {
     display: flex;
     flex-direction: column;
     gap: 5px;
 }
-
 .v279-log-field {
     font-size: 0.78rem;
     display: flex;
@@ -2355,14 +2015,12 @@ input:checked + .slider:before {
     gap: 6px;
     align-items: baseline;
 }
-
 .v279-log-field span {
     font-size: 0.66rem;
     font-weight: 900;
     color: var(--text-muted);
     letter-spacing: 0.03em;
 }
-
 .v279-log-raw-box {
     margin-top: 4px;
     padding: 8px 10px;
@@ -2370,7 +2028,6 @@ input:checked + .slider:before {
     background: var(--surface-elevated);
     border: 1.5px solid var(--border-subtle);
 }
-
 .v279-log-footer {
     margin-top: 8px;
     padding-top: 6px;
@@ -2381,7 +2038,6 @@ input:checked + .slider:before {
     flex-wrap: wrap;
     gap: 8px;
 }
-
 .v279-amount-pill {
     display: inline-flex;
     align-items: center;
@@ -2393,13 +2049,6 @@ input:checked + .slider:before {
     color: var(--success);
     border: 1px solid var(--success);
 }
-
-/* ==========================================================================
-   V27.9 — ADMIN TOP MULTI-FUNCTION RUNNING TEXT, WELCOME HERO,
-   ECOSYSTEM SUMMARY BENTO & NEO-BRUTALIST ADMIN FOOTER
-   ========================================================================== */
-
-/* 1. Running Text Multi-Fungsi di Sebelah Atas Admin */
 .admin-top-marquee-bar {
     display: flex;
     align-items: stretch;
@@ -2412,12 +2061,10 @@ input:checked + .slider:before {
     z-index: 880;
     overflow: hidden;
 }
-
 [data-theme="dark"] .admin-top-marquee-bar {
     background: #050811;
     border-bottom-color: #475569;
 }
-
 .admin-marquee-badge {
     display: inline-flex;
     align-items: center;
@@ -2435,12 +2082,10 @@ input:checked + .slider:before {
     user-select: none;
     transition: background-color 0.15s ease;
 }
-
 .admin-marquee-badge.has-urgent-alert {
     background: #ef4444;
     color: #ffffff;
 }
-
 .admin-marquee-pulse-dot {
     width: 8px;
     height: 8px;
@@ -2450,17 +2095,14 @@ input:checked + .slider:before {
     animation: adminPulseDot 1.35s infinite;
     flex-shrink: 0;
 }
-
 .admin-marquee-badge.has-urgent-alert .admin-marquee-pulse-dot {
     background: #facc15;
     box-shadow: 0 0 0 3px rgba(250, 204, 21, 0.35);
 }
-
 @keyframes adminPulseDot {
     0%, 100% { transform: scale(1); opacity: 1; }
     50% { transform: scale(1.28); opacity: 0.72; }
 }
-
 .admin-marquee-viewport {
     flex: 1;
     overflow: hidden;
@@ -2468,7 +2110,6 @@ input:checked + .slider:before {
     align-items: center;
     position: relative;
 }
-
 .admin-marquee-track {
     display: inline-flex;
     align-items: center;
@@ -2478,25 +2119,21 @@ input:checked + .slider:before {
     transform: translate3d(0, 0, 0);
     animation: adminTopMarqueeScroll var(--admin-marquee-duration, 38s) linear infinite;
 }
-
 .admin-marquee-group {
     display: inline-flex;
     align-items: center;
     flex-shrink: 0;
 }
-
 .df-subpanel {
     display: none;
 }
 .df-subpanel.active {
     display: block;
 }
-
 @keyframes adminTopMarqueeScroll {
     0% { transform: translate3d(0, 0, 0); }
     100% { transform: translate3d(-50%, 0, 0); }
 }
-
 .admin-marquee-chip {
     display: inline-flex;
     align-items: center;
@@ -2512,45 +2149,37 @@ input:checked + .slider:before {
     cursor: pointer;
     transition: transform 0.12s ease, border-color 0.12s ease, background-color 0.12s ease;
 }
-
 .admin-marquee-chip:hover {
     transform: translateY(-1px);
     border-color: var(--accent-yellow);
     background: #1e293b;
 }
-
 .admin-marquee-chip.chip-urgent {
     background: rgba(239, 68, 68, 0.22);
     border-color: #f87171;
     color: #fecaca;
 }
-
 .admin-marquee-chip.chip-chat {
     background: rgba(59, 130, 246, 0.24);
     border-color: #60a5fa;
     color: #dbeafe;
 }
-
 .admin-marquee-chip.chip-warn {
     background: rgba(245, 158, 11, 0.22);
     border-color: #fbbf24;
     color: #fef08a;
 }
-
 .admin-marquee-chip.chip-ok {
     background: rgba(16, 185, 129, 0.2);
     border-color: #34d399;
     color: #d1fae5;
 }
-
 .admin-marquee-sep {
     color: var(--accent-yellow);
     font-size: 0.78rem;
     margin: 0 4px;
     user-select: none;
 }
-
-/* 2. Hero Selamat Datang Nama Admin di Dasbor Utama */
 .admin-welcome-hero-card {
     background: var(--surface);
     border: var(--brutal-border);
@@ -2566,7 +2195,6 @@ input:checked + .slider:before {
     background-image: radial-gradient(var(--bg-dot) 1.25px, transparent 1.25px);
     background-size: 20px 20px;
 }
-
 .admin-welcome-eyebrow {
     display: flex;
     align-items: center;
@@ -2574,7 +2202,6 @@ input:checked + .slider:before {
     gap: 8px;
     margin-bottom: 0.65rem;
 }
-
 .admin-welcome-title {
     font-size: 1.55rem;
     font-weight: 900;
@@ -2582,7 +2209,6 @@ input:checked + .slider:before {
     color: var(--text);
     margin-bottom: 0.45rem;
 }
-
 .admin-welcome-subtitle {
     font-size: 0.84rem;
     font-weight: 600;
@@ -2590,7 +2216,6 @@ input:checked + .slider:before {
     line-height: 1.5;
     margin-bottom: 0.85rem;
 }
-
 .admin-welcome-meta-strip {
     display: flex;
     flex-wrap: wrap;
@@ -2603,19 +2228,16 @@ input:checked + .slider:before {
     font-weight: 700;
     color: var(--text);
 }
-
 .admin-welcome-meta-strip span {
     display: inline-flex;
     align-items: center;
     gap: 6px;
 }
-
 .admin-quick-action-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 9px;
 }
-
 .admin-quick-tile {
     display: flex;
     align-items: center;
@@ -2629,12 +2251,10 @@ input:checked + .slider:before {
     transition: transform 0.14s ease, box-shadow 0.14s ease;
     color: #0f172a;
 }
-
 .admin-quick-tile:hover {
     transform: translate(-2px, -2px);
     box-shadow: 4.5px 4.5px 0px #0f172a;
 }
-
 .admin-quick-tile i {
     width: 34px;
     height: 34px;
@@ -2647,33 +2267,27 @@ input:checked + .slider:before {
     font-size: 0.95rem;
     flex-shrink: 0;
 }
-
 .admin-quick-tile strong {
     display: block;
     font-family: var(--font-heading);
     font-size: 0.8rem;
     font-weight: 900;
 }
-
 .admin-quick-tile span {
     display: block;
     font-size: 0.69rem;
     font-weight: 700;
     color: #1e293b;
 }
-
 .admin-quick-tile.tile-blue { background: #dbeafe; }
 .admin-quick-tile.tile-emerald { background: #d1fae5; }
 .admin-quick-tile.tile-amber { background: #fef08a; }
 .admin-quick-tile.tile-purple { background: #ede9fe; }
-
-/* 3. Ringkasan Ekosistem Web Bento 6 Kartu */
 .v279-web-summary-bento {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(245px, 1fr));
     gap: 12px;
 }
-
 .v279-summary-card {
     background: var(--bg);
     border: var(--brutal-border-thin);
@@ -2686,20 +2300,17 @@ input:checked + .slider:before {
     gap: 10px;
     transition: transform 0.14s ease, box-shadow 0.14s ease, background-color 0.14s ease;
 }
-
 .v279-summary-card:hover {
     transform: translate(-2px, -2px);
     box-shadow: var(--brutal-shadow);
     background: var(--surface-hover);
 }
-
 .v279-sum-top {
     display: flex;
     justify-content: space-between;
     align-items: center;
     gap: 8px;
 }
-
 .v279-sum-icon {
     width: 38px;
     height: 38px;
@@ -2712,14 +2323,12 @@ input:checked + .slider:before {
     font-size: 1rem;
     color: #0f172a;
 }
-
 .v279-sum-icon.bg-blue { background: #bfdbfe; }
 .v279-sum-icon.bg-emerald { background: #a7f3d0; }
 .v279-sum-icon.bg-amber { background: #fde68a; }
 .v279-sum-icon.bg-purple { background: #ddd6fe; }
 .v279-sum-icon.bg-green { background: #bbf7d0; }
 .v279-sum-icon.bg-pink { background: #fbcfe8; }
-
 .v279-sum-label {
     display: block;
     font-size: 0.65rem;
@@ -2728,29 +2337,24 @@ input:checked + .slider:before {
     letter-spacing: 0.04em;
     margin-bottom: 2px;
 }
-
 .v279-sum-body h4 {
     font-size: 1.04rem;
     font-weight: 900;
     color: var(--text);
     margin-bottom: 3px;
 }
-
 .v279-sum-body p {
     font-size: 0.74rem;
     font-weight: 600;
     color: var(--text-muted);
     margin: 0;
 }
-
-/* 4. Footer Web Admin di Bagian Bawah Sekali */
 .admin-footer-neo {
     margin-top: auto;
     background: var(--surface);
     border-top: var(--brutal-border);
     padding: 1.15rem 1.35rem;
 }
-
 .admin-footer-inner {
     max-width: 1440px;
     margin: 0 auto;
@@ -2760,17 +2364,14 @@ input:checked + .slider:before {
     flex-wrap: wrap;
     gap: 1rem;
 }
-
 .admin-footer-brand-col {
     max-width: 420px;
 }
-
 .admin-footer-links-col {
     display: flex;
     flex-wrap: wrap;
     gap: 7px;
 }
-
 .admin-footer-nav-chip {
     display: inline-flex;
     align-items: center;
@@ -2786,20 +2387,17 @@ input:checked + .slider:before {
     cursor: pointer;
     transition: transform 0.12s ease, background-color 0.12s ease;
 }
-
 .admin-footer-nav-chip:hover {
     background: var(--accent-yellow);
     color: #0f172a;
     transform: translate(-1px, -1px);
 }
-
 .admin-footer-status-col {
     display: flex;
     flex-direction: column;
     align-items: flex-end;
     gap: 4px;
 }
-
 .admin-footer-status-pill {
     display: inline-flex;
     align-items: center;
@@ -2811,7 +2409,6 @@ input:checked + .slider:before {
     font-size: 0.72rem;
     font-weight: 800;
 }
-
 @media (max-width: 992px) {
     .admin-welcome-hero-card {
         grid-template-columns: 1fr;
@@ -2820,7 +2417,6 @@ input:checked + .slider:before {
         align-items: flex-start;
     }
 }
-
 @media (max-width: 580px) {
     .admin-quick-action-grid {
         grid-template-columns: 1fr;
@@ -2829,7 +2425,6 @@ input:checked + .slider:before {
         display: none;
     }
 }
-/* Nonaktifkan efek gerak pada kartu biasa saat disentuh di layar sentuh */
 .catalog-card:hover,
 .member-card:hover,
 .marquee-slot-card:hover,
@@ -2837,16 +2432,10 @@ input:checked + .slider:before {
 .suggestion-admin-card:hover {
     transform: none !important;
 }
-/* #water-ripple-canvas dikendalikan dinamis melalui pengaturan waterRippleEnabled */
-
-
-/* Sembunyikan Running Text Admin Secara Permanen */
 #admin-top-marquee-bar,
 .admin-top-marquee-bar {
     display: none !important;
 }
-
-/* Badge & Kartu Produk Disembunyikan */
 .catalog-card.is-hidden-brand {
     opacity: 0.78;
     border-style: dashed;
@@ -2855,13 +2444,6 @@ input:checked + .slider:before {
     background: #334155 !important;
     color: #f8fafc !important;
 }
-
-/* ==========================================================================
-   IDENTITAS EMAS MEMBER PLUS DI ADMIN (TRANSAKSI, CHAT,
-   DATA PENGGUNA), SELECTOR MARKUP BERTINGKAT & KUNCI PESANAN SELESAI
-   ========================================================================== */
-
-/* 1. Badge & Kartu Emas Member Plus */
 .status-memberplus-gold {
     background: linear-gradient(135deg, #fde047, #f59e0b) !important;
     color: #0f172a !important;
@@ -2869,8 +2451,6 @@ input:checked + .slider:before {
     box-shadow: 2px 2px 0px #0f172a !important;
     font-weight: 900 !important;
 }
-
-/* Baris Transaksi Member Plus di Tabel Pesanan Admin */
 .modern-table tbody tr.row-order-memberplus {
     background: linear-gradient(90deg, rgba(250, 204, 21, 0.22), rgba(245, 158, 11, 0.08)) !important;
     border-left: 5px solid #f59e0b !important;
@@ -2879,8 +2459,6 @@ input:checked + .slider:before {
     background: linear-gradient(90deg, rgba(250, 204, 21, 0.16), rgba(217, 119, 6, 0.06)) !important;
     border-left: 5px solid #facc15 !important;
 }
-
-/* Item Chat Member Plus di CS Bantuan Admin */
 .wa-chat-item.chat-memberplus {
     background: linear-gradient(90deg, rgba(250, 204, 21, 0.2), rgba(254, 240, 138, 0.06));
     border-left: 4px solid #f59e0b;
@@ -2891,8 +2469,6 @@ input:checked + .slider:before {
     border: 2px solid #0f172a !important;
     box-shadow: 2px 2px 0px #0f172a;
 }
-
-/* Kartu Data Pengguna Member Plus Berwarna Emas */
 .member-card.member-card-gold {
     background: linear-gradient(145deg, #fef9c3 0%, #fef08a 48%, #fde68a 100%) !important;
     border: 2.5px solid #b45309 !important;
@@ -2918,8 +2494,6 @@ input:checked + .slider:before {
     background: rgba(15, 23, 42, 0.72) !important;
     border-color: #facc15 !important;
 }
-
-/* 2. Tab Pemilih Target Member Biasa vs Member Plus di Pengaturan Markup */
 .markup-target-tabs {
     display: inline-flex;
     flex-wrap: wrap;
@@ -2930,7 +2504,6 @@ input:checked + .slider:before {
     border: var(--brutal-border-thin);
     margin-bottom: 12px;
 }
-
 .markup-target-btn {
     display: inline-flex;
     align-items: center;
@@ -2945,30 +2518,23 @@ input:checked + .slider:before {
     cursor: pointer;
     transition: all 0.14s ease;
 }
-
 .markup-target-btn.active {
     background: var(--primary);
     color: #ffffff;
     border-color: #0f172a;
     box-shadow: 2px 2px 0px #0f172a;
 }
-
 .markup-target-btn.target-plus.active {
     background: var(--accent-yellow);
     color: #0f172a;
     border-color: #0f172a;
     box-shadow: 2px 2px 0px #0f172a;
 }
-
 .status-hidden-badge {
     background: #e2e8f0;
     color: #334155;
     border-color: #0f172a;
 }
-
-/* ==========================================================================
-   PANEL MARKUP HARGA NEO-BRUTALIST & SIMULASI HARGA
-   ========================================================================== */
 .neo-markup-panel {
     background: var(--surface);
     border: 2.5px solid var(--border);
@@ -3066,35 +2632,28 @@ input:checked + .slider:before {
     font-weight: 900;
     padding: 0 2px;
 }
-
-
-/* Sub-Tab Data Pengguna & Pesanan Langganan Member Plus di Admin */
 .admin-members-subtabs-bar {
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
 }
-
 .tab-gold,
 .markup-target-tab.tab-gold.active {
     background: linear-gradient(135deg, #fde047, #f59e0b) !important;
     color: #0f172a !important;
     border-color: #0f172a !important;
 }
-
 .status-info,
 .status-primary {
     background: #dbeafe;
     color: #1e40af;
     border: 1.5px solid #0f172a;
 }
-
 .status-warning {
     background: #fef08a;
     color: #854d0e;
     border: 1.5px solid #0f172a;
 }
-
 .badge-counter {
     display: inline-flex;
     align-items: center;
@@ -3106,13 +2665,10 @@ input:checked + .slider:before {
     font-size: 0.7rem;
     font-weight: 900;
 }
-
-/* === PEMBARUAN v28.7: LOCKED APP-SHELL NAVIGATION (SIDEBAR + TOPBAR + SUBTABS STICKY) & TOP-CENTER TOAST === */
 html, body {
     max-width: 100%;
     overflow-x: clip;
 }
-
 #water-ripple-canvas {
     position: fixed !important;
     inset: 0 !important;
@@ -3121,19 +2677,15 @@ html, body {
     pointer-events: none !important;
     z-index: -1 !important;
 }
-
 .admin-footer-neo {
     position: relative;
     z-index: 5;
 }
-
-/* Desktop & Tablet Landscape: Kunci Sidebar 100dvh di Kiri & Scroll Hanya di Area Konten Utama */
 @media (min-width: 993px) {
     html, body {
         height: 100dvh;
         overflow: hidden;
     }
-
     .admin-layout {
         display: flex !important;
         height: 100dvh !important;
@@ -3141,7 +2693,6 @@ html, body {
         overflow: hidden !important;
         width: 100% !important;
     }
-
     .admin-sidebar {
         position: relative !important;
         top: 0 !important;
@@ -3152,7 +2703,6 @@ html, body {
         flex-direction: column !important;
         z-index: 1000 !important;
     }
-
     .admin-main {
         flex: 1 !important;
         height: 100dvh !important;
@@ -3164,8 +2714,6 @@ html, body {
         scroll-behavior: smooth;
     }
 }
-
-/* Mobile & Tablet Portrait: Sidebar Fixed Drawer & Topbar Sticky di Atas */
 @media (max-width: 992px) {
     .admin-sidebar {
         position: fixed !important;
@@ -3177,8 +2725,6 @@ html, body {
         z-index: 1050 !important;
     }
 }
-
-/* Topbar & Sub-Tab Navigasi Selalu Menempel (Sticky) Saat Scroll ke Bawah */
 .admin-topbar {
     position: sticky !important;
     top: 0 !important;
@@ -3186,7 +2732,6 @@ html, body {
     flex-shrink: 0 !important;
     background: var(--surface) !important;
 }
-
 .cs-subtabs-bar,
 .admin-members-subtabs-bar {
     position: sticky !important;
@@ -3198,8 +2743,6 @@ html, body {
     margin-bottom: 1rem !important;
     border-bottom: 1.5px dashed var(--border-subtle);
 }
-
-/* Notifikasi Toast di Atas-Tengah (Top-Center) */
 #toast-container,
 .toast-container {
     position: fixed !important;
@@ -3216,7 +2759,6 @@ html, body {
     z-index: 99999 !important;
     pointer-events: none !important;
 }
-
 .toast-item {
     width: 100% !important;
     pointer-events: auto !important;
@@ -3224,16 +2766,10 @@ html, body {
     opacity: 0 !important;
     transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.22s ease !important;
 }
-
 .toast-item.show {
     transform: translateY(0) scale(1) !important;
     opacity: 1 !important;
 }
-
-
-/* ============================================================================
-   PEMBARUAN V28.7: EFEK SENTUH & INDIKATOR TOMBOL BEKERJA + PANEL MONITOR API
-   ============================================================================ */
 button,
 .btn,
 .nav-item,
@@ -3247,7 +2783,6 @@ button,
     -webkit-tap-highlight-color: transparent;
     user-select: none;
 }
-
 button.btn-tap-pressed,
 .btn.btn-tap-pressed,
 .nav-item.btn-tap-pressed,
@@ -3259,7 +2794,6 @@ button.btn-tap-pressed,
     transform: translate(2px, 2px) scale(0.97) !important;
     filter: brightness(0.95);
 }
-
 button.btn-working-indicator,
 .btn.btn-working-indicator,
 .cs-subtab-btn.btn-working-indicator,
@@ -3267,7 +2801,6 @@ button.btn-working-indicator,
     pointer-events: auto;
     box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.28) !important;
 }
-
 button.btn-working-indicator::after,
 .btn.btn-working-indicator::after {
     content: '';
@@ -3281,25 +2814,20 @@ button.btn-working-indicator::after,
     vertical-align: middle;
     animation: adminBtnSpinV287 0.55s linear infinite;
 }
-
 @keyframes adminBtnSpinV287 {
     to { transform: rotate(360deg); }
 }
-
-/* Panel Kendali Cepat Mode Lingkungan & Web User */
 .df-command-bar-panel {
     padding: 0.95rem 1.15rem !important;
     background: linear-gradient(135deg, var(--surface-card) 0%, var(--surface-elevated) 100%);
     border: 2px solid var(--border-color);
 }
-
 .df-command-bar-top {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
     gap: 1rem;
     align-items: center;
 }
-
 .df-cmd-label {
     display: block;
     font-size: 0.68rem;
@@ -3309,13 +2837,11 @@ button.btn-working-indicator::after,
     margin-bottom: 0.42rem;
     text-transform: uppercase;
 }
-
 .df-cmd-mode-pills {
     display: inline-flex;
     gap: 6px;
     flex-wrap: wrap;
 }
-
 .df-mode-switch-btn {
     border: 2px solid var(--border-color);
     background: var(--surface-card);
@@ -3325,28 +2851,24 @@ button.btn-working-indicator::after,
     padding: 6px 11px;
     border-radius: 8px;
 }
-
 .df-mode-switch-btn.active#btn-df-quick-mode-dev {
     background: #fef3c7;
     color: #b45309;
     border-color: #f59e0b;
     box-shadow: 2px 2px 0px rgba(245, 158, 11, 0.35);
 }
-
 .df-mode-switch-btn.active#btn-df-quick-mode-prod {
     background: #d1fae5;
     color: #047857;
     border-color: #10b981;
     box-shadow: 2px 2px 0px rgba(16, 185, 129, 0.35);
 }
-
 .df-cmd-health-row {
     display: flex;
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
 }
-
 .df-latency-pill {
     display: inline-flex;
     align-items: center;
@@ -3360,13 +2882,11 @@ button.btn-working-indicator::after,
     color: var(--text-main);
     font-family: 'JetBrains Mono', monospace;
 }
-
 .df-cmd-webuser-toggles {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
 }
-
 .df-webuser-pill {
     font-size: 0.73rem;
     font-weight: 800;
@@ -3376,20 +2896,16 @@ button.btn-working-indicator::after,
     background: var(--surface-card);
     color: var(--text-main);
 }
-
 .df-webuser-pill.pill-on {
     background: rgba(16, 185, 129, 0.14);
     color: #059669;
     border-color: #10b981;
 }
-
 .df-webuser-pill.pill-off {
     background: rgba(239, 68, 68, 0.12);
     color: #dc2626;
     border-color: #ef4444;
 }
-
-/* Stream Monitor API Digiflazz */
 .df-api-log-stream {
     max-height: 195px;
     overflow-y: auto;
@@ -3401,7 +2917,6 @@ button.btn-working-indicator::after,
     flex-direction: column;
     gap: 6px;
 }
-
 .df-api-log-item {
     display: flex;
     align-items: center;
@@ -3413,26 +2928,18 @@ button.btn-working-indicator::after,
     border: 1px solid var(--border-color);
     font-size: 0.74rem;
 }
-
 .df-api-log-left {
     display: flex;
     flex-direction: column;
     gap: 2px;
     min-width: 0;
 }
-
 .df-api-log-right {
     display: flex;
     align-items: center;
     gap: 6px;
     flex-shrink: 0;
 }
-
-/* ============================================================================
- * PEMBARUAN v28.8: M-BANKING 6-DOT PIN PAD ADMIN, TAB PANTAU SALDO,
- * & EFEK SENTUH TOMBOL UNIVERSAL
- * ============================================================================ */
-
 .mbanking-pin-dots {
     display: flex;
     justify-content: center;
@@ -3442,7 +2949,6 @@ button.btn-working-indicator::after,
     margin: 4px auto 8px;
     cursor: pointer;
 }
-
 .mbanking-pin-dots .pin-dot {
     width: 16px;
     height: 16px;
@@ -3451,30 +2957,25 @@ button.btn-working-indicator::after,
     background: var(--bg);
     transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.16s ease, border-color 0.16s ease;
 }
-
 .mbanking-pin-dots .pin-dot.filled {
     background: var(--primary);
     border-color: var(--border);
     transform: scale(1.18);
     box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
 }
-
 .mbanking-pin-dots.pin-error-shake {
     animation: adminPinErrorShake 0.42s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
 }
-
 .mbanking-pin-dots.pin-error-shake .pin-dot {
     border-color: var(--danger);
     background: rgba(239, 68, 68, 0.25);
 }
-
 @keyframes adminPinErrorShake {
     10%, 90% { transform: translate3d(-4px, 0, 0); }
     20%, 80% { transform: translate3d(6px, 0, 0); }
     30%, 50%, 70% { transform: translate3d(-8px, 0, 0); }
     40%, 60% { transform: translate3d(8px, 0, 0); }
 }
-
 .mbanking-keypad-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -3482,7 +2983,6 @@ button.btn-working-indicator::after,
     max-width: 310px;
     margin: 0 auto;
 }
-
 .mbanking-key-btn {
     height: 44px;
     border-radius: 12px;
@@ -3500,11 +3000,9 @@ button.btn-working-indicator::after,
     box-shadow: 2px 2px 0px var(--border);
     transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.12s ease;
 }
-
 .mbanking-key-btn:hover {
     background: var(--surface-hover);
 }
-
 .mbanking-key-btn:active,
 .mbanking-key-btn.btn-tap-pressed {
     transform: translate(2px, 2px) scale(0.96);
@@ -3512,22 +3010,15 @@ button.btn-working-indicator::after,
     background: var(--primary);
     color: #ffffff;
 }
-
 .mbanking-key-btn.key-fn {
     background: var(--bg);
     font-size: 0.92rem;
     color: var(--danger);
 }
-
-
-/* ==========================================================================
-   PEMBARUAN v28.9: TRANSISI HALUS LAYAR HP & KEYPAD PIN ADMIN
-   ========================================================================== */
 .admin-tab.active {
     animation: v289AdminTabSmooth 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
     will-change: transform, opacity;
 }
-
 @keyframes v289AdminTabSmooth {
     from {
         opacity: 0;
@@ -3538,20 +3029,13 @@ button.btn-working-indicator::after,
         transform: translate3d(0, 0, 0);
     }
 }
-
 .modal-overlay {
     transition: opacity 0.22s cubic-bezier(0.22, 1, 0.36, 1), visibility 0.22s cubic-bezier(0.22, 1, 0.36, 1) !important;
 }
-
 .modal-overlay .modal-content {
     transition: transform 0.26s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.22s cubic-bezier(0.22, 1, 0.36, 1) !important;
     will-change: transform, opacity;
 }
-
-
-/* ==========================================================================
-   PEMBARUAN v30.0: EFEK TOMBOL LAMPU NEON MASUK & KOLOM PIN KOTAK TANPA KEYPAD WEB
-   ========================================================================== */
 button,
 .btn,
 .menu-item,
@@ -3560,7 +3044,6 @@ button,
 .btn-icon-only {
     transition: box-shadow 0.14s ease, background-color 0.14s ease, border-color 0.14s ease !important;
 }
-
 button:active,
 .btn:active,
 .btn-tap-pressed,
@@ -3568,14 +3051,12 @@ button:active,
     transform: none !important;
     box-shadow: inset 0 3px 6px rgba(15, 23, 42, 0.35), 0 0 0 2.5px #facc15, 0 0 15px rgba(250, 204, 21, 0.85), 0 0 24px rgba(56, 189, 248, 0.45) !important;
 }
-
 .v30-admin-pin-box-wrap {
     position: relative;
     max-width: 310px;
     margin: 0.75rem auto;
     cursor: text;
 }
-
 .v30-admin-native-pin-input {
     position: absolute;
     inset: 0;
@@ -3585,13 +3066,11 @@ button:active,
     z-index: 5;
     cursor: text;
 }
-
 .v30-admin-pin-boxes {
     display: grid !important;
     grid-template-columns: repeat(6, 1fr) !important;
     gap: 8px !important;
 }
-
 .v30-admin-pin-slot {
     width: 100% !important;
     height: 46px !important;
@@ -3602,40 +3081,28 @@ button:active,
     align-items: center !important;
     justify-content: center !important;
 }
-
 .v30-admin-pin-slot.filled {
     background: rgba(37, 99, 235, 0.14) !important;
     border-color: var(--primary) !important;
 }
-
 .v30-admin-pin-slot.filled::after {
     content: "●";
     font-size: 1.05rem;
     color: var(--primary);
 }
-
-
-/* ==========================================================================
-   PEMBARUAN v30.2 ADMIN: KUNCI SCROLL POP-UP & HAPUS UI EMAS BERLEBIHAN
-   ========================================================================== */
-
 html.v302-admin-modal-locked,
 body.v302-admin-modal-locked {
     overflow: hidden !important;
     overscroll-behavior: none !important;
 }
-
 .modal-overlay.active {
     overscroll-behavior: contain !important;
 }
-
-/* Hapus warna latar emas pada baris pesanan, kartu member, dan baris chat (hanya tampil label Member Plus) */
 .modern-table tbody tr.row-order-memberplus,
 [data-theme="dark"] .modern-table tbody tr.row-order-memberplus {
     background: transparent !important;
     border-left: none !important;
 }
-
 .member-card.member-card-gold,
 [data-theme="dark"] .member-card.member-card-gold {
     background: var(--surface) !important;
@@ -3643,19 +3110,33 @@ body.v302-admin-modal-locked {
     box-shadow: var(--brutal-shadow-sm) !important;
     color: var(--text) !important;
 }
-
 .member-card.member-card-gold .member-meta-box,
 [data-theme="dark"] .member-card.member-card-gold .member-meta-box {
     background: var(--bg) !important;
     border-color: var(--border-subtle) !important;
 }
-
 .wa-chat-item.chat-memberplus {
     background: transparent !important;
     border-left: none !important;
 }
-
 .wa-avatar.avatar-memberplus-gold {
     background: var(--primary) !important;
     color: #ffffff !important;
+}
+@media (min-width: 960px) {
+    #tab-digiflazz > .cs-subtabs-bar {
+        display: grid !important;
+        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+        gap: 8px !important;
+        width: 100% !important;
+    }
+    #tab-digiflazz > .cs-subtabs-bar > .cs-subtab-btn {
+        width: 100% !important;
+        justify-content: center !important;
+        padding: 10px 8px !important;
+        font-size: 0.78rem !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
 }
