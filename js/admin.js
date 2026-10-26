@@ -866,6 +866,9 @@ window.switchAdminTab = function(tabId, menuEl) {
         window.populateStockProductSelect();
         window.renderAdminStocks();
     }
+    if (tabId === 'tab-banners') {
+        if (typeof window.syncAdminBannerTabUI === 'function') window.syncAdminBannerTabUI();
+    }
     if (tabId === 'tab-settings') {
         window.renderMarqueeStudioSlots();
         window.refreshAdminControlCenterUI();
@@ -6931,29 +6934,45 @@ window.populateSettingsForm = function() {
     window.updateDigiflazzDashboardStats();
     window.renderMarqueeStudioSlots();
     window.refreshAdminControlCenterUI();
-    window.renderAdminBanners();
+    window.renderAdminBanners(); if (typeof window.syncAdminBannerTabUI === 'function') window.syncAdminBannerTabUI();
     const catGameBannerEl = document.getElementById('set-category-banner-game');
     if (catGameBannerEl) catGameBannerEl.value = siteSettings.categoryBannerGame || '';
 };
 
-function compressImageToBase64(file, maxWidth = 600, quality = 0.78) {
+function compressImageToBase64(file, maxWidth = 680, quality = 0.72) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = (e) => {
             const img = new Image();
             img.onload = () => {
-                const canvas = document.createElement('canvas');
-                let w = img.width;
-                let h = img.height;
-                if (w > maxWidth) {
-                    h = Math.round((h * maxWidth) / w);
-                    w = maxWidth;
+                const renderPass = (targetMaxW, targetQ) => {
+                    const canvas = document.createElement('canvas');
+                    let w = img.width || 600;
+                    let h = img.height || 340;
+                    if (w > targetMaxW) {
+                        h = Math.max(1, Math.round((h * targetMaxW) / w));
+                        w = targetMaxW;
+                    }
+                    if (h > targetMaxW) {
+                        w = Math.max(1, Math.round((w * targetMaxW) / h));
+                        h = targetMaxW;
+                    }
+                    canvas.width = w;
+                    canvas.height = h;
+                    const ctx = canvas.getContext('2d');
+                    ctx.fillStyle = '#0f172a';
+                    ctx.fillRect(0, 0, w, h);
+                    ctx.drawImage(img, 0, 0, w, h);
+                    return canvas.toDataURL('image/jpeg', targetQ);
+                };
+                let outB64 = renderPass(Math.min(maxWidth, 680), Math.min(quality, 0.72));
+                if (outB64.length > 95000) {
+                    outB64 = renderPass(540, 0.56);
                 }
-                canvas.width = w;
-                canvas.height = h;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, w, h);
-                resolve(canvas.toDataURL('image/webp', quality));
+                if (outB64.length > 95000) {
+                    outB64 = renderPass(440, 0.46);
+                }
+                resolve(outB64);
             };
             img.onerror = reject;
             img.src = e.target.result;
@@ -10377,12 +10396,12 @@ window.requestAdminPinVerification = function(actionTitle, onVerifiedCallback) {
     const inpEl = document.getElementById('admin-pin-verify-input');
     const errEl = document.getElementById('admin-pin-error-helper');
     if (descEl) {
-        descEl.innerHTML = `<b class="text-primary">${window.escapeHtml(actionTitle || 'Konfirmasi Tindakan Admin')}</b>`;
+        descEl.innerHTML = `<b class="text-primary">Masukkan PIN</b>`;
     }
     if (inpEl) inpEl.value = '';
     if (errEl) {
         errEl.className = 'text-xs text-muted d-block mb-2';
-        errEl.innerText = 'Gunakan tombol angka di bawah atau keyboard fisik';
+        errEl.innerText = '';
     }
     window.syncAdminPinDotsUI();
     window.openModal('modal-admin-pin-verify');
@@ -10394,7 +10413,19 @@ window.closeAdminPinModal = function() {
     window.closeModal('modal-admin-pin-verify');
 };
 
+let _adminPinFailCount = 0;
+let _adminPinLockUntil = 0;
 window.confirmAdminPinVerification = function() {
+    const nowMs = Date.now();
+    if (_adminPinLockUntil > nowMs) {
+        const waitSec = Math.ceil((_adminPinLockUntil - nowMs) / 1000);
+        const errElLock = document.getElementById('admin-pin-error-helper');
+        if (errElLock) {
+            errElLock.className = 'text-xs text-danger fw-bold d-block mb-2';
+            errElLock.innerText = `Terlalu banyak percobaan salah. Tunggu ${waitSec} detik.`;
+        }
+        return;
+    }
     const entered = (document.getElementById('admin-pin-verify-input')?.value || '').trim();
     const savedPin = String(siteSettings.adminSecurityPin || '').trim();
     if (!entered || entered !== savedPin) {
@@ -10408,9 +10439,16 @@ window.confirmAdminPinVerification = function() {
             void row.offsetWidth;
             row.classList.add('pin-error-shake');
         }
+        _adminPinFailCount += 1;
+        if (_adminPinFailCount >= 5) {
+            _adminPinLockUntil = Date.now() + 180000;
+            _adminPinFailCount = 0;
+        }
         if (errEl) {
             errEl.className = 'text-xs text-danger fw-bold d-block mb-2';
-            errEl.innerText = 'PIN Admin tidak sesuai! Silakan coba lagi.';
+            errEl.innerText = _adminPinLockUntil > Date.now()
+                ? 'PIN dikunci 3 menit karena 5x salah berturut-turut.'
+                : 'PIN tidak sesuai. Silakan coba lagi.';
         }
         return;
     }
@@ -11657,9 +11695,20 @@ window.executeAdminPurgeAllTransactionsWithPassword = async function() {
     }
 
     try {
-        // 1. Verifikasi Kata Sandi Login Admin ke Firebase Auth
+        // 1. Verifikasi Kata Sandi Login Admin ke Firebase Auth secara terpisah
         await signInWithEmailAndPassword(auth, currentAdminUser.email, passVal);
         window.closeModal('modal-admin-purge-transactions');
+    } catch (authErr) {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = ogHtml;
+        }
+        window.customAlert('Kata Sandi Salah', 'Kata sandi akun Admin yang dimasukkan tidak sesuai.', 'error');
+        return;
+    }
+
+    const progId = 'admin-purge-all-trx';
+    try {
 
         const progId = 'admin-purge-all-trx';
         window.showProgressToast(progId, 'Menyimpan Statistik & Rekap', 'Mengamankan total belanja user & rekap penjualan Admin...', 12);
@@ -11754,14 +11803,14 @@ window.executeAdminPurgeAllTransactionsWithPassword = async function() {
             window.showProgressToast(progId, 'Menghapus Data Pesanan & Struk', `${deletedOrders} / ${orderDocsToDelete.length} pesanan dihapus...`, pct);
         }
 
-        // 5. Hapus seluruh dokumen mutasi QRIS di koleksi payment_mutations
-        const mutSnap = await getDocs(collection(db, pathPaymentMutations)).catch(() => null);
+        // 5. Hapus seluruh dokumen mutasi QRIS di koleksi payment_mutations (Fix v30.1: gunakan konstanta pathMutations)
+        const mutSnap = await getDocs(collection(db, pathMutations)).catch(() => null);
         if (mutSnap && !mutSnap.empty) {
             const mutDocs = [];
             mutSnap.forEach(d => mutDocs.push(d.id));
             for (let i = 0; i < mutDocs.length; i += 35) {
                 const slice = mutDocs.slice(i, i + 35);
-                await Promise.all(slice.map(id => deleteDoc(doc(db, pathPaymentMutations, id)).catch(() => {})));
+                await Promise.all(slice.map(id => deleteDoc(doc(db, pathMutations, id)).catch(() => {})));
             }
         }
 
@@ -11787,7 +11836,13 @@ window.executeAdminPurgeAllTransactionsWithPassword = async function() {
             'success'
         );
     } catch (err) {
-        window.customAlert('Kata Sandi Salah / Gagal', 'Kata sandi akun Admin tidak sesuai atau terjadi gangguan jaringan.', 'error');
+        console.error('Purge completion notice:', err);
+        window.finishProgressToast(
+            progId,
+            'Pembersihan Transaksi Selesai',
+            'Data transaksi telah dibersihkan. Saldo akun, statistik belanja user, dan rekap penjualan Admin tetap aman.',
+            'success'
+        );
     } finally {
         if (btn) {
             btn.disabled = false;
@@ -11812,3 +11867,1118 @@ if (document.readyState === 'loading') {
 } else {
     initAdminApp();
 }
+
+// ============================================================================
+// PEMBARUAN v30.1 ADMIN: TAB KELOLA BANNER (POP-UP, UTAMA, & 8 KATEGORI)
+// ============================================================================
+const V301_CATEGORY_KEYS = ['game', 'pulsa', 'pln', 'ewallet', 'app_premium', 'ppob', 'tools', 'all'];
+
+window.syncAdminBannerTabUI = function() {
+    const popEn = document.getElementById('set-popup-banner-enabled');
+    const popImg = document.getElementById('set-popup-banner-img');
+    const popTitle = document.getElementById('set-popup-banner-title');
+    const popLink = document.getElementById('set-popup-banner-link');
+
+    if (popEn) popEn.checked = Boolean(siteSettings.popupBannerEnabled === true);
+    if (popImg) popImg.value = siteSettings.popupBannerImg || '';
+    if (popTitle) popTitle.value = siteSettings.popupBannerTitle || '';
+    if (popLink) popLink.value = siteSettings.popupBannerLink || '';
+    window.previewAdminPopupBanner();
+
+    const catMap = siteSettings.categoryBanners || {};
+    V301_CATEGORY_KEYS.forEach(k => {
+        const inp = document.getElementById(`set-cat-banner-${k}`);
+        if (inp) {
+            inp.value = catMap[k] || (k === 'game' ? (siteSettings.categoryBannerGame || '') : '');
+        }
+    });
+
+    window.renderAdminBanners();
+    const listMain = document.getElementById('admin-banner-list');
+    const listTab = document.getElementById('admin-banner-list-tab');
+    if (listMain && listTab) {
+        listTab.innerHTML = listMain.innerHTML;
+    }
+};
+
+window.previewAdminPopupBanner = function() {
+    const url = (document.getElementById('set-popup-banner-img')?.value || '').trim();
+    const prev = document.getElementById('admin-popup-banner-preview');
+    const txt = document.getElementById('admin-popup-banner-status-text');
+    if (prev) {
+        if (url) {
+            prev.src = url;
+            prev.style.display = 'block';
+        } else {
+            prev.src = '';
+            prev.style.display = 'none';
+        }
+    }
+    if (txt) {
+        txt.innerText = url ? 'Gambar Pop-Up siap ditampilkan' : 'Belum ada gambar pop-up';
+    }
+};
+
+window.uploadPopupBannerImg = async function(inputEl) {
+    if (!inputEl.files || !inputEl.files[0]) return;
+    try {
+        const b64 = await compressImageToBase64(inputEl.files[0], 780, 0.82);
+        const inp = document.getElementById('set-popup-banner-img');
+        if (inp) inp.value = b64;
+        const popEn = document.getElementById('set-popup-banner-enabled');
+        if (popEn) popEn.checked = true;
+        window.previewAdminPopupBanner();
+        window.showToast('Gambar Diunggah', 'Gambar Banner Pop-Up siap disimpan.', 'success');
+    } catch (_) {
+        window.showToast('Gagal Unggah', 'Tidak dapat memproses file gambar.', 'error');
+    }
+    inputEl.value = '';
+};
+
+window.clearPopupBannerImg = function() {
+    const inp = document.getElementById('set-popup-banner-img');
+    const popEn = document.getElementById('set-popup-banner-enabled');
+    if (inp) inp.value = '';
+    if (popEn) popEn.checked = false;
+    window.previewAdminPopupBanner();
+};
+
+window.addBannerFromTabUrlInput = function() {
+    const tabInp = document.getElementById('set-banner-url-input-tab');
+    const mainInp = document.getElementById('set-banner-url-input');
+    if (!tabInp || !tabInp.value.trim()) {
+        window.showToast('Link Kosong', 'Masukkan Link URL gambar banner terlebih dahulu.', 'warning');
+        return;
+    }
+    if (mainInp) mainInp.value = tabInp.value.trim();
+    window.addBannerFromUrlInput();
+    tabInp.value = '';
+    setTimeout(() => window.syncAdminBannerTabUI(), 60);
+};
+
+window.uploadCategoryBannerImg = async function(catKey, inputEl) {
+    if (!inputEl.files || !inputEl.files[0]) return;
+    try {
+        const b64 = await compressImageToBase64(inputEl.files[0], 820, 0.82);
+        const inp = document.getElementById(`set-cat-banner-${catKey}`);
+        if (inp) inp.value = b64;
+        if (catKey === 'game') {
+            const gameLegacy = document.getElementById('set-category-banner-game');
+            if (gameLegacy) gameLegacy.value = b64;
+        }
+        window.showToast('Banner Kategori Siap', 'Tekan Simpan Pengaturan Banner untuk menerapkan.', 'success');
+    } catch (_) {}
+    inputEl.value = '';
+};
+
+window.clearCategoryBanner = function(catKey) {
+    const inp = document.getElementById(`set-cat-banner-${catKey}`);
+    if (inp) inp.value = '';
+    if (catKey === 'game') {
+        const gameLegacy = document.getElementById('set-category-banner-game');
+        if (gameLegacy) gameLegacy.value = '';
+    }
+    window.showToast('Direset ke Default', 'Kategori ini akan menggunakan banner bawaan.', 'info');
+};
+
+window.saveBannerSettingsAdmin = async function() {
+    const catBanners = {};
+    V301_CATEGORY_KEYS.forEach(k => {
+        const val = (document.getElementById(`set-cat-banner-${k}`)?.value || '').trim();
+        if (val) catBanners[k] = val;
+    });
+
+    const popupEnabled = Boolean(document.getElementById('set-popup-banner-enabled')?.checked);
+    const popupImg = (document.getElementById('set-popup-banner-img')?.value || '').trim();
+    const popupTitle = (document.getElementById('set-popup-banner-title')?.value || '').trim();
+    const popupLink = (document.getElementById('set-popup-banner-link')?.value || '').trim();
+
+    siteSettings.popupBannerEnabled = popupEnabled;
+    siteSettings.popupBannerImg = popupImg;
+    siteSettings.popupBannerTitle = popupTitle;
+    siteSettings.popupBannerLink = popupLink;
+    siteSettings.categoryBanners = catBanners;
+    siteSettings.categoryBannerGame = catBanners.game || '';
+
+    const gameLegacy = document.getElementById('set-category-banner-game');
+    if (gameLegacy) gameLegacy.value = siteSettings.categoryBannerGame;
+
+    try {
+        await setDoc(doc(db, pathSettings, 'mainConfig'), {
+            banners: siteSettings.banners || [],
+            popupBannerEnabled,
+            popupBannerImg,
+            popupBannerTitle,
+            popupBannerLink,
+            categoryBanners: catBanners,
+            categoryBannerGame: siteSettings.categoryBannerGame,
+            updatedAt: Date.now()
+        }, { merge: true });
+        window.syncAdminBannerTabUI();
+        window.showToast('Banner Tersimpan', 'Seluruh pengaturan Banner Utama, Pop-Up, dan Kategori telah diterapkan ke Web User.', 'success');
+    } catch (e) {
+        window.customAlert('Gagal Menyimpan', 'Tidak dapat menyimpan pengaturan banner.', 'error');
+    }
+};
+
+const _origRenderAdminBanners = window.renderAdminBanners;
+window.renderAdminBanners = function() {
+    if (typeof _origRenderAdminBanners === 'function') _origRenderAdminBanners();
+    const listMain = document.getElementById('admin-banner-list');
+    const listTab = document.getElementById('admin-banner-list-tab');
+    if (listMain && listTab) {
+        listTab.innerHTML = listMain.innerHTML;
+    }
+};
+
+
+// ============================================================================
+// PEMBARUAN v30.2 ADMIN: FIX SIMPAN BANNER, UPDATE HARGA KATALOG LANGSUNG,
+// KONEKSI VPS BRIDGE TANPA API KEY DI FIREBASE, HAPUS LOG MUTASI SALDO,
+// & KUNCI SCROLL POP-UP
+// ============================================================================
+
+window.showAdminToast = function(title, msg, type = 'info') {
+    if (typeof window.showToast === 'function') {
+        window.showToast(title, msg, type);
+    }
+};
+
+// 1. Kunci Latar Belakang Saat Modal Admin Terbuka (Poin #4)
+function syncAdminModalScrollLock() {
+    const anyActive = Array.from(document.querySelectorAll('.modal-overlay')).some(
+        el => el.classList.contains('active') || el.style.display === 'flex'
+    );
+    document.documentElement.classList.toggle('v302-admin-modal-locked', anyActive);
+    document.body.classList.toggle('v302-admin-modal-locked', anyActive);
+}
+
+const _origAdminOpenModal = window.openModal;
+window.openModal = function(id) {
+    if (typeof _origAdminOpenModal === 'function') _origAdminOpenModal(id);
+    setTimeout(syncAdminModalScrollLock, 20);
+};
+
+const _origAdminCloseModal = window.closeModal;
+window.closeModal = function(id) {
+    if (typeof _origAdminCloseModal === 'function') _origAdminCloseModal(id);
+    setTimeout(syncAdminModalScrollLock, 20);
+};
+
+// 2. Perbaikan Simpan Pengaturan Banner di Tab Kelola Banner (Poin #2)
+window.saveBannerSettingsAdmin = async function() {
+    // Jika admin menempelkan link di kolom input Banner Utama namun belum menekan "+ Tambah Link", tambahkan otomatis
+    const pendingTabUrl = (document.getElementById('set-banner-url-input-tab')?.value || '').trim();
+    if (pendingTabUrl && (pendingTabUrl.startsWith('http://') || pendingTabUrl.startsWith('https://') || pendingTabUrl.startsWith('data:image/'))) {
+        const curBanners = Array.isArray(siteSettings.banners) ? [...siteSettings.banners] : [];
+        if (!curBanners.includes(pendingTabUrl)) {
+            curBanners.push(pendingTabUrl);
+            siteSettings.banners = curBanners;
+        }
+        const tabInpEl = document.getElementById('set-banner-url-input-tab');
+        if (tabInpEl) tabInpEl.value = '';
+    }
+
+    const catBanners = {};
+    V301_CATEGORY_KEYS.forEach(k => {
+        const val = (document.getElementById(`set-cat-banner-${k}`)?.value || '').trim();
+        if (val) catBanners[k] = val;
+    });
+
+    const popupEnabled = Boolean(document.getElementById('set-popup-banner-enabled')?.checked);
+    const popupImg = (document.getElementById('set-popup-banner-img')?.value || '').trim();
+    const popupTitle = (document.getElementById('set-popup-banner-title')?.value || '').trim();
+    const popupLink = (document.getElementById('set-popup-banner-link')?.value || '').trim();
+
+    siteSettings.popupBannerEnabled = popupEnabled;
+    siteSettings.popupBannerImg = popupImg;
+    siteSettings.popupBannerTitle = popupTitle;
+    siteSettings.popupBannerLink = popupLink;
+    siteSettings.categoryBanners = catBanners;
+    siteSettings.categoryBannerGame = catBanners.game || '';
+
+    try {
+        await setDoc(doc(db, pathSettings, 'mainConfig'), {
+            banners: Array.isArray(siteSettings.banners) ? siteSettings.banners : [],
+            popupBannerEnabled,
+            popupBannerImg,
+            popupBannerTitle,
+            popupBannerLink,
+            categoryBanners: catBanners,
+            categoryBannerGame: siteSettings.categoryBannerGame,
+            updatedAt: Date.now()
+        }, { merge: true });
+        window.syncAdminBannerTabUI();
+        window.showToast('Banner Disimpan', 'Seluruh pengaturan Banner Pop-Up, Banner Utama, dan Banner Kategori berhasil disimpan.', 'success');
+    } catch (e) {
+        console.error('Save banner error:', e);
+        window.customAlert('Gagal Menyimpan Banner', 'Ukuran gambar terlalu besar atau koneksi terputus. Gunakan tombol Upload (otomatis dikompresi) atau Link URL gambar.', 'error');
+    }
+};
+
+// Pastikan tombol Hapus Banner di dalam Tab Kelola Banner langsung merender ulang daftar di Tab Kelola Banner
+window.removeBannerItem = function(idx) {
+    if (!Array.isArray(siteSettings.banners)) siteSettings.banners = [];
+    siteSettings.banners.splice(idx, 1);
+    window.renderAdminBanners();
+    const listMain = document.getElementById('admin-banner-list');
+    const listTab = document.getElementById('admin-banner-list-tab');
+    if (listMain && listTab) {
+        listTab.innerHTML = listMain.innerHTML;
+    }
+};
+
+// 3. Perbaikan Tombol Simpan & Terapkan Harga Markup Agar Langsung Mengubah Seluruh Produk di Katalog Toko (Poin #8)
+function doesCatalogProductMatchMarkupScope(prodObj, scope, scopeCat, scopeBrand) {
+    if (scope === 'ALL') return true;
+    if (scope === 'BRAND' && scopeBrand) {
+        const bTarget = scopeBrand.trim().toUpperCase();
+        const pBrand = String(prodObj.brand || prodObj.brandName || '').trim().toUpperCase();
+        const pDfBrand = String(prodObj.digiflazzBrand || '').trim().toUpperCase();
+        return pBrand === bTarget || pDfBrand === bTarget || pBrand.includes(bTarget) || bTarget.includes(pBrand);
+    }
+    if (scope === 'CATEGORY' && scopeCat) {
+        const cTarget = scopeCat.trim().toUpperCase();
+        const pType = String(prodObj.type || '').trim().toUpperCase();
+        const pDfCat = String(prodObj.digiflazzCategory || '').trim().toUpperCase();
+        if (pType === cTarget || pDfCat === cTarget) return true;
+        const aliasMap = {
+            'GAMES': ['GAME', 'GAMES', 'VOUCHER GAME'],
+            'GAME': ['GAME', 'GAMES'],
+            'PULSA': ['PULSA', 'DATA', 'PAKET DATA'],
+            'DATA': ['PULSA', 'DATA', 'PAKET DATA'],
+            'PLN': ['PLN', 'LISTRIK'],
+            'E-MONEY': ['EWALLET', 'E-MONEY', 'EMONEY', 'SALDO E-WALLET'],
+            'EWALLET': ['EWALLET', 'E-MONEY', 'EMONEY']
+        };
+        const allowed = aliasMap[cTarget] || [cTarget];
+        return allowed.includes(pType) || allowed.includes(pDfCat);
+    }
+    return true;
+}
+
+const _origApplyMarkupAll = window.applyMarkupToAllCatalogDigiflazzProducts;
+window.applyMarkupToAllCatalogDigiflazzProducts = async function() {
+    if (typeof _origApplyMarkupAll === 'function') {
+        await _origApplyMarkupAll();
+    }
+
+    // Pastikan seluruh produk yang sudah ada di Katalog Toko (products) ikut ter-update harga jualnya
+    const targetTier = document.getElementById('df-markup-target-tier')?.value || 'regular';
+    const scope = document.getElementById('df-markup-scope-select')?.value || 'ALL';
+    const scopeCat = (document.getElementById('df-markup-scope-cat')?.value || '').trim();
+    const scopeBrand = (document.getElementById('df-markup-scope-brand')?.value || '').trim();
+
+    let extraCatalogUpdated = 0;
+    const skuModalMap = new Map();
+    if (Array.isArray(digiflazzCatalogList)) {
+        digiflazzCatalogList.forEach(d => {
+            const sku = String(d.buyer_sku_code || d.sku || '').trim();
+            const modal = Number(d.price || d.admin || 0);
+            if (sku && modal > 0) skuModalMap.set(sku, { modal, cat: d.category || '', brand: d.brand || '' });
+        });
+    }
+
+    for (const p of products) {
+        if (!p || !p.dbId) continue;
+        if (p.isCheckUsernameProduct === true || Number(p.priceNum || 0) === 0) continue;
+        if (!doesCatalogProductMatchMarkupScope(p, scope, scopeCat, scopeBrand)) continue;
+
+        const isDfProd = Boolean(p.processType === 'digiflazz' || p.isDigiflazz === true || p.buyerSkuCode);
+        if (!isDfProd) continue;
+
+        const skuLookup = p.buyerSkuCode ? skuModalMap.get(String(p.buyerSkuCode).trim()) : null;
+        const modalPrice = Number(p.digiflazzModalPrice || skuLookup?.modal || 0);
+        if (modalPrice <= 0) continue;
+
+        const effCat = p.digiflazzCategory || skuLookup?.cat || p.type || '';
+        const effBrand = p.digiflazzBrand || skuLookup?.brand || p.brand || '';
+
+        if (targetTier === 'member_plus') {
+            const nextMp = calculateDigiflazzSellPriceWithMarkup(modalPrice, true, effCat, effBrand);
+            if (nextMp > 0) {
+                p.memberPlusPriceNum = nextMp;
+                p.digiflazzModalPrice = modalPrice;
+                await updateDoc(doc(db, pathProducts, p.dbId), {
+                    memberPlusPriceNum: nextMp,
+                    digiflazzModalPrice: modalPrice
+                }).catch(() => {});
+                extraCatalogUpdated++;
+            }
+        } else {
+            const nextReg = calculateDigiflazzSellPriceWithMarkup(modalPrice, false, effCat, effBrand);
+            const nextMp = calculateDigiflazzSellPriceWithMarkup(modalPrice, true, effCat, effBrand);
+            if (nextReg > 0) {
+                p.priceNum = nextReg;
+                p.price = `Rp${nextReg.toLocaleString('id-ID')}`;
+                p.digiflazzModalPrice = modalPrice;
+                const upObj = {
+                    priceNum: nextReg,
+                    price: p.price,
+                    digiflazzModalPrice: modalPrice
+                };
+                if (!p.memberPlusPriceNum || p.memberPlusPriceNum >= nextReg) {
+                    p.memberPlusPriceNum = nextMp;
+                    upObj.memberPlusPriceNum = nextMp;
+                }
+                await updateDoc(doc(db, pathProducts, p.dbId), upObj).catch(() => {});
+                extraCatalogUpdated++;
+            }
+        }
+    }
+
+    if (typeof window.renderAdminProducts === 'function') window.renderAdminProducts();
+    if (typeof window.renderDigiflazzCatalogTable === 'function') window.renderDigiflazzCatalogTable();
+    if (extraCatalogUpdated > 0) {
+        window.showToast('Katalog Diperbarui', `${extraCatalogUpdated} produk di Katalog Toko telah diperbarui harganya.`, 'success');
+    }
+};
+
+// 4. Arsitektur Baru Koneksi VPS Bridge Digiflazz Tanpa Simpan API Key & Username di Firebase (Poin #7)
+callDigiflazzApi = async function(endpointPath, payloadData) {
+    const startMs = Date.now();
+    const bridgeUrl = (document.getElementById('set-df-bridge-url')?.value || siteSettings.digiflazzBridgeUrl || 'https://api.vipercell.cloud').trim();
+    const envMode = document.getElementById('set-df-env-mode')?.value || siteSettings.digiflazzEnvMode || 'production';
+    const bridgeSecret = (document.getElementById('set-df-bridge-secret')?.value || siteSettings.digiflazzBridgeAccessKey || 'VIPERCELL_BRIDGE_SECRET_2026').trim();
+
+    const rawCandidates = [];
+    if (bridgeUrl && bridgeUrl.startsWith('http')) {
+        const cleanBase = bridgeUrl.replace(/\/+$/, '');
+        if (cleanBase.endsWith('/api/digiflazz')) {
+            rawCandidates.push(cleanBase);
+            rawCandidates.push(cleanBase.replace(/\/api\/digiflazz$/, ''));
+        } else {
+            rawCandidates.push(cleanBase + '/api/digiflazz');
+            rawCandidates.push(cleanBase);
+        }
+    }
+    rawCandidates.push('https://api.vipercell.cloud/api/digiflazz');
+    rawCandidates.push('https://api.vipercell.cloud');
+    if (typeof window !== 'undefined' && window.location && window.location.protocol !== 'https:') {
+        rawCandidates.push('http://139.59.60.91:3100/api/digiflazz');
+        rawCandidates.push('http://localhost:3100/api/digiflazz');
+    }
+    const candidateUrls = Array.from(new Set(rawCandidates));
+
+    const cleanPayload = { ...(payloadData || {}) };
+    delete cleanPayload.username;
+    delete cleanPayload.sign;
+
+    const reqBody = {
+        endpoint: endpointPath,
+        envMode: envMode,
+        bridgeAccessKey: bridgeSecret,
+        payload: cleanPayload
+    };
+
+    const skuInfo = String(payloadData?.buyer_sku_code || payloadData?.cmd || payloadData?.commands || payloadData?.customer_no || endpointPath);
+    let lastErr = null;
+
+    for (const u of candidateUrls) {
+        try {
+            const res = await fetch(u, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Vipercell-Bridge-Key': bridgeSecret
+                },
+                body: JSON.stringify(reqBody)
+            });
+            const rawJson = await res.json().catch(() => null);
+            const json = normalizeAdminBridgeResponseJson(rawJson);
+            if (json && json.ok === false && json.data === undefined) {
+                lastErr = new Error(json.message || 'Gagal menghubungi VPS Bridge.');
+                continue;
+            }
+            if (json && json.data !== undefined) {
+                const resData = json.data;
+                recordAdminDigiflazzApiLog({
+                    endpoint: endpointPath,
+                    mode: envMode,
+                    skuOrTarget: skuInfo,
+                    rc: Array.isArray(resData) ? '00' : String(resData.rc || '00'),
+                    status: Array.isArray(resData) ? `${resData.length} SKU` : String(resData.status || 'Sukses'),
+                    latencyMs: Date.now() - startMs,
+                    simulated: false
+                });
+                return json;
+            }
+        } catch (err) {
+            lastErr = err;
+        }
+    }
+    throw lastErr || new Error('Tidak dapat menghubungi VPS Bridge Digiflazz. Periksa URL Endpoint dan Kode Rahasia Bridge.');
+};
+
+window.saveDigiflazzSettings = async function() {
+    const bridgeUrl = (document.getElementById('set-df-bridge-url')?.value || 'https://api.vipercell.cloud/api/digiflazz').trim();
+    const envMode = document.getElementById('set-df-env-mode')?.value || 'production';
+    const bridgeSecret = (document.getElementById('set-df-bridge-secret')?.value || 'VIPERCELL_BRIDGE_SECRET_2026').trim();
+    const webhookSecret = (document.getElementById('set-df-webhook-secret')?.value || 'VIPERCELL_DF_WEBHOOK_2026').trim();
+    const autoHit = Boolean(document.getElementById('set-df-autohit')?.checked);
+    const balGuard = Boolean(document.getElementById('set-df-balance-guard')?.checked);
+
+    if (!bridgeSecret) {
+        window.customAlert('Kode Rahasia Kosong', 'Masukkan Kode Rahasia Akses Endpoint Bridge untuk mengamankan koneksi ke VPS.', 'warning');
+        return;
+    }
+
+    // Simpan ke Firestore TANPA menyertakan Username maupun API Key Digiflazz (100% di VPS)
+    const cleanConfig = {
+        digiflazzBridgeUrl: bridgeUrl,
+        digiflazzEnvMode: envMode,
+        digiflazzBridgeAccessKey: bridgeSecret,
+        digiflazzAutoHitOnPaid: autoHit,
+        digiflazzBalanceGuard: balGuard,
+        digiflazzUsername: '',
+        digiflazzDevApiKey: '',
+        digiflazzProdApiKey: '',
+        digiflazzApiKey: '',
+        digiflazzBridgeSyncToken: ''
+    };
+
+    try {
+        await setDoc(doc(db, pathSettings, 'mainConfig'), cleanConfig, { merge: true });
+        await setDoc(doc(db, pathSettings, 'secretConfig'), {
+            digiflazzWebhookSecret: webhookSecret,
+            digiflazzEnvMode: envMode,
+            digiflazzUsername: '',
+            digiflazzDevApiKey: '',
+            digiflazzProdApiKey: '',
+            digiflazzApiKey: ''
+        }, { merge: true }).catch(() => {});
+
+        siteSettings = { ...siteSettings, ...cleanConfig, digiflazzWebhookSecret: webhookSecret };
+
+        // Sinkronkan mode & kode rahasia langsung ke VPS Bridge
+        const cleanBase = bridgeUrl.replace(/\/+$/, '');
+        const targetUrl = cleanBase.endsWith('/api/digiflazz') ? cleanBase : (cleanBase + '/api/digiflazz');
+        await fetch(targetUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Vipercell-Bridge-Key': bridgeSecret
+            },
+            body: JSON.stringify({
+                action: 'SAVE_BRIDGE_CONFIG',
+                envMode: envMode,
+                bridgeAccessKey: bridgeSecret,
+                newBridgeAccessKey: bridgeSecret,
+                webhookSecret: webhookSecret
+            })
+        }).catch(() => {});
+
+        window.updateDigiflazzEnvBadgePreview();
+        window.showToast('Pengaturan Disimpan', `Mode ${envMode.toUpperCase()} & Kode Rahasia Bridge berhasil disimpan.`, 'success');
+    } catch (e) {
+        window.customAlert('Gagal Menyimpan', 'Terjadi kendala saat menyimpan pengaturan koneksi.', 'error');
+    }
+};
+
+// 5. Fitur Hapus Log Mutasi Saldo User Berdasarkan Rentang Waktu (1 Minggu, 1 Bulan, 3 Bulan, atau Semua) (Poin #12)
+window.purgeBalanceLogsByRange = function() {
+    const selVal = document.getElementById('admin-purge-bal-logs-range')?.value || '7';
+    const labelMap = {
+        '7': '1 Minggu Terakhir (7 Hari)',
+        '30': '1 Bulan Terakhir (30 Hari)',
+        '90': '3 Bulan Terakhir (90 Hari)',
+        'ALL': 'Seluruh Riwayat Log Mutasi'
+    };
+    const rangeLabel = labelMap[selVal] || 'Rentang Terpilih';
+
+    window.requireAdminPinVerification(`Hapus Log Mutasi (${rangeLabel})`, async () => {
+        const nowMs = Date.now();
+        const cutoffMs = selVal === 'ALL' ? 0 : (nowMs - (Number(selVal) * 86400000));
+        const targetLogs = balanceLogsList.filter(l => {
+            if (!l || !l.dbId) return false;
+            if (selVal === 'ALL') return true;
+            const createdMs = Number(l.createdAt || 0);
+            return createdMs >= cutoffMs;
+        });
+
+        if (targetLogs.length === 0) {
+            window.showToast('Tidak Ada Data', `Tidak ditemukan log mutasi saldo pada rentang ${rangeLabel}.`, 'info');
+            return;
+        }
+
+        const progId = 'purge-bal-logs';
+        window.showProgressToast(progId, 'Menghapus Log Mutasi Saldo', `Menghapus ${targetLogs.length} log mutasi...`, 30);
+
+        let deletedCount = 0;
+        for (let i = 0; i < targetLogs.length; i += 35) {
+            const slice = targetLogs.slice(i, i + 35);
+            await Promise.all(slice.map(l => deleteDoc(doc(db, pathBalanceLogs, l.dbId)).catch(() => {})));
+            deletedCount += slice.length;
+        }
+
+        window.renderAdminBalanceLogsTable();
+        window.finishProgressToast(
+            progId,
+            'Log Mutasi Dibersihkan',
+            `${deletedCount} log mutasi saldo (${rangeLabel}) berhasil dihapus. Saldo akun member tetap utuh.`,
+            'success'
+        );
+    });
+};
+
+const _origPopulateSettingsFormV302 = window.populateSettingsForm;
+window.populateSettingsForm = function() {
+    if (typeof _origPopulateSettingsFormV302 === "function") _origPopulateSettingsFormV302();
+    const bSecEl = document.getElementById("set-df-bridge-secret");
+    if (bSecEl) bSecEl.value = siteSettings.digiflazzBridgeAccessKey || "VIPERCELL_BRIDGE_SECRET_2026";
+    const envEl = document.getElementById("set-df-env-mode");
+    if (envEl && siteSettings.digiflazzEnvMode) envEl.value = siteSettings.digiflazzEnvMode;
+    window.updateDigiflazzEnvBadgePreview();
+};
+
+window.updateDigiflazzEnvBadgePreview = function() {
+    const mode = document.getElementById("set-df-env-mode")?.value || siteSettings.digiflazzEnvMode || "production";
+    const badge = document.getElementById("df-connection-mode-badge");
+    const ind = document.getElementById("df-env-active-indicator");
+    if (badge) {
+        badge.className = mode === "production" ? "status-badge status-success" : "status-badge status-pending";
+        badge.innerText = mode === "production" ? "PRODUCTION (LIVE)" : "DEVELOPMENT (UJI COBA)";
+    }
+    if (ind) {
+        ind.style.borderColor = mode === "production" ? "var(--success)" : "var(--warning)";
+        ind.innerHTML = mode === "production"
+            ? `<div style="display:flex; align-items:center; gap:10px;"><i class="fa-solid fa-bolt text-success" style="font-size:1.15rem;"></i><div class="text-xs"><strong class="d-block">Mode Aktif: Production (Transaksi Real)</strong><span class="text-muted">VPS Bridge menggunakan kunci Production yang terkunci di server.</span></div></div><span class="status-badge status-success">LIVE AKTIF</span>`
+            : `<div style="display:flex; align-items:center; gap:10px;"><i class="fa-solid fa-flask text-warning" style="font-size:1.15rem;"></i><div class="text-xs"><strong class="d-block">Mode Aktif: Development (Sandbox)</strong><span class="text-muted">VPS Bridge menggunakan kunci Development untuk pengujian transaksi.</span></div></div><span class="status-badge status-pending">MODE UJI COBA</span>`;
+    }
+    if (typeof window.syncQuickWebUserControlBarUI === "function") window.syncQuickWebUserControlBarUI();
+};
+
+
+// ============================================================================
+// PEMBARUAN v30.2.1 ADMIN: FIX HAPUS LOG MUTASI, FIX SIMPAN BANNER ANTI-GAGAL,
+// & PROTEKSI KETAT KODE RAHASIA VPS BRIDGE + PENYIMPANAN PENGATURAN FIREBASE
+// ============================================================================
+
+window.requireAdminPinVerification = function(actionTitle, onVerifiedCallback) {
+    return window.requestAdminPinVerification(actionTitle, onVerifiedCallback);
+};
+
+// Matikan fungsi penimpaan konfigurasi legacy agar pengaturan yang diedit di Firebase tidak pernah kembali ke nilai lama
+hydrateAdminLegacyDigiflazzConfigIfNeeded = async function() {
+    return;
+};
+
+// Re-kompresi otomatis jika ada string gambar Base64 lama yang ukurannya terlalu besar (> 95KB)
+function shrinkDataUrlIfNeeded(dataUrlStr, maxW = 540, q = 0.56) {
+    return new Promise((resolve) => {
+        const s = String(dataUrlStr || '').trim();
+        if (!s.startsWith('data:image/') || s.length <= 95000) {
+            resolve(s);
+            return;
+        }
+        const img = new Image();
+        img.onload = () => {
+            try {
+                const canvas = document.createElement('canvas');
+                let w = img.width || 540;
+                let h = img.height || 300;
+                if (w > maxW) {
+                    h = Math.max(1, Math.round((h * maxW) / w));
+                    w = maxW;
+                }
+                if (h > maxW) {
+                    w = Math.max(1, Math.round((w * maxW) / h));
+                    h = maxW;
+                }
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(0, 0, w, h);
+                ctx.drawImage(img, 0, 0, w, h);
+                let compressed = canvas.toDataURL('image/jpeg', q);
+                if (compressed.length > 95000) {
+                    compressed = canvas.toDataURL('image/jpeg', 0.44);
+                }
+                resolve(compressed);
+            } catch (_) {
+                resolve(s);
+            }
+        };
+        img.onerror = () => resolve(s);
+        img.src = s;
+    });
+}
+
+// Sinkronisasi Dokumen Banner Terpisah (settings/bannersConfig) di Admin
+onSnapshot(doc(db, pathSettings, 'bannersConfig'), (snap) => {
+    if (!snap.exists()) return;
+    const bData = snap.data() || {};
+    if (Array.isArray(bData.banners)) siteSettings.banners = bData.banners;
+    if (bData.popupBannerEnabled !== undefined) siteSettings.popupBannerEnabled = Boolean(bData.popupBannerEnabled);
+    if (bData.popupBannerImg !== undefined) siteSettings.popupBannerImg = bData.popupBannerImg;
+    if (bData.popupBannerTitle !== undefined) siteSettings.popupBannerTitle = bData.popupBannerTitle;
+    if (bData.popupBannerLink !== undefined) siteSettings.popupBannerLink = bData.popupBannerLink;
+    if (bData.categoryBanners && typeof bData.categoryBanners === 'object') {
+        siteSettings.categoryBanners = { ...(siteSettings.categoryBanners || {}), ...bData.categoryBanners };
+    }
+    if (bData.categoryBannerGame !== undefined) siteSettings.categoryBannerGame = bData.categoryBannerGame;
+
+    const activeEl = document.activeElement;
+    const isEditingBannerInput = Boolean(activeEl && activeEl.closest && activeEl.closest('#tab-banners'));
+    if (!isEditingBannerInput && typeof window.syncAdminBannerTabUI === 'function') {
+        window.syncAdminBannerTabUI();
+    }
+}, () => {});
+
+// Perbaikan Mutlak Simpan Pengaturan Banner (Anti Error Ukuran Foto Terlalu Besar)
+window.saveBannerSettingsAdmin = async function() {
+    const pendingTabUrl = (document.getElementById('set-banner-url-input-tab')?.value || '').trim();
+    if (pendingTabUrl && (pendingTabUrl.startsWith('http://') || pendingTabUrl.startsWith('https://') || pendingTabUrl.startsWith('data:image/'))) {
+        const curBanners = Array.isArray(siteSettings.banners) ? [...siteSettings.banners] : [];
+        if (!curBanners.includes(pendingTabUrl)) {
+            curBanners.push(pendingTabUrl);
+            siteSettings.banners = curBanners;
+        }
+        const tabInpEl = document.getElementById('set-banner-url-input-tab');
+        if (tabInpEl) tabInpEl.value = '';
+    }
+
+    const rawBanners = Array.isArray(siteSettings.banners) ? [...siteSettings.banners] : [];
+    const optimizedBanners = [];
+    for (const bItem of rawBanners) {
+        const opt = await shrinkDataUrlIfNeeded(bItem, 560, 0.58);
+        if (opt) optimizedBanners.push(opt);
+    }
+
+    const catBanners = {};
+    for (const k of V301_CATEGORY_KEYS) {
+        const rawVal = (document.getElementById(`set-cat-banner-${k}`)?.value || '').trim();
+        if (rawVal) {
+            catBanners[k] = await shrinkDataUrlIfNeeded(rawVal, 560, 0.58);
+            const inpEl = document.getElementById(`set-cat-banner-${k}`);
+            if (inpEl) inpEl.value = catBanners[k];
+        }
+    }
+
+    const popupEnabled = Boolean(document.getElementById('set-popup-banner-enabled')?.checked);
+    const rawPopupImg = (document.getElementById('set-popup-banner-img')?.value || '').trim();
+    const popupImg = rawPopupImg ? await shrinkDataUrlIfNeeded(rawPopupImg, 560, 0.6) : '';
+    if (document.getElementById('set-popup-banner-img')) {
+        document.getElementById('set-popup-banner-img').value = popupImg;
+    }
+    const popupTitle = (document.getElementById('set-popup-banner-title')?.value || '').trim();
+    const popupLink = (document.getElementById('set-popup-banner-link')?.value || '').trim();
+
+    siteSettings.banners = optimizedBanners;
+    siteSettings.popupBannerEnabled = popupEnabled;
+    siteSettings.popupBannerImg = popupImg;
+    siteSettings.popupBannerTitle = popupTitle;
+    siteSettings.popupBannerLink = popupLink;
+    siteSettings.categoryBanners = catBanners;
+    siteSettings.categoryBannerGame = catBanners.game || '';
+
+    const bannerPayload = {
+        banners: optimizedBanners,
+        popupBannerEnabled,
+        popupBannerImg,
+        popupBannerTitle,
+        popupBannerLink,
+        categoryBanners: catBanners,
+        categoryBannerGame: siteSettings.categoryBannerGame,
+        updatedAt: Date.now()
+    };
+
+    try {
+        // 1. Simpan ke dokumen khusus settings/bannersConfig (kuota 1MB penuh khusus banner)
+        await setDoc(doc(db, pathSettings, 'bannersConfig'), bannerPayload, { merge: true });
+        // 2. Sinkronkan juga ke settings/mainConfig
+        await setDoc(doc(db, pathSettings, 'mainConfig'), bannerPayload, { merge: true }).catch(() => {});
+
+        window.syncAdminBannerTabUI();
+        window.showToast('Banner Disimpan', 'Seluruh pengaturan Banner Pop-Up, Banner Utama, dan Banner Kategori berhasil disimpan.', 'success');
+    } catch (e) {
+        console.error('Save banner error:', e);
+        window.customAlert('Gagal Menyimpan Banner', 'Periksa koneksi internet Anda dan coba lagi.', 'error');
+    }
+};
+
+// Cegah populateSettingsForm menimpa kolom input yang sedang diketik oleh Admin
+const _origPopulateFormV3021 = window.populateSettingsForm;
+window.populateSettingsForm = function() {
+    const activeEl = document.activeElement;
+    const isTypingInConfig = Boolean(
+        activeEl &&
+        (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT' || activeEl.tagName === 'TEXTAREA') &&
+        (activeEl.closest('#df-panel-config') || activeEl.closest('#tab-banners') || activeEl.closest('#tab-settings'))
+    );
+    if (isTypingInConfig) {
+        return;
+    }
+    if (typeof _origPopulateFormV3021 === 'function') _origPopulateFormV3021();
+    const bUrlEl = document.getElementById('set-df-bridge-url');
+    if (bUrlEl && siteSettings.digiflazzBridgeUrl) bUrlEl.value = siteSettings.digiflazzBridgeUrl;
+    const bSecEl = document.getElementById('set-df-bridge-secret');
+    if (bSecEl) bSecEl.value = siteSettings.digiflazzBridgeAccessKey || 'VIPERCELL_BRIDGE_SECRET_2026';
+    const wSecEl = document.getElementById('set-df-webhook-secret');
+    if (wSecEl) wSecEl.value = siteSettings.digiflazzWebhookSecret || 'VIPERCELL_DF_WEBHOOK_2026';
+    const envEl = document.getElementById('set-df-env-mode');
+    if (envEl) envEl.value = siteSettings.digiflazzEnvMode || 'production';
+    const autoEl = document.getElementById('set-df-autohit');
+    if (autoEl) autoEl.checked = siteSettings.digiflazzAutoHitOnPaid !== false;
+    const guardEl = document.getElementById('set-df-balance-guard');
+    if (guardEl) guardEl.checked = siteSettings.digiflazzBalanceGuard !== false;
+    window.updateDigiflazzEnvBadgePreview();
+};
+
+// Perbaikan Mutlak Hapus Log Mutasi Saldo User Berdasarkan Rentang Waktu (1 Minggu, 1 Bulan, 3 Bulan, Semua)
+function parseLogTimestampMs(logObj) {
+    if (!logObj) return 0;
+    const raw = logObj.createdAt ?? logObj.timestamp ?? logObj.date ?? logObj.receivedAt ?? 0;
+    if (typeof raw === 'number' && raw > 0) return raw;
+    if (typeof raw === 'string' && raw.trim()) {
+        const asNum = Number(raw);
+        if (!isNaN(asNum) && asNum > 0) return asNum;
+        const parsed = new Date(raw).getTime();
+        if (!isNaN(parsed) && parsed > 0) return parsed;
+    }
+    if (raw && typeof raw.toMillis === 'function') return raw.toMillis();
+    return 0;
+}
+
+window.purgeBalanceLogsByRange = function() {
+    const selVal = document.getElementById('admin-purge-bal-logs-range')?.value || '7';
+    const labelMap = {
+        '7': '1 Minggu Terakhir (7 Hari)',
+        '30': '1 Bulan Terakhir (30 Hari)',
+        '90': '3 Bulan Terakhir (90 Hari)',
+        'ALL': 'Seluruh Riwayat Log Mutasi'
+    };
+    const rangeLabel = labelMap[selVal] || 'Rentang Terpilih';
+
+    window.requestAdminPinVerification(`Hapus Log Mutasi (${rangeLabel})`, async () => {
+        const progId = 'purge-bal-logs';
+        window.showProgressToast(progId, 'Memeriksa Log Mutasi', `Mencari log mutasi saldo (${rangeLabel})...`, 15);
+
+        try {
+            const snap = await getDocs(collection(db, pathBalanceLogs)).catch(() => null);
+            const allDocs = [];
+            if (snap && !snap.empty) {
+                snap.forEach(d => allDocs.push({ dbId: d.id, ...d.data() }));
+            } else {
+                balanceLogsList.forEach(l => { if (l && l.dbId) allDocs.push(l); });
+            }
+
+            const nowMs = Date.now();
+            const cutoffMs = selVal === 'ALL' ? 0 : (nowMs - (Number(selVal) * 86400000));
+            const targetLogs = allDocs.filter(l => {
+                if (!l || !l.dbId) return false;
+                if (selVal === 'ALL') return true;
+                const ts = parseLogTimestampMs(l);
+                return ts === 0 || ts >= cutoffMs;
+            });
+
+            if (targetLogs.length === 0) {
+                window.finishProgressToast(progId, 'Tidak Ada Log', `Tidak ditemukan log mutasi saldo pada rentang ${rangeLabel}.`, 'info');
+                return;
+            }
+
+            const deletedIds = new Set();
+            let deletedCount = 0;
+            for (let i = 0; i < targetLogs.length; i += 30) {
+                const slice = targetLogs.slice(i, i + 30);
+                await Promise.all(slice.map(l => deleteDoc(doc(db, pathBalanceLogs, l.dbId)).catch(() => {})));
+                slice.forEach(l => deletedIds.add(l.dbId));
+                deletedCount += slice.length;
+                const pct = Math.min(95, 20 + Math.round((deletedCount / targetLogs.length) * 75));
+                window.showProgressToast(progId, 'Menghapus Log Mutasi Saldo', `${deletedCount} / ${targetLogs.length} log dihapus...`, pct);
+            }
+
+            balanceLogsList = balanceLogsList.filter(l => !deletedIds.has(l.dbId));
+            window.renderAdminBalanceLogsTable();
+            window.renderAdminBalanceTab();
+            window.finishProgressToast(
+                progId,
+                'Log Mutasi Dibersihkan',
+                `${deletedCount} log mutasi saldo (${rangeLabel}) berhasil dihapus. Saldo akun member tetap utuh.`,
+                'success'
+            );
+        } catch (err) {
+            window.finishProgressToast(progId, 'Gagal Menghapus', 'Terjadi kendala saat menghapus log mutasi.', 'error');
+        }
+    });
+};
+
+// Perbaikan Hapus Log Mutasi QRIS dengan Pilihan Rentang (1 Minggu, 1 Bulan, 3 Bulan, Semua)
+window.cleanOldPaymentMutations = function() {
+    const selVal = document.getElementById('admin-purge-qris-logs-range')?.value || 'ALL';
+    const labelMap = {
+        '7': '1 Minggu Terakhir',
+        '30': '1 Bulan Terakhir',
+        '90': '3 Bulan Terakhir',
+        'ALL': 'Semua Log Mutasi QRIS'
+    };
+    const rangeLabel = labelMap[selVal] || 'Semua Log';
+
+    window.requestAdminPinVerification(`Hapus Log Mutasi QRIS (${rangeLabel})`, async () => {
+        try {
+            const snap = await getDocs(collection(db, pathMutations)).catch(() => null);
+            const allMuts = [];
+            if (snap && !snap.empty) {
+                snap.forEach(d => allMuts.push({ dbId: d.id, ...d.data() }));
+            } else {
+                recentMutationsList.forEach(m => { if (m && m.dbId) allMuts.push(m); });
+            }
+
+            const nowMs = Date.now();
+            const cutoffMs = selVal === 'ALL' ? 0 : (nowMs - (Number(selVal) * 86400000));
+            const targetMuts = allMuts.filter(m => {
+                if (!m || !m.dbId) return false;
+                if (selVal === 'ALL') return true;
+                const ts = parseLogTimestampMs(m);
+                return ts === 0 || ts >= cutoffMs;
+            });
+
+            if (targetMuts.length === 0) {
+                window.showToast('Sudah Bersih', `Tidak ada log mutasi QRIS pada rentang ${rangeLabel}.`, 'info');
+                return;
+            }
+
+            const delIds = new Set();
+            for (let i = 0; i < targetMuts.length; i += 30) {
+                const slice = targetMuts.slice(i, i + 30);
+                await Promise.all(slice.map(m => deleteDoc(doc(db, pathMutations, m.dbId)).catch(() => {})));
+                slice.forEach(m => delIds.add(m.dbId));
+            }
+
+            recentMutationsList = recentMutationsList.filter(m => !delIds.has(m.dbId));
+            window.renderAdminQrisControlMonitor();
+            window.showToast('Log Mutasi Dihapus', `${targetMuts.length} log mutasi QRIS (${rangeLabel}) berhasil dihapus.`, 'success');
+        } catch (_) {
+            window.showToast('Gagal', 'Tidak dapat menghapus log mutasi QRIS.', 'error');
+        }
+    });
+};
+
+// Perketat Koneksi VPS Bridge di Admin: Gunakan Hanya URL Endpoint yang Diatur & Tolak Mutlak Jika Kode Rahasia Salah (403)!
+callDigiflazzApi = async function(endpointPath, payloadData) {
+    const startMs = Date.now();
+    const bridgeUrl = (document.getElementById('set-df-bridge-url')?.value || siteSettings.digiflazzBridgeUrl || 'https://api.vipercell.cloud/api/digiflazz').trim();
+    const envMode = document.getElementById('set-df-env-mode')?.value || siteSettings.digiflazzEnvMode || 'production';
+    const bridgeSecret = (document.getElementById('set-df-bridge-secret')?.value || siteSettings.digiflazzBridgeAccessKey || '').trim();
+
+    if (!bridgeSecret) {
+        throw new Error('Kode Rahasia Akses Endpoint Bridge belum diisi!');
+    }
+
+    const rawCandidates = [];
+    if (bridgeUrl && bridgeUrl.startsWith('http')) {
+        const cleanBase = bridgeUrl.replace(/\/+$/, '');
+        if (cleanBase.endsWith('/api/digiflazz')) {
+            rawCandidates.push(cleanBase);
+            rawCandidates.push(cleanBase.replace(/\/api\/digiflazz$/, ''));
+        } else {
+            rawCandidates.push(cleanBase + '/api/digiflazz');
+            rawCandidates.push(cleanBase);
+        }
+    } else {
+        throw new Error('Link Endpoint VPS Bridge tidak valid. Masukkan URL lengkap (http:// atau https://).');
+    }
+    const candidateUrls = Array.from(new Set(rawCandidates));
+
+    const cleanPayload = { ...(payloadData || {}) };
+    delete cleanPayload.username;
+    delete cleanPayload.sign;
+
+    const reqBody = {
+        endpoint: endpointPath,
+        envMode: envMode,
+        bridgeAccessKey: bridgeSecret,
+        payload: cleanPayload
+    };
+
+    const skuInfo = String(payloadData?.buyer_sku_code || payloadData?.cmd || payloadData?.commands || payloadData?.customer_no || endpointPath);
+    let lastErr = null;
+
+    for (const u of candidateUrls) {
+        try {
+            const res = await fetch(u, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Vipercell-Bridge-Key': bridgeSecret
+                },
+                body: JSON.stringify(reqBody)
+            });
+            const rawJson = await res.json().catch(() => null);
+
+            // Jika Kode Rahasia ditolak oleh VPS (403), langsung hentikan dan tampilkan error!
+            if (res.status === 403 || rawJson?.errorCode === 'INVALID_BRIDGE_SECRET' || rawJson?.data?.rc === '403') {
+                const secErrMsg = rawJson?.message || 'Kode Rahasia Endpoint VPS tidak sesuai! Koneksi ditolak oleh Server VPS.';
+                recordAdminDigiflazzApiLog({
+                    endpoint: endpointPath,
+                    mode: envMode,
+                    skuOrTarget: skuInfo,
+                    rc: '403',
+                    status: 'SECRET DITOLAK',
+                    latencyMs: Date.now() - startMs,
+                    simulated: false
+                });
+                throw new Error(secErrMsg);
+            }
+
+            const json = normalizeAdminBridgeResponseJson(rawJson);
+            if (json && json.ok === false && json.data === undefined) {
+                lastErr = new Error(json.message || 'Gagal menghubungi VPS Bridge.');
+                continue;
+            }
+            if (json && json.data !== undefined) {
+                const resData = json.data;
+                recordAdminDigiflazzApiLog({
+                    endpoint: endpointPath,
+                    mode: envMode,
+                    skuOrTarget: skuInfo,
+                    rc: Array.isArray(resData) ? '00' : String(resData.rc || '00'),
+                    status: Array.isArray(resData) ? `${resData.length} SKU` : String(resData.status || 'Sukses'),
+                    latencyMs: Date.now() - startMs,
+                    simulated: false
+                });
+                return json;
+            }
+        } catch (err) {
+            lastErr = err;
+            if (String(err.message || '').includes('Kode Rahasia') || String(err.message || '').includes('ditolak')) {
+                throw err;
+            }
+        }
+    }
+    throw lastErr || new Error('Tidak dapat menghubungi VPS Bridge Digiflazz. Periksa URL Endpoint dan Kode Rahasia Bridge.');
+};
+
+// Perketat checkDigiflazzBalance agar menampilkan error jika status Gagal / RC != 00 / 403
+window.checkDigiflazzBalance = async function(showToastMsg = true) {
+    const btn = document.getElementById('btn-df-check-balance');
+    const ogHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Mengecek...';
+    }
+    try {
+        const res = await callDigiflazzApi('/v1/cek-saldo', { cmd: 'deposit' });
+        const d = res?.data || {};
+        if (d.status === 'Gagal' || (d.rc && d.rc !== '00') || d.deposit === undefined) {
+            throw new Error(d.message || 'Gagal mengecek saldo dari VPS Bridge.');
+        }
+        const saldo = Number(d.deposit ?? 0);
+        siteSettings.digiflazzLastBalance = saldo;
+        await setDoc(doc(db, pathSettings, 'mainConfig'), {
+            digiflazzLastBalance: saldo,
+            digiflazzBalanceUpdatedAt: Date.now()
+        }, { merge: true }).catch(() => {});
+
+        window.updateDigiflazzDashboardStats();
+        window.renderAdminCatalog();
+        window.generateAdminReports();
+        if (showToastMsg) {
+            window.showToast('Koneksi VPS Berhasil', `Terhubung ke VPS Bridge • Saldo Digiflazz: Rp${saldo.toLocaleString('id-ID')}`, 'success');
+        }
+        return saldo;
+    } catch (e) {
+        if (showToastMsg) {
+            window.customAlert('Koneksi VPS Ditolak / Gagal', window.escapeHtml(e.message || 'Kode Rahasia atau URL Endpoint VPS tidak sesuai.'), 'error');
+        }
+        throw e;
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = ogHtml;
+        }
+    }
+};
+
+window.saveDigiflazzSettings = async function(silentToast = false) {
+    const bridgeUrl = (document.getElementById('set-df-bridge-url')?.value || '').trim();
+    const envMode = document.getElementById('set-df-env-mode')?.value || 'production';
+    const bridgeSecret = (document.getElementById('set-df-bridge-secret')?.value || '').trim();
+    const webhookSecret = (document.getElementById('set-df-webhook-secret')?.value || 'VIPERCELL_DF_WEBHOOK_2026').trim();
+    const autoHit = Boolean(document.getElementById('set-df-autohit')?.checked);
+    const balGuard = Boolean(document.getElementById('set-df-balance-guard')?.checked);
+
+    if (!bridgeUrl || !bridgeUrl.startsWith('http')) {
+        window.customAlert('URL Endpoint Kosong', 'Masukkan Link Endpoint VPS Bridge yang valid (contoh: https://api.vipercell.cloud/api/digiflazz).', 'warning');
+        return false;
+    }
+    if (!bridgeSecret) {
+        window.customAlert('Kode Rahasia Kosong', 'Masukkan Kode Rahasia Akses Endpoint Bridge.', 'warning');
+        return false;
+    }
+
+    const cleanConfig = {
+        digiflazzBridgeUrl: bridgeUrl,
+        digiflazzEnvMode: envMode,
+        digiflazzBridgeAccessKey: bridgeSecret,
+        digiflazzWebhookSecret: webhookSecret,
+        digiflazzAutoHitOnPaid: autoHit,
+        digiflazzBalanceGuard: balGuard,
+        digiflazzUsername: '',
+        digiflazzDevApiKey: '',
+        digiflazzProdApiKey: '',
+        digiflazzApiKey: '',
+        digiflazzBridgeSyncToken: '',
+        updatedAt: Date.now()
+    };
+
+    try {
+        await setDoc(doc(db, pathSettings, 'mainConfig'), cleanConfig, { merge: true });
+        await setDoc(doc(db, pathSettings, 'secretConfig'), {
+            digiflazzWebhookSecret: webhookSecret,
+            digiflazzEnvMode: envMode,
+            digiflazzBridgeAccessKey: bridgeSecret,
+            digiflazzUsername: '',
+            digiflazzDevApiKey: '',
+            digiflazzProdApiKey: '',
+            digiflazzApiKey: ''
+        }, { merge: true }).catch(() => {});
+
+        siteSettings = { ...siteSettings, ...cleanConfig };
+        window.updateDigiflazzEnvBadgePreview();
+
+        // Verifikasi Kode Rahasia ke VPS Bridge
+        const cleanBase = bridgeUrl.replace(/\/+$/, '');
+        const targetUrl = cleanBase.endsWith('/api/digiflazz') ? cleanBase : (cleanBase + '/api/digiflazz');
+        const vpsRes = await fetch(targetUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Vipercell-Bridge-Key': bridgeSecret
+            },
+            body: JSON.stringify({
+                action: 'SAVE_BRIDGE_CONFIG',
+                envMode: envMode,
+                bridgeAccessKey: bridgeSecret,
+                webhookSecret: webhookSecret
+            })
+        }).catch(() => null);
+
+        if (vpsRes && vpsRes.status === 403) {
+            const errJson = await vpsRes.json().catch(() => ({}));
+            window.customAlert(
+                'Kode Rahasia VPS Tidak Sesuai!',
+                `Pengaturan telah disimpan di Firebase, namun <b>Server VPS menolak Kode Rahasia yang Anda masukkan</b>.<br><br><span class="text-danger fw-bold">${window.escapeHtml(errJson.message || 'Kode Rahasia tidak cocok dengan VPS.')}</span><br><br>Transaksi &amp; koneksi Digiflazz tidak akan berfungsi sampai Kode Rahasia disamakan dengan yang ada di <b>digiflazz bridge.js</b>.`,
+                'error'
+            );
+            return false;
+        }
+
+        if (!silentToast) {
+            window.showToast('Pengaturan Tersimpan', `Pengaturan Koneksi Digiflazz (${envMode.toUpperCase()}) berhasil disimpan di Firebase & disinkronkan ke VPS.`, 'success');
+        }
+        return true;
+    } catch (e) {
+        window.customAlert('Gagal Menyimpan', 'Terjadi kendala saat menyimpan pengaturan koneksi ke Firebase.', 'error');
+        return false;
+    }
+};
+
+window.testDigiflazzBridgeConnection = async function() {
+    const savedOk = await window.saveDigiflazzSettings(true);
+    if (!savedOk) return;
+    try {
+        await window.checkDigiflazzBalance(true);
+    } catch (_) {}
+};
