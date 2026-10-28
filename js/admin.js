@@ -9519,7 +9519,7 @@ window.executeDigiflazzTransactionForOrder = async function(orderData, orderDbId
     }
 
     const lastHit = Number(orderData.digiflazzLastHitAt || 0);
-    if (!isAutoTrigger && lastHit > 0 && (Date.now() - lastHit < 60000) && orderData.digiflazzStatus === 'Pending') {
+    if (!isAutoTrigger && lastHit > 0 && (Date.now() - lastHit < 60000) && orderData.digiflazzStatus === 'Pending' && orderData.digiflazzRc) {
         const remSec = Math.ceil((60000 - (Date.now() - lastHit)) / 1000);
         window.customAlert('Jeda Aman 1 Menit', `Harap tunggu <b>${remSec} detik</b> lagi sebelum memanggil ulang status transaksi yang sama.`, 'warning');
         return false;
@@ -9558,7 +9558,7 @@ window.executeDigiflazzTransactionForOrder = async function(orderData, orderDbId
             if (cur.digiflazzStatus === 'Sukses' || (cur.status === 'SUCCESS' && cur.adminReply)) return;
             const prevHit = Number(cur.digiflazzLastHitAt || 0);
             if (cur.digiflazzInFlight === true && (nowMs - prevHit < 25000)) return;
-            if (isAutoTrigger && prevHit > 0 && (nowMs - prevHit < 60000)) return;
+            if (isAutoTrigger && prevHit > 0 && (nowMs - prevHit < 60000) && cur.digiflazzRc) return;
             tx.update(orderRefLock, {
                 digiflazzRefId: refId,
                 digiflazzSku: sku,
@@ -13866,5 +13866,164 @@ window.switchAdminTab = function(tabId, menuEl) {
         window.checkAdminVpsWaStatus(false);
         window.fetchVpsWaLogsBackup();
         window.renderAdminWaLogsTable();
+    }
+};
+
+/* === VIPERCELL v30.2.4 MASTER PATCH === */
+
+// 1. Efek Sentuh Tombol (Lampu Berjalan Mengelilingi Tepi Tombol 650ms)
+document.addEventListener('pointerdown', (e) => {
+    const el = e.target && e.target.closest
+        ? e.target.closest('button, .btn, .cs-subtab-btn, .filter-pill, .nav-item, .mobile-nav-item')
+        : null;
+    if (!el || el.disabled) return;
+    el.classList.add('btn-tap-pressed');
+    setTimeout(() => {
+        el.classList.remove('btn-tap-pressed');
+    }, 650);
+}, { passive: true });
+
+// 2. Fitur "+ Buat Pesanan" Langsung dari Web Admin (#tab-orders)
+window.openAdminCreateOrderModal = function() {
+    const sel = document.getElementById('adm-new-ord-product');
+    if (sel) {
+        const sortedProds = [...(Array.isArray(products) ? products : [])].sort((a, b) =>
+            String(a.brandName || '').localeCompare(String(b.brandName || ''))
+        );
+        sel.innerHTML = `<option value="">-- Pilih Produk dari Katalog (Atau Ketik Manual di Bawah) --</option>` +
+            sortedProds.map(p => {
+                const skuLbl = p.buyerSkuCode ? ` [SKU: ${p.buyerSkuCode}]` : '';
+                const priceNum = Number(p.priceNum || p.price || 0);
+                return `<option value="${window.escapeHtml(p.dbId || '')}">${window.escapeHtml(p.brandName || 'Produk')} - ${window.escapeHtml(p.name || '')} (Rp${priceNum.toLocaleString('id-ID')})${window.escapeHtml(skuLbl)}</option>`;
+            }).join('');
+    }
+    const targetInp = document.getElementById('adm-new-ord-target');
+    if (targetInp) targetInp.value = '';
+    const buyerInp = document.getElementById('adm-new-ord-buyer');
+    if (buyerInp && !buyerInp.value) buyerInp.value = currentAdminUser?.email || 'admin@vipercell.com';
+    window.openModal('modal-admin-create-order');
+};
+
+window.onAdminCreateOrderProductSelect = function() {
+    const dbId = document.getElementById('adm-new-ord-product')?.value || '';
+    const prod = (Array.isArray(products) ? products : []).find(p => p.dbId === dbId);
+    if (!prod) return;
+    const itemNameInp = document.getElementById('adm-new-ord-item-name');
+    const skuInp = document.getElementById('adm-new-ord-sku');
+    const priceInp = document.getElementById('adm-new-ord-price');
+    if (itemNameInp) itemNameInp.value = `${prod.brandName || 'Produk'} - ${prod.name || ''}`;
+    if (skuInp) skuInp.value = prod.buyerSkuCode || '';
+    if (priceInp) priceInp.value = Number(prod.priceNum || prod.price || 0);
+};
+
+window.submitAdminManualOrder = async function() {
+    const dbId = document.getElementById('adm-new-ord-product')?.value || '';
+    const prod = (Array.isArray(products) ? products : []).find(p => p.dbId === dbId) || null;
+    const itemName = (document.getElementById('adm-new-ord-item-name')?.value || '').trim();
+    const skuCode = (document.getElementById('adm-new-ord-sku')?.value || '').trim();
+    const targetNo = (document.getElementById('adm-new-ord-target')?.value || '').trim();
+    const priceVal = Math.max(0, Math.round(Number(document.getElementById('adm-new-ord-price')?.value || 0)));
+    const buyerStr = (document.getElementById('adm-new-ord-buyer')?.value || 'admin@vipercell.com').trim();
+    const modeVal = document.getElementById('adm-new-ord-mode')?.value || 'AUTO_PROCESS';
+
+    if (!itemName && !skuCode) {
+        return window.customAlert('Data Belum Lengkap', 'Pilih produk dari katalog atau isi Nama Produk / Kode SKU.', 'warning');
+    }
+    if (!targetNo) {
+        return window.customAlert('Tujuan Kosong', 'Masukkan Nomor HP / ID Tujuan pelanggan.', 'warning');
+    }
+
+    const btn = document.getElementById('btn-adm-submit-new-order');
+    const ogHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Memproses...';
+    }
+
+    try {
+        const now = Date.now();
+        let invId = 'VP-' + Math.floor(100000 + Math.random() * 900000);
+        while (orders.some(o => o.id === invId)) {
+            invId = 'VP-' + Math.floor(100000 + Math.random() * 900000);
+        }
+
+        const isDf = Boolean(skuCode || prod?.isDigiflazz || prod?.processType === 'digiflazz');
+        const brandTitle = prod?.brandName || (itemName.includes(' - ') ? itemName.split(' - ')[0].trim() : 'Layanan Vipercell');
+        const varTitle = prod?.name || (itemName.includes(' - ') ? itemName.split(' - ').slice(1).join(' - ').trim() : itemName || skuCode);
+        const isPaid = (modeVal !== 'UNPAID_QRIS');
+
+        const singleItem = {
+            cartId: String(now),
+            productDbId: prod?.dbId || '',
+            brandName: brandTitle,
+            exactItemName: varTitle,
+            name: `${brandTitle} - ${varTitle} (x1)`,
+            priceNum: priceVal,
+            qty: 1,
+            type: prod?.type || (isDf ? 'pulsa' : 'app'),
+            processType: isDf ? 'digiflazz' : (prod?.processType || 'auto'),
+            isDigiflazz: isDf,
+            buyerSkuCode: skuCode,
+            digiflazzModalPrice: Number(prod?.digiflazzModalPrice || 0),
+            stockMode: prod?.stockMode || 'PRIVATE',
+            durationDays: Number(prod?.durationDays || 0),
+            playerInfo: `Tujuan: ${targetNo}`
+        };
+
+        const newOrderObj = {
+            id: invId,
+            orderId: invId,
+            userEmail: buyerStr.includes('@') ? buyerStr : (currentAdminUser?.email || 'admin@vipercell.com'),
+            buyerEmail: buyerStr.includes('@') ? buyerStr : (currentAdminUser?.email || 'admin@vipercell.com'),
+            buyerName: buyerStr.split('@')[0] || 'Pelanggan',
+            userPhone: '',
+            userId: currentAdminUser?.uid || 'admin',
+            isAnonymousOrder: false,
+            targetId: targetNo,
+            digiflazzRefId: invId,
+            digiflazzSku: skuCode,
+            digiflazzCustomerNo: targetNo.replace(/\s+/g, ''),
+            digiflazzCommand: 'topup',
+            productName: brandTitle,
+            variantName: varTitle,
+            items: [singleItem],
+            finalTotal: priceVal,
+            uniqueTotal: priceVal,
+            baseTotal: priceVal,
+            uniqueCode: 0,
+            promoCode: '',
+            promoDiscount: 0,
+            durationDays: Number(prod?.durationDays || 0),
+            status: isPaid ? 'PENDING' : 'UNPAID',
+            paymentVerified: isPaid,
+            paidAt: isPaid ? now : 0,
+            paymentMethod: isPaid ? 'cash' : 'qris',
+            adminReply: '',
+            emailSent: false,
+            createdByAdmin: true,
+            date: new Date(now).toISOString(),
+            expiresAt: now + 900000
+        };
+
+        const docRef = await addDoc(collection(db, pathOrders), newOrderObj);
+        window.closeModal('modal-admin-create-order');
+
+        if (modeVal === 'AUTO_PROCESS') {
+            if (isDf && typeof window.executeDigiflazzTransactionForOrder === 'function') {
+                await window.executeDigiflazzTransactionForOrder({ ...newOrderObj, dbId: docRef.id }, docRef.id, false);
+            } else if (typeof autoDeliverStockForPaidOrder === 'function') {
+                await autoDeliverStockForPaidOrder({ ...newOrderObj, dbId: docRef.id }, docRef.id);
+            }
+        }
+
+        window.renderAdminOrders();
+        window.showToast('Pesanan Dibuat', `Pesanan #${invId} berhasil dibuat.`, 'success');
+    } catch (e) {
+        window.customAlert('Gagal Membuat Pesanan', window.escapeHtml(e.message || 'Periksa koneksi atau aturan database.'), 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = ogHtml;
+        }
     }
 };

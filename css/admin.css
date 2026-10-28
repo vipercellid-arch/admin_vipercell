@@ -3140,3 +3140,135 @@ body.v302-admin-modal-locked {
         text-overflow: ellipsis !important;
     }
 }
+
+/* === VIPERCELL v30.2.4: ROUND SPINNER & TRAVELLING BORDER LIGHT BEAM === */
+@property --v3024-beam-angle {
+    syntax: '<angle>';
+    initial-value: 0deg;
+    inherits: false;
+}
+
+@keyframes v3024BorderLightOrbit {
+    0% {
+        --v3024-beam-angle: 0deg;
+        box-shadow: 0 0 0 2px #09090b, 0 0 12px rgba(250, 204, 21, 0.75);
+    }
+    50% {
+        --v3024-beam-angle: 180deg;
+        box-shadow: 0 0 0 2px #09090b, 0 0 16px rgba(56, 189, 248, 0.85);
+    }
+    100% {
+        --v3024-beam-angle: 360deg;
+        box-shadow: 0 0 0 2px #09090b, 0 0 12px rgba(250, 204, 21, 0.75);
+    }
+}
+
+@keyframes v3024PerfectCircleSpin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Pastikan SEMUA ikon loading / spinner 100% bulat sempurna (tidak pernah lonjong/memanjang) */
+i.fa-spin,
+.fa-spinner,
+.fa-circle-notch,
+.fa-rotate.fa-spin,
+.btn i.fa-spin,
+button i.fa-spin {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 1em !important;
+    height: 1em !important;
+    min-width: 1em !important;
+    min-height: 1em !important;
+    max-width: 1em !important;
+    max-height: 1em !important;
+    aspect-ratio: 1 / 1 !important;
+    line-height: 1 !important;
+    padding: 0 !important;
+    border-radius: 50% !important;
+    flex: 0 0 1em !important;
+    box-sizing: content-box !important;
+    transform-origin: 50% 50% !important;
+    animation: v3024PerfectCircleSpin 0.7s linear infinite !important;
+}
+
+.preloader-circle-spinner {
+    width: 42px !important;
+    height: 42px !important;
+    min-width: 42px !important;
+    min-height: 42px !important;
+    aspect-ratio: 1 / 1 !important;
+    border-radius: 50% !important;
+    flex-shrink: 0 !important;
+}
+
+/* Matikan garis memanjang / spinner ganda lama pada tombol */
+.btn-working-indicator::after,
+button.btn-working-indicator::after,
+.btn.btn-working-indicator::after {
+    content: none !important;
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    animation: none !important;
+}
+
+/* Efek Lampu Berjalan Mengelilingi Tepi Tombol Saat Disentuh / Ditekan / Loading */
+button:active:not(:disabled),
+.btn:active:not(:disabled),
+button.btn-tap-pressed:not(:disabled),
+.btn.btn-tap-pressed:not(:disabled),
+.btn-working-indicator,
+button.btn-working-indicator,
+.btn.btn-working-indicator,
+.type-card.btn-tap-pressed,
+.item-card.btn-tap-pressed,
+.brand-card.btn-tap-pressed,
+.topup-nom-chip.btn-tap-pressed,
+.v30-topup-tab-btn.btn-tap-pressed,
+.cs-subtab-btn.btn-tap-pressed,
+.filter-pill.btn-tap-pressed {
+    transform: translateY(1px) !important;
+    border: 2.5px solid transparent !important;
+    background-origin: border-box !important;
+    background-clip: padding-box, border-box !important;
+    background-image:
+        linear-gradient(var(--primary, #2563eb), var(--primary, #2563eb)),
+        conic-gradient(from var(--v3024-beam-angle, 0deg), #09090b 0deg, #facc15 65deg, #ffffff 105deg, #38bdf8 155deg, #09090b 225deg, #facc15 305deg, #09090b 360deg) !important;
+    animation: v3024BorderLightOrbit 0.65s linear infinite !important;
+}
+
+.btn-outline:active:not(:disabled),
+.btn-outline.btn-tap-pressed:not(:disabled),
+.btn-outline.btn-working-indicator,
+.type-card.btn-tap-pressed,
+.item-card.btn-tap-pressed,
+.brand-card.btn-tap-pressed,
+.topup-nom-chip.btn-tap-pressed,
+.cs-subtab-btn.btn-tap-pressed,
+.filter-pill.btn-tap-pressed {
+    background-image:
+        linear-gradient(var(--surface, #ffffff), var(--surface, #ffffff)),
+        conic-gradient(from var(--v3024-beam-angle, 0deg), #09090b 0deg, #facc15 65deg, #38bdf8 125deg, #2563eb 180deg, #09090b 250deg, #facc15 320deg, #09090b 360deg) !important;
+    color: var(--text) !important;
+}
+
+.btn-success:active:not(:disabled),
+.btn-success.btn-tap-pressed:not(:disabled),
+.btn-success.btn-working-indicator {
+    background-image:
+        linear-gradient(#10b981, #10b981),
+        conic-gradient(from var(--v3024-beam-angle, 0deg), #09090b 0deg, #facc15 70deg, #ffffff 120deg, #34d399 180deg, #09090b 260deg, #facc15 330deg, #09090b 360deg) !important;
+    color: #ffffff !important;
+}
+
+.btn-danger:active:not(:disabled),
+.btn-danger.btn-tap-pressed:not(:disabled),
+.btn-danger.btn-working-indicator {
+    background-image:
+        linear-gradient(#ef4444, #ef4444),
+        conic-gradient(from var(--v3024-beam-angle, 0deg), #09090b 0deg, #facc15 70deg, #ffffff 120deg, #f87171 180deg, #09090b 260deg, #facc15 330deg, #09090b 360deg) !important;
+    color: #ffffff !important;
+}
