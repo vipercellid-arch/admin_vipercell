@@ -13442,7 +13442,7 @@ function mergeWaLogsLists(firestoreLogs, vpsLogs) {
 let _firestoreWaLogsRaw = [];
 let _vpsWaLogsRaw = [];
 
-onSnapshot(collection(db, pathWaLogs), (snap) => {
+if (false) onSnapshot(collection(db, pathWaLogs), (snap) => {
     _firestoreWaLogsRaw = [];
     snap.forEach(d => _firestoreWaLogsRaw.push({ dbId: d.id, ...d.data() }));
     adminWaLogsList = mergeWaLogsLists(_firestoreWaLogsRaw, _vpsWaLogsRaw);
@@ -14026,4 +14026,97 @@ window.submitAdminManualOrder = async function() {
             btn.innerHTML = ogHtml;
         }
     }
+};
+
+/* === VIPERCELL v30.2.5 MASTER PATCH === */
+
+// 1. Nonaktifkan Seluruh Fungsi Integrasi WhatsApp di Web Admin
+window.checkAdminVpsWaStatus = async function() {};
+window.sendAdminWaTestMessageNow = async function() {};
+window.saveAdminWaIntegrationSettings = async function() {};
+window.renderAdminWaLogsTable = function() {};
+window.refreshAdminWaLogsNow = async function() {};
+
+// 2. Panel Custom Action URL Firebase Auth di Pengaturan Web Admin (Usulan #3)
+window.updateFirebaseCustomActionUrlPreview = function() {
+    const inp = document.getElementById('set-web-user-domain-url');
+    const prev = document.getElementById('preview-firebase-action-url');
+    if (!prev) return;
+    let raw = (inp?.value || siteSettings?.webUserDomainUrl || 'https://vipercell.cloud').trim();
+    if (!raw) raw = 'https://vipercell.cloud';
+    if (!/^https?:\/\//i.test(raw)) raw = 'https://' + raw;
+    raw = raw.replace(/\/+$/, '');
+    prev.value = raw + '/';
+};
+
+window.copyFirebaseCustomActionUrl = function() {
+    window.updateFirebaseCustomActionUrlPreview();
+    const prev = document.getElementById('preview-firebase-action-url');
+    const val = (prev?.value || 'https://vipercell.cloud/').trim();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(val).catch(() => {});
+    }
+    if (siteSettings) {
+        siteSettings.webUserDomainUrl = val;
+        setDoc(doc(db, pathSettings, 'mainConfig'), { webUserDomainUrl: val }, { merge: true }).catch(() => {});
+    }
+    window.showToast('URL Disalin', `Custom Action URL (${val}) siap ditempel ke Firebase Console.`, 'success');
+};
+
+setTimeout(() => {
+    const inp = document.getElementById('set-web-user-domain-url');
+    if (inp && siteSettings?.webUserDomainUrl) {
+        inp.value = siteSettings.webUserDomainUrl;
+    }
+    window.updateFirebaseCustomActionUrlPreview();
+}, 800);
+
+// 3. Kalkulator Estimasi Profit & Margin Otomatis di Modal Buat Pesanan Admin (Usulan #5)
+let _admSelectedCreateOrderModalCost = 0;
+
+window.updateAdminCreateOrderProfitCalc = function() {
+    const sellPrice = Math.max(0, Math.round(Number(document.getElementById('adm-new-ord-price')?.value || 0)));
+    const modalCost = Math.max(0, Math.round(Number(_admSelectedCreateOrderModalCost || 0)));
+    const profit = sellPrice - modalCost;
+    const marginPct = sellPrice > 0 ? Math.round((profit / sellPrice) * 100) : 0;
+
+    const modalEl = document.getElementById('adm-new-ord-modal-lbl');
+    const sellEl = document.getElementById('adm-new-ord-sell-lbl');
+    const profitEl = document.getElementById('adm-new-ord-profit-lbl');
+
+    if (modalEl) modalEl.innerText = `Rp${modalCost.toLocaleString('id-ID')}`;
+    if (sellEl) sellEl.innerText = `Rp${sellPrice.toLocaleString('id-ID')}`;
+    if (profitEl) {
+        const sign = profit >= 0 ? '+' : '-';
+        profitEl.innerText = `${sign}Rp${Math.abs(profit).toLocaleString('id-ID')} (${marginPct}%)`;
+        profitEl.className = `code-mono ${profit >= 0 ? 'text-success' : 'text-danger'}`;
+    }
+};
+
+const _origOpenAdminCreateOrderModalV3024 = window.openAdminCreateOrderModal;
+window.openAdminCreateOrderModal = function() {
+    _admSelectedCreateOrderModalCost = 0;
+    if (typeof _origOpenAdminCreateOrderModalV3024 === 'function') {
+        _origOpenAdminCreateOrderModalV3024();
+    }
+    window.updateAdminCreateOrderProfitCalc();
+};
+
+window.onAdminCreateOrderProductSelect = function() {
+    const dbId = document.getElementById('adm-new-ord-product')?.value || '';
+    const prod = (Array.isArray(products) ? products : []).find(p => p.dbId === dbId);
+    if (!prod) {
+        _admSelectedCreateOrderModalCost = 0;
+        window.updateAdminCreateOrderProfitCalc();
+        return;
+    }
+    const itemNameInp = document.getElementById('adm-new-ord-item-name');
+    const skuInp = document.getElementById('adm-new-ord-sku');
+    const priceInp = document.getElementById('adm-new-ord-price');
+    if (itemNameInp) itemNameInp.value = `${prod.brandName || 'Produk'} - ${prod.name || ''}`;
+    if (skuInp) skuInp.value = prod.buyerSkuCode || '';
+    if (priceInp) priceInp.value = Number(prod.priceNum || prod.price || 0);
+
+    _admSelectedCreateOrderModalCost = Number(prod.digiflazzModalPrice || prod.baseCost || prod.modalPrice || 0);
+    window.updateAdminCreateOrderProfitCalc();
 };
