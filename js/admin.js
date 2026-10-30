@@ -13942,7 +13942,7 @@ window.submitAdminManualOrder = async function() {
 
     try {
         const now = Date.now();
-        let invId = 'VP-' + Math.floor(100000 + Math.random() * 900000);
+        let invId = (window.generateSecureAdminOrderIdV3026 ? window.generateSecureAdminOrderIdV3026('VP') : ('VP-' + Math.floor(100000 + Math.random() * 900000)));
         while (orders.some(o => o.id === invId)) {
             invId = 'VP-' + Math.floor(100000 + Math.random() * 900000);
         }
@@ -14119,4 +14119,20 @@ window.onAdminCreateOrderProductSelect = function() {
 
     _admSelectedCreateOrderModalCost = Number(prod.digiflazzModalPrice || prod.baseCost || prod.modalPrice || 0);
     window.updateAdminCreateOrderProfitCalc();
+};
+
+/* === VIPERCELL v30.2.6 SECURITY HARDENING PATCH === */
+window.generateSecureAdminOrderIdV3026 = function(prefix = 'VP') {
+    const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+    const arr = new Uint8Array(10);
+    if (window.crypto && window.crypto.getRandomValues) {
+        window.crypto.getRandomValues(arr);
+    } else {
+        for (let i = 0; i < 10; i++) arr[i] = Math.floor(Math.random() * 256);
+    }
+    let code = '';
+    for (let i = 0; i < 10; i++) {
+        code += chars[arr[i] % chars.length];
+    }
+    return `${prefix}-${code}`;
 };
